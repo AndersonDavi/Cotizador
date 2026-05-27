@@ -6,13 +6,13 @@ import '../styles/global.css';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cotizador — Chiguiro / Anderson Rueda</title>
+    <title>Cotizador proyectos Freelance</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
     <div class="app">
       <aside class="panel-side">
-        <h1 class="app-title">📄 Cotizador <small>Chiguiro</small></h1>
+        <h1 class="app-title">📄 Cotizador</h1>
 
         <div class="section">
           <header>Cotización</header>
@@ -57,7 +57,8 @@ import '../styles/global.css';
               <select id="plantilla"></select>
             </div>
             <div class="row compact">
-              <div class="color-row"><label>Fondo</label><input id="colorBg" type="color" /></div>
+              <div class="color-row"><label>Fondo 1</label><input id="colorBg" type="color" /></div>
+              <div class="color-row"><label>Fondo 2</label><input id="colorBg2" type="color" /></div>
               <div class="color-row"><label>Acento</label><input id="colorAccent" type="color" /></div>
               <div class="color-row"><label>Texto</label><input id="colorText" type="color" /></div>
             </div>
@@ -163,11 +164,11 @@ import '../styles/global.css';
         <div class="actions-bar">
           <button id="saveBtn">💾 Guardar</button>
           <button id="newBtn">＋ Nueva</button>
+          <button id="exportMdBtn" title="Exportar como Markdown">⬇ MD</button>
           <button id="pngBtn">🖼 PNG</button>
           <button id="pdfBtn" class="primary">📄 PDF</button>
           <button id="exportJsonBtn" title="Exportar como JSON">⬇ JSON</button>
           <button id="importJsonBtn" title="Importar desde JSON">⬆ JSON</button>
-          <button id="exportMdBtn" title="Exportar como Markdown">⬇ MD</button>
         </div>
       </aside>
 

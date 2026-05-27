@@ -149,6 +149,7 @@ input:focus, select:focus, textarea:focus {
 
 .row { display: flex; gap: 8px; align-items: center; }
 .row > * { flex: 1; }
+.row.compact { flex-wrap: wrap; }
 .row.compact > * { flex: initial; }
 
 button {

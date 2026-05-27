@@ -183,6 +183,7 @@ function effectiveTemplate(c: Cotizacion): Template {
   return {
     ...base,
     headerBg: o.bg ?? base.headerBg,
+    headerBg2: o.bg2 ?? base.headerBg2,
     accent: o.accent ?? base.accent,
     text: o.text ?? base.text,
     cardBg: o.cardBg ?? base.cardBg,

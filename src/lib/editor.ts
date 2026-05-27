@@ -352,8 +352,9 @@ function hydrateForm() {
   (document.getElementById('terminos') as HTMLTextAreaElement).value = state.terminos.join('\n');
 
   (document.getElementById('colorBg') as HTMLInputElement).value = state.coloresOverride.bg ?? TEMPLATES[state.plantilla].headerBg;
+  (document.getElementById('colorBg2') as HTMLInputElement).value = state.coloresOverride.bg2 ?? TEMPLATES[state.plantilla].headerBg2;
   (document.getElementById('colorAccent') as HTMLInputElement).value = state.coloresOverride.accent ?? TEMPLATES[state.plantilla].accent;
-  (document.getElementById('colorText') as HTMLInputElement).value = state.coloresOverride.text ?? TEMPLATES[state.plantilla].text;
+  (document.getElementById('colorText') as HTMLInputElement).value = state.coloresOverride.text ?? TEMPLATES[state.plantilla].cardText;
 
   const b = state.branding;
   (document.getElementById('repNombre') as HTMLInputElement).value = b.representante.nombre;
@@ -427,8 +428,13 @@ export function initEditor() {
   bind('terminos', v => state.terminos = v.split('\n').map(s => s.trim()).filter(Boolean));
 
   bind('colorBg', v => state.coloresOverride.bg = v);
+  bind('colorBg2', v => state.coloresOverride.bg2 = v);
   bind('colorAccent', v => state.coloresOverride.accent = v);
-  bind('colorText', v => state.coloresOverride.text = v);
+  bind('colorText', v => {
+    // Afecta tanto el texto del encabezado como el de las tarjetas
+    state.coloresOverride.text = v;
+    state.coloresOverride.cardText = v;
+  });
 
   bind('repNombre', v => state.branding.representante.nombre = v);
   bind('repCedula', v => state.branding.representante.cedula = v);

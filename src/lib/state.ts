@@ -32,6 +32,7 @@ export type Branding = {
 
 export type ColoresOverride = {
   bg?: string;
+  bg2?: string;
   accent?: string;
   text?: string;
   cardBg?: string;
