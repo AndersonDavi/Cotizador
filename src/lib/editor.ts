@@ -371,9 +371,26 @@ function hydrateForm() {
 }
 
 function updateLogoPreview() {
-  const img = $('logoPreview') as HTMLImageElement;
-  if (state.branding.logoDataUrl) { img.src = state.branding.logoDataUrl; img.style.display = 'block'; }
-  else { img.style.display = 'none'; }
+  const area = document.getElementById('logoArea');
+  const img = document.getElementById('logoPreview') as HTMLImageElement;
+  const editBtn = document.getElementById('logoEditBtn') as HTMLElement | null;
+  const clearBtn = document.getElementById('logoClear') as HTMLElement | null;
+  const hint = area?.querySelector('.logo-empty-hint') as HTMLElement | null;
+
+  if (state.branding.logoDataUrl) {
+    img.src = state.branding.logoDataUrl;
+    img.style.display = 'block';
+    area?.classList.add('has-logo');
+    if (editBtn) editBtn.style.display = 'flex';
+    if (clearBtn) clearBtn.style.display = 'inline-flex';
+    if (hint) hint.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    area?.classList.remove('has-logo');
+    if (editBtn) editBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+    if (hint) hint.style.display = 'flex';
+  }
 }
 function updateFirmaPreview() {
   const img = $('firmaPreview') as HTMLImageElement;
@@ -444,7 +461,13 @@ export function initEditor() {
   bind('cCiudad', v => state.branding.contacto.ciudad = v);
   bind('cPais', v => state.branding.contacto.pais = v);
 
-  // Logo upload
+  // Logo — el área clickeable activa el file input oculto
+  document.getElementById('logoArea')?.addEventListener('click', () => {
+    ($('logoFile') as HTMLInputElement).click();
+  });
+  document.getElementById('logoArea')?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ($('logoFile') as HTMLInputElement).click(); }
+  });
   ($('logoFile') as HTMLInputElement).addEventListener('change', async (ev) => {
     const f = (ev.target as HTMLInputElement).files?.[0];
     if (!f) return;
@@ -454,6 +477,7 @@ export function initEditor() {
   });
   $('logoClear').addEventListener('click', () => {
     state.branding.logoDataUrl = undefined;
+    ($('logoFile') as HTMLInputElement).value = '';
     updateLogoPreview();
     refresh();
   });
@@ -558,6 +582,14 @@ export function initEditor() {
       console.error(e);
       toast(e?.message ?? 'Error al importar JSON', 'err');
     }
+  });
+
+  // Panel dev (MD + JSON)
+  document.getElementById('advToggleBtn')?.addEventListener('click', () => {
+    const panel = document.getElementById('advPanel');
+    const btn = document.getElementById('advToggleBtn');
+    const open = panel?.classList.toggle('hidden') === false;
+    btn?.classList.toggle('active', open);
   });
 
   // Modal de bienvenida
