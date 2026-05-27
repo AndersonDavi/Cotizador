@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",
+    "@fontsource/roboto": "^5.2.10",
     "astro": "^4.16.0",
     "driver.js": "^1.4.0",
     "jspdf": "^2.5.2"

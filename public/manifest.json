@@ -1,0 +1,39 @@
+{
+  "name": "Cotizador — Propuestas económicas para freelancers",
+  "short_name": "Cotizador",
+  "description": "Crea cotizaciones personalizadas, calcula totales automáticamente y expórtalas en PDF o PNG. Sin registro ni instalación.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#1a1d24",
+  "lang": "es-CO",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/logo.webp",
+      "sizes": "any",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/og-image.webp",
+      "sizes": "1200x630",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Editor de cotizaciones"
+    }
+  ]
+}

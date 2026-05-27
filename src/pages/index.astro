@@ -1,6 +1,11 @@
 ---
 import '../styles/global.css';
 import 'driver.js/dist/driver.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import '@fontsource/roboto/800.css';
+import '@fontsource/roboto/900.css';
 
 const SITE = 'https://cotizador.andersonrueda.com';
 const TITLE = 'Cotizador — Propuestas económicas para freelancers';
@@ -16,28 +21,78 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
     <meta name="description" content={DESC} />
     <meta name="keywords" content="cotizador freelance, propuesta económica, cotización PDF, generador de cotizaciones, presupuesto online, cotización PNG" />
     <meta name="author" content="Anderson Rueda" />
+    <meta name="robots" content="index, follow" />
     <link rel="canonical" href={SITE} />
 
     <!-- Open Graph -->
-    <meta property="og:type"        content="website" />
-    <meta property="og:url"         content={SITE} />
-    <meta property="og:title"       content={TITLE} />
-    <meta property="og:description" content={DESC} />
-    <meta property="og:locale"      content="es_CO" />
+    <meta property="og:type"         content="website" />
+    <meta property="og:url"          content={SITE} />
+    <meta property="og:site_name"    content="Cotizador" />
+    <meta property="og:title"        content={TITLE} />
+    <meta property="og:description"  content={DESC} />
+    <meta property="og:locale"       content="es_CO" />
+    <meta property="og:image"        content={`${SITE}/og-image.webp`} />
+    <meta property="og:image:type"   content="image/webp" />
+    <meta property="og:image:width"  content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt"    content="Editor de cotizaciones Cotizador — panel de opciones y vista previa de propuesta" />
 
     <!-- Twitter Card -->
-    <meta name="twitter:card"        content="summary" />
+    <meta name="twitter:card"        content="summary_large_image" />
     <meta name="twitter:title"       content={TITLE} />
     <meta name="twitter:description" content={DESC} />
+    <meta name="twitter:image"       content={`${SITE}/og-image.webp`} />
+    <meta name="twitter:image:alt"   content="Editor de cotizaciones Cotizador" />
 
+    <!-- PWA / Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1a1d24" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cotizador" />
+
+    <!-- Favicons -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/logo-512.webp" />
+
+    <!-- JSON-LD Schema.org -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Cotizador",
+      "url": SITE,
+      "description": DESC,
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "browserRequirements": "Requires JavaScript. Compatible con Chrome, Firefox, Safari y Edge.",
+      "inLanguage": "es-CO",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "COP"
+      },
+      "image": `${SITE}/og-image.webp`,
+      "screenshot": `${SITE}/og-image.webp`,
+      "author": {
+        "@type": "Person",
+        "name": "Anderson Rueda",
+        "url": "https://andersonrueda.com",
+        "sameAs": ["https://github.com/AndersonDavi", "https://www.linkedin.com/in/anderson-david-rueda-consuegra/"]
+      }
+    })} />
   </head>
   <body>
     <div class="app">
       <aside class="panel-side">
         <div class="sidebar-head">
-          <h1 class="app-title">📄 Cotizador</h1>
-          <button id="tourBtn" class="tour-btn icon-btn" title="Ver guía interactiva">
+          <div class="app-brand">
+            <img src="/logo.webp" alt="Cotizador logo" class="app-logo" width="36" height="36" />
+            <h1 class="app-title">Cotizador</h1>
+          </div>
+          <button id="tourBtn" class="tour-btn" title="Ver guía interactiva">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             Guía
           </button>
@@ -275,6 +330,17 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
         </div>
       </div>
     </div>
+
+    <noscript>
+      <style>.app { display: none; }</style>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#0f1115;color:#e0e0e0;text-align:center;padding:32px">
+        <strong style="font-size:1.4rem;margin-bottom:12px">Cotizador necesita JavaScript</strong>
+        <p style="max-width:420px;color:#9a9a9a;line-height:1.6">
+          Esta herramienta genera propuestas económicas directamente en tu navegador —
+          sin servidor ni registro. Activa JavaScript para usarla.
+        </p>
+      </div>
+    </noscript>
 
     <script>
       import { initEditor } from '../lib/editor';

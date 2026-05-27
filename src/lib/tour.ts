@@ -13,12 +13,24 @@ export function startTour(): void {
     doneBtnText: '¡Listo! ✓',
     progressText: '{{current}} de {{total}}',
 
-    // Expande secciones colapsadas automáticamente
+    // Expande secciones colapsadas y scrollea el sidebar al elemento
     onHighlightStarted: (el) => {
       if (!el) return;
-      const section = el.closest?.('.section');
+
+      // Expande si está colapsada
+      const section = el.closest('.section');
       if (section?.classList.contains('collapsed')) {
         section.classList.remove('collapsed');
+      }
+
+      // Driver.js solo scrollea el window; el sidebar tiene su propio scroll
+      const panel = document.querySelector('.panel-side') as HTMLElement | null;
+      if (panel?.contains(el as Node)) {
+        const elRect = (el as HTMLElement).getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        // Centra el elemento dentro del panel de forma síncrona
+        const offset = elRect.top - panelRect.top - panel.clientHeight / 2 + (el as HTMLElement).offsetHeight / 2;
+        panel.scrollTop += offset;
       }
     },
 
