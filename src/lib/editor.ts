@@ -624,13 +624,16 @@ function showWelcomeIfNeeded() {
 
   const close = () => overlay.classList.add('hidden');
 
-  document.getElementById('welcomeStart')?.addEventListener('click', close);
-
-  document.getElementById('welcomeTour')?.addEventListener('click', () => {
+  // Empezar → cierra modal e inicia el tour
+  document.getElementById('welcomeStart')?.addEventListener('click', () => {
     close();
     setTimeout(() => startTour(), 350);
   });
 
+  // Saltar guía → solo cierra
+  document.getElementById('welcomeSkip')?.addEventListener('click', close);
+
+  // No volver a mostrar → cierra sin tour y guarda preferencia
   document.getElementById('welcomeNever')?.addEventListener('click', () => {
     localStorage.setItem(LS_KEY, 'true');
     close();

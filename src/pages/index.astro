@@ -43,7 +43,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
           </button>
         </div>
 
-        <div class="section">
+        <div id="section-cotizacion" class="section">
           <header>Cotización</header>
           <div class="body">
             <div class="row">
@@ -112,7 +112,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
         <div class="section">
           <header>Ítems</header>
           <div class="body">
-            <div class="items-toolbar">
+            <div id="items-toolbar" class="items-toolbar">
               <div class="items-toolbar-group">
                 <span class="toolbar-label">Ordenar</span>
                 <button id="sort-precio" class="chip-btn" title="Ordenar por precio">
@@ -134,11 +134,11 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
               </button>
             </div>
             <div id="items"></div>
-            <button id="addItem">+ Agregar ítem</button>
+            <button id="addItem" style="width:100%;margin-top:6px">+ Agregar ítem</button>
           </div>
         </div>
 
-        <div class="section collapsed">
+        <div id="section-terminos" class="section collapsed">
           <header>Entrega y términos</header>
           <div class="body">
             <div>
@@ -174,7 +174,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
           </div>
         </div>
 
-        <div class="section collapsed">
+        <div id="section-contacto" class="section collapsed">
           <header>Contacto</header>
           <div class="body">
             <div><label>Web</label><input id="cWeb" type="text" /></div>
@@ -187,7 +187,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
           </div>
         </div>
 
-        <div class="section collapsed">
+        <div id="section-guardadas" class="section collapsed">
           <header>Guardadas</header>
           <div class="body">
             <div id="savedList" class="saved-list"></div>
@@ -198,7 +198,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
         <input id="importJsonFile" type="file" accept=".json,application/json" style="display:none" />
 
         <div class="actions-bar">
-          <div class="actions-main">
+          <div id="actions-main" class="actions-main">
             <button id="saveBtn">💾 Guardar</button>
             <button id="newBtn">＋ Nueva</button>
             <button id="pngBtn">🖼 PNG</button>
@@ -260,11 +260,10 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
         </div>
 
         <div class="modal-actions">
-          <button id="welcomeStart" class="primary modal-start">Empezar →</button>
-          <button id="welcomeTour" class="modal-tour">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Ver guía interactiva
+          <button id="welcomeStart" class="primary modal-start">
+            Empezar con guía interactiva →
           </button>
+          <button id="welcomeSkip" class="modal-tour">Saltar guía</button>
           <button id="welcomeNever" class="modal-never">No volver a mostrar</button>
         </div>
       </div>
