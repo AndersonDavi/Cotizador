@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Fondo redondeado -->
+  <rect width="32" height="32" rx="7" fill="#1a1d24"/>
+  <!-- Ícono recibo (Lucide receipt, adaptado a 32px) -->
+  <g transform="translate(6, 4) scale(0.83)" stroke="#E8C547" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/>
+    <path d="M8 8h8"/>
+    <path d="M8 12h8"/>
+    <path d="M8 16h5"/>
+  </g>
+</svg>
