@@ -17,6 +17,7 @@ import {
 import { getAllIconKeys, getIconLabel, buildIconDataUrl, type IconKey } from './icons';
 import { TEMPLATE_IDS, TEMPLATES, type TemplateId } from './templates';
 import { renderPreview, exportPdf, exportPng, exportJson, importJsonFromFile, exportMarkdown } from './export';
+import { startTour } from './tour';
 
 let state: Cotizacion;
 let renderTimer: number | null = null;
@@ -584,6 +585,9 @@ export function initEditor() {
     }
   });
 
+  // Botón guía (sidebar header)
+  document.getElementById('tourBtn')?.addEventListener('click', () => startTour());
+
   // Panel dev (MD + JSON)
   document.getElementById('advToggleBtn')?.addEventListener('click', () => {
     const panel = document.getElementById('advPanel');
@@ -621,6 +625,11 @@ function showWelcomeIfNeeded() {
   const close = () => overlay.classList.add('hidden');
 
   document.getElementById('welcomeStart')?.addEventListener('click', close);
+
+  document.getElementById('welcomeTour')?.addEventListener('click', () => {
+    close();
+    setTimeout(() => startTour(), 350);
+  });
 
   document.getElementById('welcomeNever')?.addEventListener('click', () => {
     localStorage.setItem(LS_KEY, 'true');

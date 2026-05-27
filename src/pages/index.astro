@@ -1,9 +1,10 @@
 ---
 import '../styles/global.css';
+import 'driver.js/dist/driver.css';
 
 const SITE = 'https://cotizador.andersonrueda.com';
 const TITLE = 'Cotizador — Propuestas económicas para freelancers';
-const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticamente y expórtalas en PDF o PNG. Sin registro, 100% en tu navegador.';
+const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticamente y expórtalas en PDF o PNG. Sin registro ni instalación.';
 ---
 <!doctype html>
 <html lang="es">
@@ -34,7 +35,13 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
   <body>
     <div class="app">
       <aside class="panel-side">
-        <h1 class="app-title">📄 Cotizador</h1>
+        <div class="sidebar-head">
+          <h1 class="app-title">📄 Cotizador</h1>
+          <button id="tourBtn" class="tour-btn icon-btn" title="Ver guía interactiva">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Guía
+          </button>
+        </div>
 
         <div class="section">
           <header>Cotización</header>
@@ -71,7 +78,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
           </div>
         </div>
 
-        <div class="section">
+        <div id="section-colores" class="section">
           <header>Plantilla y colores</header>
           <div class="body">
             <div style="display:none">
@@ -145,7 +152,7 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
           </div>
         </div>
 
-        <div class="section collapsed">
+        <div id="section-firma" class="section collapsed">
           <header>Representante legal</header>
           <div class="body">
             <div>
@@ -236,9 +243,9 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
         </div>
 
         <p class="modal-desc">
-          Crea cotizaciones personalizadas, calcula totales automáticamente
-          y expórtalas en <strong>PDF</strong> o <strong>PNG</strong>.<br />
-          Sin registro, sin backend — todo queda en tu navegador.
+          Arma propuestas económicas profesionales con ítems, colores y logo
+          propios. Expórtalas en <strong>PDF</strong> o <strong>PNG</strong> en segundos.<br />
+          Sin registro ni instalación — todo funciona directo en tu navegador.
         </p>
 
         <div class="modal-links">
@@ -254,6 +261,10 @@ const DESC  = 'Crea cotizaciones personalizadas, calcula totales automáticament
 
         <div class="modal-actions">
           <button id="welcomeStart" class="primary modal-start">Empezar →</button>
+          <button id="welcomeTour" class="modal-tour">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Ver guía interactiva
+          </button>
           <button id="welcomeNever" class="modal-never">No volver a mostrar</button>
         </div>
       </div>
