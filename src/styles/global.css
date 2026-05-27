@@ -512,6 +512,9 @@ button.icon-btn { padding: 6px 8px; font-size: 12px; }
 .logo-edit-btn:hover { background: rgba(0,0,0,0.8); }
 .logo-clear-btn { margin-top: 5px; font-size: 11px; }
 
+/* La firma es más ancha y más baja que el logo */
+.firma-upload-area { width: 100%; height: 64px; }
+
 /* ── Actions bar ────────────────────────────────────────────────────────── */
 .actions-bar {
   position: sticky;

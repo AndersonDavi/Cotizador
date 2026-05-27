@@ -394,10 +394,27 @@ function updateLogoPreview() {
   }
 }
 function updateFirmaPreview() {
-  const img = $('firmaPreview') as HTMLImageElement;
+  const area = document.getElementById('firmaArea');
+  const img = document.getElementById('firmaPreview') as HTMLImageElement;
+  const editBtn = document.getElementById('firmaEditBtn') as HTMLElement | null;
+  const clearBtn = document.getElementById('firmaClear') as HTMLElement | null;
+  const hint = area?.querySelector('.logo-empty-hint') as HTMLElement | null;
   const url = state.branding.representante.firmaDataUrl;
-  if (url) { img.src = url; img.style.display = 'block'; }
-  else { img.style.display = 'none'; }
+
+  if (url) {
+    img.src = url;
+    img.style.display = 'block';
+    area?.classList.add('has-logo');
+    if (editBtn) editBtn.style.display = 'flex';
+    if (clearBtn) clearBtn.style.display = 'inline-flex';
+    if (hint) hint.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    area?.classList.remove('has-logo');
+    if (editBtn) editBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+    if (hint) hint.style.display = 'flex';
+  }
 }
 
 // ---------- init ----------
@@ -483,7 +500,13 @@ export function initEditor() {
     refresh();
   });
 
-  // Firma upload
+  // Firma — área clickeable abre el file input oculto
+  document.getElementById('firmaArea')?.addEventListener('click', () => {
+    ($('firmaFile') as HTMLInputElement).click();
+  });
+  document.getElementById('firmaArea')?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ($('firmaFile') as HTMLInputElement).click(); }
+  });
   ($('firmaFile') as HTMLInputElement).addEventListener('change', async (ev) => {
     const f = (ev.target as HTMLInputElement).files?.[0];
     if (!f) return;
@@ -493,6 +516,7 @@ export function initEditor() {
   });
   $('firmaClear').addEventListener('click', () => {
     state.branding.representante.firmaDataUrl = undefined;
+    ($('firmaFile') as HTMLInputElement).value = '';
     updateFirmaPreview();
     refresh();
   });
