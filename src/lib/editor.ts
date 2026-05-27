@@ -560,6 +560,9 @@ export function initEditor() {
     }
   });
 
+  // Modal de bienvenida
+  showWelcomeIfNeeded();
+
   // Cierra icon-pickers al hacer clic fuera
   document.addEventListener('click', () => {
     document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
@@ -571,6 +574,36 @@ export function initEditor() {
   });
 
   refresh();
+}
+
+// ── Modal de bienvenida ────────────────────────────────────────────────────
+function showWelcomeIfNeeded() {
+  const LS_KEY = 'cotizador:welcomed';
+  if (localStorage.getItem(LS_KEY) === 'true') return;
+
+  const overlay = document.getElementById('welcomeModal');
+  if (!overlay) return;
+
+  overlay.classList.remove('hidden');
+
+  const close = () => overlay.classList.add('hidden');
+
+  document.getElementById('welcomeStart')?.addEventListener('click', close);
+
+  document.getElementById('welcomeNever')?.addEventListener('click', () => {
+    localStorage.setItem(LS_KEY, 'true');
+    close();
+  });
+
+  // Cierra al hacer clic en el fondo oscuro
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) close();
+  });
+
+  // Cierra con Escape
+  document.addEventListener('keydown', function onEsc(ev) {
+    if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
 }
 
 function bind(id: string, setter: (v: string) => void) {
