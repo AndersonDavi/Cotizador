@@ -1,0 +1,191 @@
+---
+import '../styles/global.css';
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cotizador — Chiguiro / Anderson Rueda</title>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="panel-side">
+        <h1 class="app-title">📄 Cotizador <small>Chiguiro</small></h1>
+
+        <div class="section">
+          <header>Cotización</header>
+          <div class="body">
+            <div class="row">
+              <div style="flex:1">
+                <label>N° cotización</label>
+                <input id="numero" type="text" />
+              </div>
+              <div style="flex:1">
+                <label>Fecha</label>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <input id="fecha" type="text" placeholder="dd-mm-aaaa" style="flex:1;min-width:0;" />
+                  <button id="fechaPickerBtn" type="button" class="icon-btn" title="Abrir calendario" style="flex:initial;padding:6px 8px;line-height:1;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                  <input id="fechaHidden" type="date" style="display:none;position:absolute;pointer-events:none;" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label>Alcance</label>
+              <textarea id="alcance" rows="3" placeholder="Modificaciones en el proyecto..."></textarea>
+            </div>
+            <div class="row" style="align-items:flex-end">
+              <div style="flex:1">
+                <label>Costo total (COP)</label>
+                <input id="costoTotal" type="number" />
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;flex:initial;text-transform:none;letter-spacing:0;font-size:12px;color:var(--text);margin-bottom:8px">
+                <input id="costoAuto" type="checkbox" /> Auto (suma de ítems)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <header>Plantilla y colores</header>
+          <div class="body">
+            <div style="display:none">
+              <label>Plantilla</label>
+              <select id="plantilla"></select>
+            </div>
+            <div class="row compact">
+              <div class="color-row"><label>Fondo</label><input id="colorBg" type="color" /></div>
+              <div class="color-row"><label>Acento</label><input id="colorAccent" type="color" /></div>
+              <div class="color-row"><label>Texto</label><input id="colorText" type="color" /></div>
+            </div>
+            <div>
+              <label>Logo</label>
+              <div class="row">
+                <input id="logoFile" type="file" accept="image/*" style="font-size:11px" />
+                <button id="logoClear" class="icon-btn" style="flex:initial">Quitar</button>
+              </div>
+              <img id="logoPreview" style="margin-top:6px;max-width:120px;max-height:80px;background:#fff;border-radius:4px;padding:4px;display:none" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <header>Ítems</header>
+          <div class="body">
+            <div class="items-toolbar">
+              <div class="items-toolbar-group">
+                <span class="toolbar-label">Ordenar</span>
+                <button id="sort-precio" class="chip-btn" title="Ordenar por precio">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  Precio
+                </button>
+                <button id="sort-titulo" class="chip-btn" title="Ordenar por título">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                  Título
+                </button>
+                <button id="sort-tipo" class="chip-btn" title="Ordenar por tipo">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                  Tipo
+                </button>
+              </div>
+              <button id="toggleAllItems" class="chip-btn chip-btn-outline">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Colapsar todo
+              </button>
+            </div>
+            <div id="items"></div>
+            <button id="addItem">+ Agregar ítem</button>
+          </div>
+        </div>
+
+        <div class="section collapsed">
+          <header>Entrega y términos</header>
+          <div class="body">
+            <div>
+              <label>Tiempo de entrega</label>
+              <textarea id="tiempoEntrega" rows="3"></textarea>
+            </div>
+            <div>
+              <label>Términos (una línea por término)</label>
+              <textarea id="terminos" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="section collapsed">
+          <header>Representante legal</header>
+          <div class="body">
+            <div>
+              <label>Nombre</label>
+              <input id="repNombre" type="text" />
+            </div>
+            <div>
+              <label>Cédula</label>
+              <input id="repCedula" type="text" />
+            </div>
+            <div>
+              <label>Firma (imagen)</label>
+              <div class="row">
+                <input id="firmaFile" type="file" accept="image/*" style="font-size:11px" />
+                <button id="firmaClear" class="icon-btn" style="flex:initial">Quitar</button>
+              </div>
+              <img id="firmaPreview" style="margin-top:6px;max-width:160px;max-height:60px;background:#fff;border-radius:4px;padding:4px;display:none" />
+            </div>
+            <div>
+              <label>Información bancaria</label>
+              <input id="banco" type="text" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section collapsed">
+          <header>Contacto</header>
+          <div class="body">
+            <div><label>Web</label><input id="cWeb" type="text" /></div>
+            <div><label>Email</label><input id="cEmail" type="email" /></div>
+            <div><label>Celular</label><input id="cCel" type="text" /></div>
+            <div class="row">
+              <div style="flex:1"><label>Ciudad</label><input id="cCiudad" type="text" /></div>
+              <div style="flex:1"><label>País</label><input id="cPais" type="text" /></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section collapsed">
+          <header>Guardadas</header>
+          <div class="body">
+            <div id="savedList" class="saved-list"></div>
+          </div>
+        </div>
+
+        <!-- Input oculto para importar JSON -->
+        <input id="importJsonFile" type="file" accept=".json,application/json" style="display:none" />
+
+        <div class="actions-bar">
+          <button id="saveBtn">💾 Guardar</button>
+          <button id="newBtn">＋ Nueva</button>
+          <button id="pngBtn">🖼 PNG</button>
+          <button id="pdfBtn" class="primary">📄 PDF</button>
+          <button id="exportJsonBtn" title="Exportar como JSON">⬇ JSON</button>
+          <button id="importJsonBtn" title="Importar desde JSON">⬆ JSON</button>
+          <button id="exportMdBtn" title="Exportar como Markdown">⬇ MD</button>
+        </div>
+      </aside>
+
+      <main class="panel-preview">
+        <div class="preview-wrap">
+          <canvas id="previewCanvas"></canvas>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+      import { initEditor } from '../lib/editor';
+      initEditor();
+    </script>
+  </body>
+</html>
