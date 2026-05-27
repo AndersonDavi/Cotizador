@@ -358,7 +358,6 @@ function hydrateForm() {
   const b = state.branding;
   (document.getElementById('repNombre') as HTMLInputElement).value = b.representante.nombre;
   (document.getElementById('repCedula') as HTMLInputElement).value = b.representante.cedula;
-  (document.getElementById('banco') as HTMLInputElement).value = b.banco;
   (document.getElementById('cWeb') as HTMLInputElement).value = b.contacto.web;
   (document.getElementById('cEmail') as HTMLInputElement).value = b.contacto.email;
   (document.getElementById('cCel') as HTMLInputElement).value = b.contacto.cel;
@@ -433,7 +432,6 @@ export function initEditor() {
 
   bind('repNombre', v => state.branding.representante.nombre = v);
   bind('repCedula', v => state.branding.representante.cedula = v);
-  bind('banco', v => state.branding.banco = v);
   bind('cWeb', v => state.branding.contacto.web = v);
   bind('cEmail', v => state.branding.contacto.email = v);
   bind('cCel', v => state.branding.contacto.cel = v);
