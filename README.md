@@ -1,34 +1,71 @@
 # Cotizador
 
-Generador de propuestas económicas para freelancers y agencias. Crea, personaliza y exporta cotizaciones profesionales en segundos — sin backend, sin registro, todo en el navegador.
+Generador de propuestas económicas para freelancers y agencias. Crea cotizaciones con tu logo, firma y colores, expórtalas en PDF con texto seleccionable y genera la cuenta de cobro cuando el cliente aprueba. Sin backend ni registro: todo queda en el navegador.
 
 ![Preview del cotizador](docs/preview.png)
 
 ## ¿Qué hace?
 
-- **Editor en vivo** — panel izquierdo con formulario, preview del PDF en tiempo real a la derecha
-- **Exporta a PDF, PNG, JSON y Markdown**
-- **Ítems con íconos** — cada ítem del presupuesto lleva ícono SVG, título, descripción y valor en COP
-- **Logo y firma** — sube tu logo y firma manuscrita, se renderizan en el documento
-- **Persistencia local** — autosave en `localStorage`, historial de cotizaciones guardadas
-- **100% estático** — no requiere servidor ni base de datos
+- **8 plantillas** (Clásica, Bloque, Noche, Diagonal, Estudio, Editorial, Redonda, Lateral). Todas se pintan con solo dos colores, principal y secundario, así cualquier marca se ve bien en cualquier diseño.
+- **PDF vectorial**: el texto se puede seleccionar y copiar, los enlaces funcionan y el PDF pesa poco.
+- **Tu marca una sola vez**: logo, firma (el fondo blanco se recorta solo), contacto y datos bancarios.
+- **Estados**: borrador, enviada, aprobada, cobrada, pagada o descartada, con filtro en "Guardadas".
+- **Cuenta de cobro** con el mismo total, el período del trabajo y el valor en letras.
+- **Exporta** PDF, PNG, JSON y Markdown. También importa JSON.
+- **Responsive**: en celular alternas entre editar y la vista previa.
+- **CLI** para Windows, macOS y Linux que usa el mismo render.
 
 ## Demo
 
-[andersondavi.github.io/cotizador](https://andersondavi.github.io/cotizador)
+[cotizador.andersonrueda.com](https://cotizador.andersonrueda.com)
 
 ## Correr localmente
 
-Requiere **Node.js 18+**
+Requiere **Node.js 18+**.
 
 ```bash
-git clone https://github.com/AndersonDavi/cotizador.git
-cd cotizador
 npm install
 npm run dev
 ```
 
-Abre [http://localhost:4321](http://localhost:4321)
+Abre [http://localhost:4321](http://localhost:4321).
+
+## CLI
+
+Usa el Edge (o Chrome) que ya tienes instalado; no descarga navegadores.
+
+```bash
+npm run cli -- pdf COTIZACION_00007.json
+```
+
+En Windows también puedes usar `cotizador.cmd` desde la carpeta del proyecto, o `npm link` para tener `cotizador` en cualquier terminal.
+
+```text
+cotizador pdf    COTIZACION_00007.json [-o salida.pdf]
+cotizador png    COTIZACION_00007.json [-o salida.png] [--escala 2]
+cotizador html   COTIZACION_00007.json [-o salida.html]
+cotizador md     COTIZACION_00007.json [-o salida.md]
+cotizador cuenta COTIZACION_00007.json --cliente grupo-logis --desde 07-09-2026 --hasta 15-10-2026 [--marcar]
+cotizador estado COTIZACION_00007.json [aprobada]
+cotizador lista  [carpeta]
+cotizador config
+```
+
+`cuenta --marcar` guarda en el JSON el cliente y el período, y marca la cotización como cobrada. Los datos que no están en la cotización (nombre completo, dirección, cuenta bancaria y clientes frecuentes) se leen de `~/.cotizador.json`:
+
+```json
+{
+  "emisor": { "nombreLegal": "NOMBRE COMPLETO", "direccion": "Calle …", "banco": "Cuenta de Ahorros BANCO No. …" },
+  "clientes": { "mi-cliente": { "nombre": "EMPRESA S.A.S.", "nit": "900.000.000" } }
+}
+```
+
+## Cómo se genera el documento
+
+El documento es HTML/CSS (`src/lib/doc.ts` y `src/lib/layouts.ts`), no canvas:
+
+- **Web**: la vista previa es ese HTML dentro de un `iframe`. El botón PDF llama a `print()` del iframe con `@page` del tamaño exacto del documento, así "Guardar como PDF" da una sola página vectorial. El PNG se dibuja con el motor del navegador (SVG `foreignObject`), con html2canvas como plan B.
+- **CLI**: Playwright abre el mismo HTML en Edge/Chrome y usa `page.pdf()` / `screenshot()`.
 
 ## Build para producción
 
@@ -36,14 +73,15 @@ Abre [http://localhost:4321](http://localhost:4321)
 npm run build
 ```
 
-La carpeta `dist/` contiene el sitio estático listo para subir a cualquier hosting.
+La carpeta `dist/` contiene el sitio estático listo para cualquier hosting.
 
 ## Stack
 
-- [Astro](https://astro.build/) — framework estático
-- [Canvas 2D API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API) — render del documento
-- [jsPDF](https://github.com/parallax/jsPDF) — exportación a PDF
+- [Astro](https://astro.build/) — sitio estático
+- HTML/CSS + `print()` — PDF vectorial
+- [Playwright](https://playwright.dev/) (`playwright-core`) — CLI
 - [Lucide Icons](https://lucide.dev/) — íconos SVG embebidos
+- Roboto, Poppins y Playfair Display vía [Fontsource](https://fontsource.org/)
 
 ## Licencia
 

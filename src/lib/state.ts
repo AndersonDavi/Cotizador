@@ -1,5 +1,6 @@
 import type { IconKey } from './icons';
 import type { TemplateId } from './templates';
+import type { Colores, DisenoId } from './theme';
 
 export type Item = {
   id: string;
@@ -26,8 +27,33 @@ export type Contacto = {
 export type Branding = {
   logoDataUrl?: string;
   representante: Representante;
-  banco: string;
+  banco: string;          // "Cuenta de Ahorros BANCOLOMBIA No. ..." (cuenta de cobro)
+  empresa?: string;       // nombre de la marca que muestran las plantillas
+  nombreLegal?: string;   // nombre completo para la cuenta de cobro
+  direccion?: string;
   contacto: Contacto;
+};
+
+export const ESTADOS = ['borrador', 'enviada', 'aprobada', 'cobrada', 'pagada', 'descartada'] as const;
+export type Estado = typeof ESTADOS[number];
+
+export const ESTADO_LABELS: Record<Estado, string> = {
+  borrador: 'Borrador',
+  enviada: 'Enviada',
+  aprobada: 'Aprobada',
+  cobrada: 'Cobrada',
+  pagada: 'Pagada',
+  descartada: 'Descartada',
+};
+
+export type Cliente = { nombre: string; nit: string };
+
+/** Datos para generar la cuenta de cobro de la cotización. Fechas dd-mm-aaaa. */
+export type DatosCobro = {
+  fecha?: string;
+  desde?: string;
+  hasta?: string;
+  concepto?: string;
 };
 
 export type ColoresOverride = {
@@ -51,7 +77,17 @@ export type Cotizacion = {
   plantilla: TemplateId;
   coloresOverride: ColoresOverride;
   branding: Branding;
+  diseno?: DisenoId;      // sin diseño = clásica
+  colores?: Colores;      // primario/secundario; sin colores = plantilla + coloresOverride (legado)
+  titulo?: string;        // "Propuesta económica" por defecto
+  estado?: Estado;        // sin estado = borrador (cotizaciones viejas)
+  cliente?: Cliente;
+  cobro?: DatosCobro;
 };
+
+export function estadoDe(c: Cotizacion): Estado {
+  return c.estado && (ESTADOS as readonly string[]).includes(c.estado) ? c.estado : 'borrador';
+}
 
 const LS = {
   draft: 'cotizador:draft',
@@ -78,7 +114,7 @@ export function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function today(): string {
+export function today(): string {
   const d = new Date();
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -101,6 +137,12 @@ export function nuevaCotizacion(numero = '00001'): Cotizacion {
     plantilla: 'oscura',
     coloresOverride: {},
     branding: defaultBranding(),
+    diseno: 'clasica',
+    colores: { primary: '#6B6300', secondary: '#F2DA23' },
+    titulo: 'Propuesta económica',
+    estado: 'borrador',
+    cliente: { nombre: '', nit: '' },
+    cobro: {},
   };
 }
 

@@ -1,6 +1,6 @@
 // ── Built-in icons ───────────────────────────────────────────────────────────
 // Paths de Lucide Icons (https://lucide.dev) — viewBox 0 0 24 24, stroke-based.
-// El color real se inyecta en buildIconDataUrl(); así funcionan en canvas sin CORS.
+// El color real se inyecta en buildIconSvg()/buildIconDataUrl().
 
 const SVG_PATHS: Record<string, string> = {
   search:   '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
@@ -83,22 +83,6 @@ export function buildIconSvg(key: string, color: string, strokeWidth = 2): strin
 export function buildIconDataUrl(key: string, color: string, strokeWidth = 2): string {
   const svg = buildIconSvg(key, color, strokeWidth);
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-// Cache de Image() para no recargar el mismo SVG en cada render.
-const imageCache = new Map<string, HTMLImageElement>();
-
-export function loadIconImage(key: string, color: string, strokeWidth = 2): Promise<HTMLImageElement> {
-  const cacheKey = `${key}|${color}|${strokeWidth}`;
-  const cached = imageCache.get(cacheKey);
-  if (cached && cached.complete) return Promise.resolve(cached);
-
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => { imageCache.set(cacheKey, img); resolve(img); };
-    img.onerror = reject;
-    img.src = buildIconDataUrl(key, color, strokeWidth);
-  });
 }
 
 // Retrocompatibilidad

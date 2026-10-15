@@ -2,108 +2,48 @@
 
 ## Resumen
 
-Este proyecto es una aplicacion local en Astro para crear cotizaciones visuales de Chiguiro / Anderson Rueda.
-La app permite editar una cotizacion desde un panel lateral, ver una previsualizacion en canvas y exportar el resultado como PNG o PDF.
-
-El flujo principal esta pensado para generar propuestas economicas en formato grafico, con:
-
-- numero y fecha de cotizacion;
-- alcance del trabajo;
-- items con icono, titulo, descripcion y valor;
-- costo total automatico o manual;
-- tiempo de entrega;
-- terminos y condiciones;
-- logo, firma, representante legal, datos bancarios y contacto;
-- plantillas visuales y overrides de color;
-- guardado local en `localStorage`.
-
-## Stack
-
-- Astro 4.
-- TypeScript.
-- Canvas 2D para renderizar la cotizacion.
-- `jspdf` para exportar PDF.
-- Sin backend.
-- Persistencia en navegador via `localStorage`.
+Aplicación en Astro (100% estática) para crear cotizaciones de Chigüiro / Anderson Rueda y de cualquier freelancer. El documento se genera como HTML/CSS y se exporta a PDF vectorial (texto seleccionable), PNG, JSON y Markdown. Incluye cuenta de cobro y un CLI que usa el mismo render.
 
 ## Comandos
 
-Desde la raiz del proyecto:
-
 ```powershell
-npm run dev
+npm run dev        # http://localhost:4321
 npm run build
-npm run preview
+npm run cli -- pdf COTIZACION_00007.json   # o .\cotizador.cmd pdf …
+npx tsc --noEmit   # typecheck
 ```
 
-El puerto configurado para desarrollo es `4321` en `astro.config.mjs`.
+## Estructura
 
-## Estructura principal
+- `src/pages/index.astro`: interfaz (pestañas Cotización / Ítems / Diseño / Mi marca / Cobro / Guardadas, barra de acciones, vista previa con dos iframes).
+- `src/styles/global.css`: estilos de la interfaz (responsive: en < 860 px se alterna Editar / Vista previa).
+- `src/lib/editor.ts`: estado de la UI, bindings (`FIELDS`), ítems, galería de diseños, colores, logo/firma, cobro, guardadas, vista previa sin parpadeo (render en el iframe oculto y swap).
+- `src/lib/state.ts`: tipos (`Cotizacion`, `Estado`, `Cliente`, `DatosCobro`), defaults, totales, formato COP, `localStorage`.
+- `src/lib/theme.ts`: `DisenoId`, `DISENOS`, `PALETAS`, utilidades de color y `buildTheme(primario, secundario)`.
+- `src/lib/doc.ts`: render HTML de la plantilla **Clásica**, cuenta de cobro, Markdown, fuentes (`FONT_SPECS`) y el script `ENHANCE_JS` que corre dentro del documento.
+- `src/lib/layouts.ts`: las otras 7 plantillas (Bloque, Noche, Diagonal, Estudio, Editorial, Redonda, Lateral).
+- `src/lib/export.ts`: solo navegador. Fuentes vía `?url`, `print()` del iframe para PDF, PNG con SVG `foreignObject` (y html2canvas como plan B).
+- `cli/main.ts` + `bin/cotizador.mjs` + `cotizador.cmd`: CLI (tsx + playwright-core con el Edge/Chrome instalado).
+- `src/lib/icons.ts`: íconos Lucide como SVG.
+- `src/lib/templates.ts`: paletas legadas de la Clásica (oscura/clara/minimalista).
 
-- `src/pages/index.astro`: shell HTML de la aplicacion, panel de edicion, canvas de preview y carga de `initEditor`.
-- `src/styles/global.css`: estilos de la interfaz de edicion y layout responsive.
-- `src/lib/editor.ts`: estado vivo de la UI, binding de inputs, guardado, carga, subida de logo/firma, acciones de exportacion y renderizado de items.
-- `src/lib/state.ts`: tipos de dominio, defaults, calculos de totales, formato COP y helpers de `localStorage`.
-- `src/lib/render.ts`: render final de la cotizacion sobre canvas, incluyendo header, items, tiempo, footer y contacto.
-- `src/lib/export.ts`: exportacion a PDF/PNG y render de preview.
-- `src/lib/templates.ts`: plantillas visuales disponibles (`oscura`, `clara`, `minimalista`).
-- `src/lib/icons.ts`: iconos SVG embebidos como data URL para evitar problemas de CORS durante la exportacion.
+## Render (importante)
+
+- `doc.ts` y `layouts.ts` no tocan el DOM: generan strings, para que el CLI los use en Node.
+- La **Clásica** replica al píxel el render en canvas anterior (las cotizaciones viejas se ven igual): mismas coordenadas, mismo `fitFontSize` (pasos de 2 px), recorte de firma y corrección de línea base (`cvShift`, porque el canvas usaba `textBaseline: 'top'`). Si se cambia, comparar contra un PNG de referencia.
+- Las plantillas nuevas usan CSS normal; `data-fit` achica textos de una línea que no caben.
+- `ENHANCE_JS` expone `window.__docReady` → `{width, height}` y fija `@page` al tamaño del documento (una sola página al imprimir). La cuenta de cobro usa `data-fixed-page` y tamaño carta.
+- El iframe que mide el documento nunca debe estar dentro de `display:none` (todo mediría 0); en celular la vista previa se oculta con `visibility`.
+- Al agregar una fuente: sumarla a `FONT_SPECS` (doc.ts) **y** importarla en `export.ts` (en dev hay un aviso en consola si falta).
 
 ## Modelo de datos
 
-La entidad principal es `Cotizacion` en `src/lib/state.ts`.
+`Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit}, `cobro` {fecha, desde, hasta, concepto}.
 
-Campos relevantes:
-
-- `numero`, `fecha`, `alcance`;
-- `costoTotal` y `costoTotalAuto`;
-- `items`;
-- `tiempoEntrega`;
-- `terminos`;
-- `plantilla`;
-- `coloresOverride`;
-- `branding`.
-
-El total real se calcula con `totalReal(c)`. Si `costoTotalAuto` esta activo, suma los valores de `items`; si esta desactivado, usa `costoTotal`.
+Compatibilidad: sin `colores` se usan `plantilla` + `coloresOverride` (formato anterior); sin `diseno` es la Clásica; sin `estado` es borrador.
 
 ## Persistencia local
 
-Las claves usadas en `localStorage` son:
+`cotizador:draft`, `cotizador:saved`, `cotizador:branding`, `cotizador:welcomed`, `cotizador:tab`. Logo y firma se reducen al subirlos para no llenar `localStorage`.
 
-- `cotizador:draft`: borrador actual.
-- `cotizador:saved`: lista de cotizaciones guardadas.
-- `cotizador:branding`: datos de marca/contacto persistidos.
-
-No hay sincronizacion remota ni base de datos.
-
-## Render y exportacion
-
-El documento final se construye en `buildExportCanvas(c)` dentro de `src/lib/render.ts`.
-
-La salida tiene ancho fijo de `1080px`; la altura se calcula segun la cantidad de items con `computeHeight(itemCount)`.
-
-El preview reutiliza el mismo render que la exportacion, asi que cualquier ajuste visual importante debe hacerse en `render.ts`, no solo en CSS.
-
-## Consideraciones importantes
-
-- Varias cadenas visibles en el codigo actual muestran mojibake, por ejemplo caracteres como `CotizaciÃ³n` o `ðŸ“„`. Antes de editar textos visibles conviene corregir o preservar cuidadosamente la codificacion.
-- El canvas usa fuentes genericas (`Arial`, `Georgia`) y medidas fijas. Cambios de texto largo pueden requerir revisar wrapping y alturas.
-- Los iconos estan embebidos para que la exportacion no dependa de archivos externos ni CORS.
-- `dist/` y `.astro/` son artefactos generados; normalmente no se editan a mano.
-- `node_modules/` esta presente localmente pero no debe tratarse como fuente del proyecto.
-
-## Flujo recomendado para cambios
-
-1. Revisar primero el archivo de dominio o UI afectado.
-2. Si el cambio modifica datos, totales o guardado, empezar en `src/lib/state.ts`.
-3. Si modifica controles o interaccion, revisar `src/lib/editor.ts`.
-4. Si modifica el documento exportado o preview, tocar `src/lib/render.ts`.
-5. Ejecutar `npm run build` para validar.
-6. Si el cambio es visual, levantar `npm run dev` y revisar la app en `http://localhost:4321`.
-
-## Prioridades actuales sugeridas
-
-- Corregir la codificacion de textos visibles del proyecto.
-- Agregar un `README.md` corto para uso humano si el proyecto se va a compartir.
-- Verificar visualmente exportacion PNG/PDF con textos largos, varios items, logo y firma.
-- Considerar separar defaults de marca en un archivo de configuracion si se reutiliza para mas clientes o marcas.
+El CLI lee `~/.cotizador.json` (emisor y clientes frecuentes); no va en el repo porque tiene datos personales.

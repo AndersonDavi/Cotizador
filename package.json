@@ -3,19 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "cotizador": "bin/cotizador.mjs"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "cli": "node bin/cotizador.mjs"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/sitemap": "^3.7.4",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/poppins": "^5.3.0",
     "@fontsource/roboto": "^5.2.10",
-    "astro": "^4.16.0",
+    "astro": "^7.3.1",
     "driver.js": "^1.4.0",
-    "jspdf": "^2.5.2"
+    "html2canvas": "^1.4.1"
   },
   "devDependencies": {
+    "playwright-core": "^1.64.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.0"
   }
 }

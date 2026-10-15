@@ -1,6 +1,9 @@
 import {
   type Cotizacion,
-  type Item,
+  type Estado,
+  ESTADOS,
+  ESTADO_LABELS,
+  estadoDe,
   loadDraft,
   saveDraft,
   loadBranding,
@@ -13,174 +16,274 @@ import {
   makeId,
   totalReal,
   formatCOP,
+  today,
 } from './state';
 import { getAllIconKeys, getIconLabel, buildIconDataUrl, type IconKey } from './icons';
-import { TEMPLATE_IDS, TEMPLATES, type TemplateId } from './templates';
-import { renderPreview, exportPdf, exportPng, exportJson, importJsonFromFile, exportMarkdown } from './export';
+import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, type DisenoId } from './theme';
+import { cuentaDesdeCotizacion, parseFecha } from './doc';
+import {
+  cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
+  importJsonFromFile, printCuentaCobro,
+} from './export';
 import { startTour } from './tour';
 
 let state: Cotizacion;
-let renderTimer: number | null = null;
 let saveTimer: number | null = null;
-let previewCanvas: HTMLCanvasElement;
+let renderTimer: number | null = null;
 
-// ── Estado de UI de items (no afecta el canvas/PDF) ──────────────────────────
+const ESTADO_COLOR: Record<Estado, string> = {
+  borrador: '#8b93a1',
+  enviada: '#5aa9ff',
+  aprobada: '#4ec47e',
+  cobrada: '#f2a93b',
+  pagada: '#2fd5c4',
+  descartada: '#ef6767',
+};
+
+// Estado de UI de ítems (no afecta el documento)
 const collapsedItems = new Set<string>();
 type SortField = 'precio' | 'titulo' | 'tipo';
-type SortDir   = 'asc' | 'desc';
 let sortField: SortField | null = null;
-let sortDir:   SortDir = 'asc';
+let sortDir: 'asc' | 'desc' = 'asc';
+let savedFilter: Estado | 'todas' = 'todas';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`No #${id}`);
   return el;
 }
+const $in = (id: string) => $(id) as HTMLInputElement;
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+function escapeHtml(s: string): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
 function toast(msg: string, kind: 'ok' | 'err' = 'ok') {
   const el = $('toast');
   el.textContent = msg;
   el.className = `toast show ${kind}`;
-  setTimeout(() => { el.className = 'toast'; }, 2200);
+  window.setTimeout(() => { el.className = 'toast'; }, 2600);
 }
 
-function schedulePreview() {
-  if (renderTimer) cancelAnimationFrame(renderTimer);
-  renderTimer = requestAnimationFrame(() => {
-    renderPreview(previewCanvas, state).catch(err => console.error(err));
+/** dd-mm-aaaa ⇄ aaaa-mm-dd (inputs type=date) */
+function toIso(s?: string): string {
+  const f = parseFecha(s ?? '');
+  return f ? `${f.y}-${String(f.m).padStart(2, '0')}-${String(f.d).padStart(2, '0')}` : '';
+}
+function fromIso(s: string): string {
+  const f = parseFecha(s);
+  return f ? `${String(f.d).padStart(2, '0')}-${String(f.m).padStart(2, '0')}-${f.y}` : '';
+}
+
+/** Lee la imagen y la reduce (máx. `max` px) para no llenar localStorage. Los SVG se dejan igual. */
+function imageToDataUrl(file: File, max = 900): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => {
+      const src = String(r.result);
+      if (file.type === 'image/svg+xml') return resolve(src);
+      const img = new Image();
+      img.onerror = () => resolve(src);
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        if (k === 1 && file.size < 400_000) return resolve(src);
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.src = src;
+    };
+    r.readAsDataURL(file);
   });
 }
+
+/** Completa campos de cotizaciones guardadas con versiones anteriores. */
+function normalize(c: Cotizacion): Cotizacion {
+  c.items ??= [];
+  c.terminos ??= [];
+  c.coloresOverride ??= {};
+  c.cliente ??= { nombre: '', nit: '' };
+  c.cobro ??= {};
+  c.titulo ??= 'Propuesta económica';
+  c.estado = estadoDe(c);
+  c.diseno = disenoDe(c);
+  c.branding.contacto ??= { web: '', email: '', cel: '', ciudad: '', pais: '' };
+  c.branding.representante ??= { nombre: '', cedula: '' };
+  return c;
+}
+
+// ── Guardado y vista previa ──────────────────────────────────────────────────
 
 function scheduleAutosave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
-    saveDraft(state);
-    saveBranding(state.branding);
-  }, 500);
+    try {
+      saveDraft(state);
+      saveBranding(state.branding);
+    } catch {
+      toast('El navegador no tiene espacio para guardar. Usa imágenes más livianas.', 'err');
+    }
+  }, 400);
 }
 
-function refresh() {
-  if (state.costoTotalAuto) {
-    state.costoTotal = totalReal(state);
-    const tot = $('costoTotal') as HTMLInputElement;
-    tot.value = String(state.costoTotal);
+let renderSeq = 0;
+let zoomMode: 'fit' | '100' = 'fit';
+let docSize = { width: 1080, height: 1400 };
+
+function frames() {
+  const stage = $('previewStage');
+  return {
+    stage,
+    front: stage.querySelector('.pv-frame.front') as HTMLIFrameElement,
+    back: stage.querySelector('.pv-frame.back') as HTMLIFrameElement,
+  };
+}
+
+function applyZoom() {
+  const { stage, front } = frames();
+  const scroll = $('previewScroll');
+  const pad = parseFloat(getComputedStyle(scroll).paddingLeft) * 2;
+  const avail = scroll.clientWidth - pad;
+  if (avail <= 0) return; // vista previa oculta (modo celular): se ajusta al mostrarla
+  const k = zoomMode === 'fit' ? Math.min(1, avail / docSize.width) : 1;
+  stage.style.width = `${docSize.width * k}px`;
+  stage.style.height = `${docSize.height * k}px`;
+  for (const f of [front, stage.querySelector('.pv-frame.back') as HTMLIFrameElement]) {
+    f.style.transform = `scale(${k})`;
   }
+  front.style.height = `${docSize.height}px`;
+}
+
+/** Renderiza en el iframe oculto y lo intercambia al terminar (sin parpadeo). */
+async function renderPreview() {
+  const seq = ++renderSeq;
+  const { front, back } = frames();
+  try {
+    const size = await loadIntoFrame(back, cotizacionHtml(state));
+    if (seq !== renderSeq) return;
+    docSize = size;
+    back.style.height = `${size.height}px`;
+    back.classList.replace('back', 'front');
+    front.classList.replace('front', 'back');
+    back.removeAttribute('aria-hidden');
+    back.title = 'Vista previa de la cotización';
+    front.setAttribute('aria-hidden', 'true');
+    front.title = '';
+    applyZoom();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function schedulePreview() {
+  if (renderTimer) clearTimeout(renderTimer);
+  renderTimer = window.setTimeout(renderPreview, 120);
+}
+
+/** Refresca todo lo derivado del estado (total, etiquetas, vista previa, guardado). */
+function refresh() {
+  if (state.costoTotalAuto) state.costoTotal = totalReal(state);
+  const total = formatCOP(totalReal(state));
+  $('totalBig').textContent = total;
+  $('previewTotal').textContent = `${total} COP`;
+  $('docLabel').textContent = `Cotización ${state.numero}${state.cliente?.nombre ? ' · ' + state.cliente.nombre : ''}`;
+  $('itemsCount').textContent = String(state.items.length);
+  ($('costoManualWrap') as HTMLElement).hidden = state.costoTotalAuto;
+  const est = estadoDe(state);
+  const badge = $('previewEstado');
+  badge.textContent = ESTADO_LABELS[est];
+  badge.style.setProperty('--dot', ESTADO_COLOR[est]);
+  renderCobroResumen();
   schedulePreview();
   scheduleAutosave();
-  renderSavedList();
 }
 
-// ---------- builders ----------
+// ── Pestañas ─────────────────────────────────────────────────────────────────
 
-/** Crea el botón disparador del icon-picker y lo devuelve listo para insertar. */
-function buildIconPicker(
-  selected: IconKey,
-  onChange: (newKey: IconKey) => void
-): HTMLElement {
-  const keys = getAllIconKeys();
+function showTab(tab: string) {
+  document.querySelectorAll<HTMLElement>('.tab').forEach((t) => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', String(on));
+  });
+  document.querySelectorAll<HTMLElement>('.pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === tab));
+  document.querySelector('.panes')!.scrollTop = 0;
+  try { localStorage.setItem('cotizador:tab', tab); } catch { /* sin storage */ }
+  if (tab === 'guardadas') renderSavedList();
+  if (tab === 'diseno') renderDesign();
+  ($('tab-' + tab) as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
 
+// ── Estado ───────────────────────────────────────────────────────────────────
+
+function renderEstado() {
+  const wrap = $('estadoGroup');
+  const cur = estadoDe(state);
+  wrap.innerHTML = ESTADOS.map((e) =>
+    `<button type="button" role="radio" aria-checked="${e === cur}" class="${e === cur ? 'active' : ''}" data-estado="${e}" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</button>`
+  ).join('');
+}
+
+// ── Ítems ────────────────────────────────────────────────────────────────────
+
+function buildIconPicker(selected: IconKey, onChange: (k: IconKey) => void): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'icon-picker-wrap';
-
-  // Botón principal — muestra SVG + label del ícono seleccionado
   const trigger = document.createElement('button');
   trigger.type = 'button';
   trigger.className = 'icon-picker-trigger';
-  const updateTrigger = (key: IconKey) => {
-    trigger.innerHTML = `
-      <img src="${buildIconDataUrl(key, 'currentColor')}" class="icon-picker-preview" />
-      <span>${escapeHtml(getIconLabel(key))}</span>
-      <svg class="icon-picker-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
-    `;
+  const paint = (k: IconKey) => {
+    trigger.innerHTML = `<img src="${buildIconDataUrl(k, '#000')}" class="icon-picker-preview" alt="" /><span>${escapeHtml(getIconLabel(k))}</span>
+      <svg class="icon-picker-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>`;
   };
-  updateTrigger(selected);
-
-  // Panel dropdown
+  paint(selected);
   const panel = document.createElement('div');
   panel.className = 'icon-picker-panel hidden';
-  panel.innerHTML = keys.map(k => `
-    <button type="button" class="icon-picker-item${k === selected ? ' active' : ''}" data-key="${k}" title="${escapeAttr(getIconLabel(k))}">
-      <img src="${buildIconDataUrl(k, '#e6e8ec')}" width="18" height="18" />
-      <span>${escapeHtml(getIconLabel(k))}</span>
-    </button>
-  `).join('');
-
-  // Toggle panel
+  panel.innerHTML = getAllIconKeys().map((k) => `
+    <button type="button" class="icon-picker-item${k === selected ? ' active' : ''}" data-key="${k}">
+      <img src="${buildIconDataUrl(k, '#e8eaee')}" width="16" height="16" alt="" /><span>${escapeHtml(getIconLabel(k))}</span>
+    </button>`).join('');
   trigger.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    const isOpen = !panel.classList.contains('hidden');
-    // Cierra cualquier otro picker abierto
-    document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
-    if (!isOpen) panel.classList.remove('hidden');
+    const open = !panel.classList.contains('hidden');
+    document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach((p) => p.classList.add('hidden'));
+    if (!open) panel.classList.remove('hidden');
   });
-
-  // Seleccionar ícono
   panel.addEventListener('click', (ev) => {
     const btn = (ev.target as HTMLElement).closest('[data-key]') as HTMLElement | null;
     if (!btn) return;
-    const key = btn.dataset.key as IconKey;
-    panel.querySelectorAll('.icon-picker-item').forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
-    updateTrigger(key);
+    const k = btn.dataset.key as IconKey;
+    panel.querySelectorAll('.icon-picker-item').forEach((el) => el.classList.toggle('active', el === btn));
+    paint(k);
     panel.classList.add('hidden');
-    onChange(key);
+    onChange(k);
   });
-
-  wrap.appendChild(trigger);
-  wrap.appendChild(panel);
+  wrap.append(trigger, panel);
   return wrap;
 }
 
-function buildTemplateOptions(selected: TemplateId): string {
-  return TEMPLATE_IDS.map(k => `<option value="${k}"${k === selected ? ' selected' : ''}>${TEMPLATES[k].label}</option>`).join('');
-}
-
-const SORT_LABELS: Record<SortField, string> = { precio: 'Precio', titulo: 'Título', tipo: 'Tipo' };
-
-// Actualiza los botones de ordenamiento en la cabecera de la sección
 function updateSortButtons() {
-  (['precio', 'titulo', 'tipo'] as SortField[]).forEach(field => {
-    const btn = document.getElementById(`sort-${field}`) as HTMLButtonElement | null;
-    if (!btn) return;
-    const arrow = sortDir === 'asc' ? ' ↑' : ' ↓';
-    const svg = btn.querySelector('svg');
-    btn.innerHTML = '';
-    if (svg) btn.appendChild(svg);
-    if (sortField === field) {
-      btn.classList.add('sort-active');
-      btn.append(SORT_LABELS[field] + arrow);
-    } else {
-      btn.classList.remove('sort-active');
-      btn.append(SORT_LABELS[field]);
-    }
+  const labels: Record<SortField, string> = { precio: 'Precio', titulo: 'Título', tipo: 'Tipo' };
+  (Object.keys(labels) as SortField[]).forEach((f) => {
+    const btn = $(`sort-${f}`);
+    btn.classList.toggle('sort-active', sortField === f);
+    btn.textContent = labels[f] + (sortField === f ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '');
   });
 }
 
 function applySort(field: SortField) {
-  if (sortField === field) {
-    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortField = field;
-    sortDir = 'asc';
-  }
+  if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortField = field; sortDir = 'asc'; }
   state.items.sort((a, b) => {
     let cmp = 0;
-    if (field === 'precio') {
-      cmp = a.valor - b.valor;
-    } else if (field === 'titulo') {
-      cmp = (a.titulo || '').localeCompare(b.titulo || '', 'es', { sensitivity: 'base' });
-    } else if (field === 'tipo') {
-      cmp = getIconLabel(a.iconKey).localeCompare(getIconLabel(b.iconKey), 'es', { sensitivity: 'base' });
-    }
+    if (field === 'precio') cmp = a.valor - b.valor;
+    else if (field === 'titulo') cmp = (a.titulo || '').localeCompare(b.titulo || '', 'es', { sensitivity: 'base' });
+    else cmp = getIconLabel(a.iconKey).localeCompare(getIconLabel(b.iconKey), 'es', { sensitivity: 'base' });
     return sortDir === 'asc' ? cmp : -cmp;
   });
   updateSortButtons();
@@ -191,498 +294,467 @@ function applySort(field: SortField) {
 function renderItems() {
   const wrap = $('items');
   wrap.innerHTML = '';
-
-  // Actualizar botón expandir/colapsar todos
-  const allCollapsed = state.items.length > 0 && state.items.every(it => collapsedItems.has(it.id));
-  const toggleAllBtn = document.getElementById('toggleAllItems') as HTMLButtonElement | null;
-  if (toggleAllBtn) {
-    const svg = toggleAllBtn.querySelector('svg');
-    toggleAllBtn.innerHTML = '';
-    if (svg) toggleAllBtn.appendChild(svg);
-    toggleAllBtn.append(allCollapsed ? 'Expandir todo' : 'Colapsar todo');
-  }
+  const allCollapsed = state.items.length > 0 && state.items.every((it) => collapsedItems.has(it.id));
+  $('toggleAllItems').textContent = allCollapsed ? 'Expandir todo' : 'Colapsar todo';
 
   state.items.forEach((it, idx) => {
-    const isCollapsed = collapsedItems.has(it.id);
+    const collapsed = collapsedItems.has(it.id);
     const card = document.createElement('div');
-    card.className = 'item-card' + (isCollapsed ? ' item-collapsed' : '');
-
-    if (isCollapsed) {
-      // ── Vista compacta ──────────────────────────────────────
-      card.innerHTML = `
-        <div class="item-head item-head-compact">
-          <span class="handle">≡</span>
-          <span class="item-icon-label">${escapeHtml(getIconLabel(it.iconKey))}</span>
-          <span class="item-titulo-compact">${escapeHtml(it.titulo || '_(sin título)_')}</span>
-          <span class="item-valor-compact">${formatCOP(it.valor)}</span>
-          <button class="icon-btn" data-action="up" title="Subir">▲</button>
-          <button class="icon-btn" data-action="down" title="Bajar">▼</button>
-          <button class="icon-btn" data-action="toggle" title="Expandir">▾</button>
-          <button class="icon-btn danger" data-action="remove" title="Eliminar">✕</button>
-        </div>
-      `;
+    card.className = 'item-card' + (collapsed ? ' item-collapsed' : '');
+    const ctrl = `
+      <button class="icon-btn" data-action="up" title="Subir" ${idx === 0 ? 'disabled' : ''}>▲</button>
+      <button class="icon-btn" data-action="down" title="Bajar" ${idx === state.items.length - 1 ? 'disabled' : ''}>▼</button>
+      <button class="icon-btn" data-action="toggle" title="${collapsed ? 'Expandir' : 'Colapsar'}">${collapsed ? '▾' : '▴'}</button>
+      <button class="icon-btn danger" data-action="remove" title="Eliminar">✕</button>`;
+    if (collapsed) {
+      card.innerHTML = `<div class="item-head item-head-compact">
+        <span class="item-num">${idx + 1}</span>
+        <span class="item-titulo-compact">${escapeHtml(it.titulo || '(sin título)')}</span>
+        <span class="item-valor-compact">${formatCOP(it.valor)}</span>${ctrl}</div>`;
     } else {
-      // ── Vista expandida ─────────────────────────────────────
       card.innerHTML = `
-        <div class="item-head" id="item-head-${it.id}">
-          <span class="handle">≡</span>
-          <!-- icon-picker se inyecta por JS debajo -->
-          <button class="icon-btn" data-action="up" title="Subir">▲</button>
-          <button class="icon-btn" data-action="down" title="Bajar">▼</button>
-          <button class="icon-btn" data-action="toggle" title="Colapsar">▴</button>
-          <button class="icon-btn danger" data-action="remove" title="Eliminar">✕</button>
-        </div>
-        <div>
-          <label>Título</label>
-          <input type="text" data-action="titulo" value="${escapeAttr(it.titulo)}" />
-        </div>
-        <div>
-          <label>Descripción</label>
-          <textarea data-action="descripcion">${escapeHtml(it.descripcion)}</textarea>
-        </div>
-        <div>
-          <label>Valor (COP)</label>
-          <input type="number" min="0" step="1000" data-action="valor" value="${it.valor}" />
-        </div>
-      `;
-
-      // Inyecta el icon-picker después del handle
-      const head = card.querySelector(`#item-head-${it.id}`)!;
-      const picker = buildIconPicker(it.iconKey, (newKey) => {
-        it.iconKey = newKey;
-        refresh();
-      });
-      head.insertBefore(picker, head.children[1]); // después del .handle
+        <div class="item-head"><span class="item-num">${idx + 1}</span><span class="picker-slot"></span><span class="spacer"></span>${ctrl}</div>
+        <div><label>Título</label><input type="text" data-action="titulo" value="${escapeHtml(it.titulo)}" placeholder="Ej. Diseño del logo" /></div>
+        <div><label>Descripción</label><textarea class="item-desc" data-action="descripcion" rows="3" placeholder="Qué incluye…">${escapeHtml(it.descripcion)}</textarea></div>
+        <div><label>Valor (COP)</label><input type="number" min="0" step="1000" data-action="valor" value="${it.valor}" /></div>`;
+      card.querySelector('.picker-slot')!.replaceWith(buildIconPicker(it.iconKey, (k) => { it.iconKey = k; refresh(); }));
     }
-
     card.addEventListener('input', (ev) => {
-      const tgt = ev.target as HTMLInputElement | HTMLTextAreaElement;
-      const action = tgt.dataset.action;
-      if (!action) return;
-      if (action === 'titulo') it.titulo = tgt.value;
-      else if (action === 'descripcion') it.descripcion = tgt.value;
-      else if (action === 'valor') it.valor = Number(tgt.value) || 0;
+      const t = ev.target as HTMLInputElement | HTMLTextAreaElement;
+      if (t.dataset.action === 'titulo') it.titulo = t.value;
+      else if (t.dataset.action === 'descripcion') it.descripcion = t.value;
+      else if (t.dataset.action === 'valor') it.valor = Number(t.value) || 0;
+      else return;
       refresh();
     });
-
     card.addEventListener('click', (ev) => {
-      const tgt = ev.target as HTMLElement;
-      const action = tgt.dataset?.action;
+      const action = (ev.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
       if (action === 'remove') {
+        if ((it.titulo || it.descripcion) && !confirm(`¿Eliminar "${it.titulo || 'este ítem'}"?`)) return;
         state.items.splice(idx, 1);
         collapsedItems.delete(it.id);
         if (!state.items.length) state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
-        renderItems();
-        refresh();
       } else if (action === 'up' && idx > 0) {
         [state.items[idx - 1], state.items[idx]] = [state.items[idx], state.items[idx - 1]];
-        renderItems();
-        refresh();
       } else if (action === 'down' && idx < state.items.length - 1) {
         [state.items[idx + 1], state.items[idx]] = [state.items[idx], state.items[idx + 1]];
-        renderItems();
-        refresh();
       } else if (action === 'toggle') {
-        if (collapsedItems.has(it.id)) collapsedItems.delete(it.id);
-        else collapsedItems.add(it.id);
-        renderItems(); // solo re-render UI, no refresh del canvas
-      }
+        if (collapsedItems.has(it.id)) collapsedItems.delete(it.id); else collapsedItems.add(it.id);
+        renderItems();
+        return;
+      } else return;
+      renderItems();
+      refresh();
     });
-
     wrap.appendChild(card);
   });
 }
 
+// ── Diseño ───────────────────────────────────────────────────────────────────
+
+/** Miniatura esquemática de cada diseño, pintada con los colores actuales. */
+function thumb(id: DisenoId, p: string, s: string): string {
+  const t = buildTheme({ primary: p, secondary: s });
+  const g = (x: number, y: number, w: number, h: number, bg: string, extra = '') =>
+    `<i style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;background:${bg};${extra}"></i>`;
+  const lines = (x: number, y: number, n: number, gap = 7, w = 60, c = '#d5d8de') =>
+    Array.from({ length: n }, (_, i) => g(x, y + i * gap, w - (i % 2) * 12, 2.2, c, 'border-radius:2px')).join('');
+  switch (id) {
+    case 'clasica': return g(0, 0, 100, 30, `linear-gradient(111deg,${p},${t.pDeep})`) + g(8, 6, 50, 5, t.onP) + g(62, 6, 18, 5, s) + g(8, 26, 84, 18, '#fff', 'border:1px solid #e3e3e3') + g(8, 44, 84, 18, '#fff', 'border:1px solid #e3e3e3') + g(8, 62, 84, 18, '#fff', 'border:1px solid #e3e3e3') + g(8, 86, 84, 6, '#eee');
+    case 'bloque': return g(0, 0, 100, 100, t.pSofter) + g(0, 0, 58, 22, p) + g(58, 0, 42, 22, s) + g(6, 6, 40, 5, s) + g(6, 34, 88, 5, s) + g(74, 34, 20, 5, p) + lines(8, 44, 5, 6, 80) + g(56, 78, 38, 6, s) + g(0, 93, 100, 7, p);
+    case 'noche': return g(0, 0, 100, 100, p) + g(-30, -24, 60, 46, 'transparent', `border:5px solid ${s};border-radius:50%`) + g(70, 80, 60, 46, 'transparent', `border:5px solid ${s};border-radius:50%`) + g(56, 14, 34, 4, s) + lines(10, 36, 6, 7, 80, 'rgba(255,255,255,.35)') + g(64, 80, 26, 5, '#fff');
+    case 'diagonal': return g(8, 7, 50, 6, t.pDeep) + g(0, 20, 50, 6, p, 'clip-path:polygon(0 0,100% 0,85% 100%,0 100%)') + g(46, 20, 54, 6, s, 'clip-path:polygon(10% 0,100% 0,100% 100%,0 100%)') + g(8, 40, 84, 5, t.pDeep) + g(8, 45, 8, 30, p) + lines(20, 48, 4, 7, 70) + g(78, 72, 14, 4, s) + g(0, 86, 42, 14, p) + g(42, 86, 58, 14, s);
+    case 'estudio': return g(0, 0, 100, 4, p) + g(0, 0, 12, 9, s, 'clip-path:polygon(0 0,100% 0,0 100%)') + g(8, 10, 50, 7, '#1c1d21') + g(8, 36, 84, 5, s) + lines(10, 44, 5, 6, 78) + g(0, 76, 100, 6, p) + g(0, 96, 100, 4, p) + g(88, 91, 12, 9, s, 'clip-path:polygon(100% 0,100% 100%,0 100%)');
+    case 'editorial': return g(10, 8, 34, 9, p) + g(62, 9, 28, 4, '#555') + g(10, 32, 80, 3, p) + lines(10, 42, 6, 6, 80) + g(62, 80, 28, 4, p) + g(10, 88, 80, 1.5, p);
+    case 'redonda': return g(8, 6, 30, 5, p) + g(0, 18, 100, 22, p) + g(52, 12, 40, 14, '#fff', 'border-radius:0 0 12px 12px') + g(58, 17, 28, 4, s) + g(6, 34, 88, 46, '#fff', 'border-radius:12px 12px 0 0') + lines(12, 42, 5, 7, 76) + g(0, 82, 46, 10, p) + g(0, 96, 100, 4, s);
+    case 'lateral': return g(0, 0, 32, 100, p) + g(6, 6, 20, 10, '#fff', 'border-radius:4px') + g(6, 40, 18, 4, s) + g(40, 8, 48, 6, t.pDeep) + Array.from({ length: 4 }, (_, i) => g(40, 22 + i * 17, 52, 13, '#fff', `border:1px solid #dfe2e6;border-left:3px solid ${s};border-radius:4px`)).join('');
+  }
+}
+
+function renderDesign() {
+  const { primary, secondary } = coloresDe(state);
+  const cur = disenoDe(state);
+  $('designGallery').innerHTML = DISENOS.map((d) => `
+    <button type="button" class="design${d.id === cur ? ' active' : ''}" data-diseno="${d.id}" aria-pressed="${d.id === cur}" title="${d.descripcion}">
+      <div class="thumb">${thumb(d.id, primary, secondary)}</div>
+      <div><b>${d.nombre}</b><small>${d.descripcion}</small></div>
+    </button>`).join('');
+  $in('colorPrimary').value = primary.toLowerCase();
+  $in('colorSecondary').value = secondary.toLowerCase();
+  $in('colorPrimaryHex').value = primary.toUpperCase();
+  $in('colorSecondaryHex').value = secondary.toUpperCase();
+  $('paletteRow').innerHTML = PALETAS.map((p, i) => {
+    const on = p.primary.toLowerCase() === primary.toLowerCase() && p.secondary.toLowerCase() === secondary.toLowerCase();
+    return `<button type="button" class="palette${on ? ' active' : ''}" data-paleta="${i}" title="${p.nombre}"><i style="background:${p.primary}"></i><i style="background:${p.secondary}"></i></button>`;
+  }).join('');
+}
+
+function setColores(primary: string, secondary: string) {
+  state.colores = { primary: primary.toUpperCase(), secondary: secondary.toUpperCase() };
+  state.coloresOverride = {};
+  renderDesign();
+  refresh();
+}
+
+// ── Marca: logo y firma ──────────────────────────────────────────────────────
+
+function paintImages() {
+  const logo = state.branding.logoDataUrl;
+  ($('logoPreview') as HTMLImageElement).src = logo || '';
+  $('logoArea').classList.toggle('has-img', !!logo);
+  ($('logoClear') as HTMLElement).hidden = !logo;
+  const firma = state.branding.representante.firmaDataUrl;
+  ($('firmaPreview') as HTMLImageElement).src = firma || '';
+  $('firmaArea').classList.toggle('has-img', !!firma);
+  ($('firmaClear') as HTMLElement).hidden = !firma;
+}
+
+function setupDrop(areaId: string, inputId: string, onFile: (f: File) => Promise<void>) {
+  const area = $(areaId);
+  const input = $in(inputId);
+  area.addEventListener('click', () => input.click());
+  area.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); input.click(); } });
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0];
+    if (f) await onFile(f);
+    input.value = '';
+  });
+  area.addEventListener('dragover', (ev) => { ev.preventDefault(); area.classList.add('dragover'); });
+  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+  area.addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    area.classList.remove('dragover');
+    const f = ev.dataTransfer?.files?.[0];
+    if (f && f.type.startsWith('image/')) await onFile(f);
+  });
+}
+
+// ── Cobro ────────────────────────────────────────────────────────────────────
+
+function faltantesCobro(): string[] {
+  const f: string[] = [];
+  if (!state.cliente?.nombre) f.push('Nombre del cliente (pestaña Cotización)');
+  if (!state.cliente?.nit) f.push('NIT del cliente (pestaña Cotización)');
+  if (!state.cobro?.desde || !state.cobro?.hasta) f.push('Período del trabajo (desde / hasta)');
+  if (!state.branding.banco) f.push('Cuenta bancaria (pestaña Mi marca)');
+  if (!state.branding.representante.nombre && !state.branding.nombreLegal) f.push('Tu nombre (pestaña Mi marca)');
+  return f;
+}
+
+function renderCobroResumen() {
+  const falt = faltantesCobro();
+  const w = $('cobroFaltan');
+  w.hidden = !falt.length;
+  w.innerHTML = falt.length ? `Falta completar:<ul>${falt.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>` : '';
+  const cc = cuentaDesdeCotizacion(state, today());
+  $('cobroResumen').innerHTML = `<b>${escapeHtml(cc.cliente.nombre || 'Cliente')}</b> debe a <b>${escapeHtml(cc.emisor.nombre || 'ti')}</b> la suma de <b>${formatCOP(cc.valor)}</b>.<br>${escapeHtml(cc.concepto)}`;
+}
+
+// ── Guardadas ────────────────────────────────────────────────────────────────
+
 function renderSavedList() {
+  const q = ($in('savedSearch').value || '').toLowerCase().trim();
+  const all = loadSaved();
+  const counts = new Map<string, number>();
+  all.forEach((c) => counts.set(estadoDe(c), (counts.get(estadoDe(c)) ?? 0) + 1));
+  $('savedFilters').innerHTML = [`<button class="chip${savedFilter === 'todas' ? ' active' : ''}" data-filter="todas">Todas (${all.length})</button>`]
+    .concat(ESTADOS.filter((e) => counts.get(e)).map((e) =>
+      `<button class="chip${savedFilter === e ? ' active' : ''}" data-filter="${e}">${ESTADO_LABELS[e]} (${counts.get(e)})</button>`)).join('');
+
+  const list = all
+    .filter((c) => savedFilter === 'todas' || estadoDe(c) === savedFilter)
+    .filter((c) => !q || [c.numero, c.cliente?.nombre, c.alcance].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.numero.localeCompare(a.numero));
   const wrap = $('savedList');
-  const list = loadSaved();
   if (!list.length) {
-    wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:6px;">Sin cotizaciones guardadas.</div>';
+    wrap.innerHTML = `<div class="empty">${all.length ? 'Nada coincide con la búsqueda.' : 'Aún no tienes cotizaciones guardadas.<br>Usa “Guardar” para tenerlas aquí.'}</div>`;
     return;
   }
-  wrap.innerHTML = '';
-  list.sort((a, b) => a.numero.localeCompare(b.numero)).forEach(c => {
-    const row = document.createElement('div');
-    row.className = 'saved-row';
-    row.innerHTML = `
-      <span class="id">${c.numero}</span>
-      <span class="scope" title="${escapeAttr(c.alcance)}">${escapeHtml(c.alcance || '—')}</span>
-      <span style="color:var(--muted);font-size:11px;">${formatCOP(totalReal(c))}</span>
-      <button class="icon-btn" data-num="${c.numero}" data-act="load">Abrir</button>
-      <button class="icon-btn danger" data-num="${c.numero}" data-act="del">✕</button>
-    `;
-    row.addEventListener('click', (ev) => {
-      const tgt = ev.target as HTMLElement;
-      const num = tgt.dataset?.num;
-      const act = tgt.dataset?.act;
-      if (!num || !act) return;
-      if (act === 'load') {
-        const found = loadSaved().find(x => x.numero === num);
-        if (found) {
-          state = found;
-          hydrateForm();
-          refresh();
-          toast(`Cotización ${num} cargada`);
-        }
-      } else if (act === 'del') {
-        if (confirm(`¿Eliminar cotización ${num}?`)) {
-          deleteSaved(num);
-          renderSavedList();
-        }
-      }
-    });
-    wrap.appendChild(row);
-  });
+  wrap.innerHTML = list.map((c) => {
+    const e = estadoDe(c);
+    return `<div class="saved-row${c.numero === state.numero ? ' current' : ''}">
+      <div class="top"><span class="id">${escapeHtml(c.numero)}</span><span class="badge" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</span>
+        <span class="who">${escapeHtml(c.cliente?.nombre || c.alcance || '—')}</span></div>
+      <div class="meta">${formatCOP(totalReal(c))} · ${escapeHtml(c.fecha)}${c.cliente?.nombre && c.alcance ? ' · ' + escapeHtml(c.alcance) : ''}</div>
+      <div class="acts">
+        <button data-num="${escapeHtml(c.numero)}" data-act="load">Abrir</button>
+        <button data-num="${escapeHtml(c.numero)}" data-act="dup" title="Duplicar como nueva">⧉</button>
+        <button data-num="${escapeHtml(c.numero)}" data-act="del" class="del" title="Eliminar">✕</button>
+      </div></div>`;
+  }).join('');
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-}
-function escapeAttr(s: string): string { return escapeHtml(s); }
+// ── Formulario ───────────────────────────────────────────────────────────────
 
-// ---------- form hydration ----------
+const FIELDS: [string, () => string, (v: string) => void][] = [
+  ['numero', () => state.numero, (v) => { state.numero = v; }],
+  ['fecha', () => state.fecha, (v) => { state.fecha = v; }],
+  ['titulo', () => state.titulo ?? '', (v) => { state.titulo = v; }],
+  ['clienteNombre', () => state.cliente?.nombre ?? '', (v) => { state.cliente = { nit: state.cliente?.nit ?? '', nombre: v }; }],
+  ['clienteNit', () => state.cliente?.nit ?? '', (v) => { state.cliente = { nombre: state.cliente?.nombre ?? '', nit: v }; }],
+  ['alcance', () => state.alcance, (v) => { state.alcance = v; }],
+  ['costoTotal', () => String(state.costoTotal), (v) => { state.costoTotal = Number(v) || 0; }],
+  ['tiempoEntrega', () => state.tiempoEntrega, (v) => { state.tiempoEntrega = v; }],
+  ['terminos', () => state.terminos.join('\n'), (v) => { state.terminos = v.split('\n').map((s) => s.trim()).filter(Boolean); }],
+  ['empresa', () => state.branding.empresa ?? '', (v) => { state.branding.empresa = v; }],
+  ['repNombre', () => state.branding.representante.nombre, (v) => { state.branding.representante.nombre = v; }],
+  ['repCedula', () => state.branding.representante.cedula, (v) => { state.branding.representante.cedula = v; }],
+  ['cWeb', () => state.branding.contacto.web, (v) => { state.branding.contacto.web = v; }],
+  ['cEmail', () => state.branding.contacto.email, (v) => { state.branding.contacto.email = v; }],
+  ['cCel', () => state.branding.contacto.cel, (v) => { state.branding.contacto.cel = v; }],
+  ['cCiudad', () => state.branding.contacto.ciudad, (v) => { state.branding.contacto.ciudad = v; }],
+  ['cPais', () => state.branding.contacto.pais, (v) => { state.branding.contacto.pais = v; }],
+  ['banco', () => state.branding.banco ?? '', (v) => { state.branding.banco = v; }],
+  ['nombreLegal', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
+  ['direccion', () => state.branding.direccion ?? '', (v) => { state.branding.direccion = v; }],
+  ['cobroDesde', () => toIso(state.cobro?.desde), (v) => { state.cobro = { ...state.cobro, desde: fromIso(v) }; }],
+  ['cobroHasta', () => toIso(state.cobro?.hasta), (v) => { state.cobro = { ...state.cobro, hasta: fromIso(v) }; }],
+  ['cobroFecha', () => toIso(state.cobro?.fecha) || toIso(today()), (v) => { state.cobro = { ...state.cobro, fecha: fromIso(v) }; }],
+  ['cobroConcepto', () => state.cobro?.concepto ?? '', (v) => { state.cobro = { ...state.cobro, concepto: v }; }],
+];
 
 function hydrateForm() {
-  (document.getElementById('numero') as HTMLInputElement).value = state.numero;
-  (document.getElementById('fecha') as HTMLInputElement).value = state.fecha;
-  (document.getElementById('alcance') as HTMLTextAreaElement).value = state.alcance;
-  (document.getElementById('costoTotal') as HTMLInputElement).value = String(state.costoTotal);
-  (document.getElementById('costoAuto') as HTMLInputElement).checked = state.costoTotalAuto;
-  (document.getElementById('plantilla') as HTMLSelectElement).value = state.plantilla;
-  (document.getElementById('tiempoEntrega') as HTMLTextAreaElement).value = state.tiempoEntrega;
-  (document.getElementById('terminos') as HTMLTextAreaElement).value = state.terminos.join('\n');
-
-  (document.getElementById('colorBg') as HTMLInputElement).value = state.coloresOverride.bg ?? TEMPLATES[state.plantilla].headerBg;
-  (document.getElementById('colorBg2') as HTMLInputElement).value = state.coloresOverride.bg2 ?? TEMPLATES[state.plantilla].headerBg2;
-  (document.getElementById('colorAccent') as HTMLInputElement).value = state.coloresOverride.accent ?? TEMPLATES[state.plantilla].accent;
-  (document.getElementById('colorText') as HTMLInputElement).value = state.coloresOverride.text ?? TEMPLATES[state.plantilla].cardText;
-
-  const b = state.branding;
-  (document.getElementById('repNombre') as HTMLInputElement).value = b.representante.nombre;
-  (document.getElementById('repCedula') as HTMLInputElement).value = b.representante.cedula;
-  (document.getElementById('cWeb') as HTMLInputElement).value = b.contacto.web;
-  (document.getElementById('cEmail') as HTMLInputElement).value = b.contacto.email;
-  (document.getElementById('cCel') as HTMLInputElement).value = b.contacto.cel;
-  (document.getElementById('cCiudad') as HTMLInputElement).value = b.contacto.ciudad;
-  (document.getElementById('cPais') as HTMLInputElement).value = b.contacto.pais;
-
-  updateLogoPreview();
-  updateFirmaPreview();
+  for (const [id, get] of FIELDS) $in(id).value = get();
+  $in('costoAuto').checked = state.costoTotalAuto;
+  renderEstado();
+  paintImages();
   renderItems();
+  renderDesign();
 }
 
-function updateLogoPreview() {
-  const area = document.getElementById('logoArea');
-  const img = document.getElementById('logoPreview') as HTMLImageElement;
-  const editBtn = document.getElementById('logoEditBtn') as HTMLElement | null;
-  const clearBtn = document.getElementById('logoClear') as HTMLElement | null;
-  const hint = area?.querySelector('.logo-empty-hint') as HTMLElement | null;
-
-  if (state.branding.logoDataUrl) {
-    img.src = state.branding.logoDataUrl;
-    img.style.display = 'block';
-    area?.classList.add('has-logo');
-    if (editBtn) editBtn.style.display = 'flex';
-    if (clearBtn) clearBtn.style.display = 'inline-flex';
-    if (hint) hint.style.display = 'none';
-  } else {
-    img.style.display = 'none';
-    area?.classList.remove('has-logo');
-    if (editBtn) editBtn.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = 'none';
-    if (hint) hint.style.display = 'flex';
-  }
-}
-function updateFirmaPreview() {
-  const area = document.getElementById('firmaArea');
-  const img = document.getElementById('firmaPreview') as HTMLImageElement;
-  const editBtn = document.getElementById('firmaEditBtn') as HTMLElement | null;
-  const clearBtn = document.getElementById('firmaClear') as HTMLElement | null;
-  const hint = area?.querySelector('.logo-empty-hint') as HTMLElement | null;
-  const url = state.branding.representante.firmaDataUrl;
-
-  if (url) {
-    img.src = url;
-    img.style.display = 'block';
-    area?.classList.add('has-logo');
-    if (editBtn) editBtn.style.display = 'flex';
-    if (clearBtn) clearBtn.style.display = 'inline-flex';
-    if (hint) hint.style.display = 'none';
-  } else {
-    img.style.display = 'none';
-    area?.classList.remove('has-logo');
-    if (editBtn) editBtn.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = 'none';
-    if (hint) hint.style.display = 'flex';
-  }
+function load(c: Cotizacion, msg?: string) {
+  state = normalize(c);
+  collapsedItems.clear();
+  hydrateForm();
+  refresh();
+  if (msg) toast(msg);
 }
 
-// ---------- init ----------
-
+// ── Init ─────────────────────────────────────────────────────────────────────
 
 export function initEditor() {
-  previewCanvas = $('previewCanvas') as HTMLCanvasElement;
-
   const draft = loadDraft();
   const branding = loadBranding();
-  state = draft ?? nuevaCotizacion(nextNumero());
-  if (branding && !draft) state.branding = branding;
+  const initial = draft ?? nuevaCotizacion(nextNumero());
+  if (branding && !draft) initial.branding = branding;
+  state = normalize(initial);
 
-  // Populate selects/options
-  ($('plantilla') as HTMLSelectElement).innerHTML = buildTemplateOptions(state.plantilla);
+  for (const [id, , set] of FIELDS) {
+    const el = $in(id);
+    const h = () => { set(el.value); refresh(); };
+    el.addEventListener('input', h);
+    el.addEventListener('change', h);
+  }
+  $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; if (!state.costoTotalAuto) $in('costoTotal').value = String(state.costoTotal); refresh(); });
 
-  hydrateForm();
-
-  // Bind inputs
-  bind('numero', v => state.numero = v);
-  bind('fecha', v => state.fecha = v);
-
-  // Calendario: botón abre input[type=date] oculto; convierte yyyy-mm-dd → dd-mm-yyyy
-  const fechaHidden = document.getElementById('fechaHidden') as HTMLInputElement;
-  document.getElementById('fechaPickerBtn')?.addEventListener('click', () => fechaHidden.showPicker?.() ?? fechaHidden.click());
-  fechaHidden.addEventListener('change', () => {
-    const val = fechaHidden.value; // "yyyy-mm-dd"
-    if (!val) return;
-    const [y, m, d] = val.split('-');
-    const formatted = `${d}-${m}-${y}`;
-    (document.getElementById('fecha') as HTMLInputElement).value = formatted;
-    state.fecha = formatted;
-    refresh();
+  // Fecha con calendario nativo
+  $('fechaPickerBtn').addEventListener('click', () => {
+    const h = $in('fechaHidden');
+    h.value = toIso(state.fecha);
+    (h as any).showPicker ? h.showPicker() : h.click();
   });
-  bind('alcance', v => state.alcance = v);
-  bind('costoTotal', v => state.costoTotal = Number(v) || 0);
-  bindCheckbox('costoAuto', v => state.costoTotalAuto = v);
-  bind('plantilla', v => {
-    state.plantilla = v as TemplateId;
-    // Reset overrides al cambiar plantilla
-    state.coloresOverride = {};
-    hydrateForm();
-    refresh();
-  });
-  bind('tiempoEntrega', v => state.tiempoEntrega = v);
-  bind('terminos', v => state.terminos = v.split('\n').map(s => s.trim()).filter(Boolean));
-
-  bind('colorBg', v => state.coloresOverride.bg = v);
-  bind('colorBg2', v => state.coloresOverride.bg2 = v);
-  bind('colorAccent', v => state.coloresOverride.accent = v);
-  bind('colorText', v => {
-    // Afecta tanto el texto del encabezado como el de las tarjetas
-    state.coloresOverride.text = v;
-    state.coloresOverride.cardText = v;
-  });
-
-  bind('repNombre', v => state.branding.representante.nombre = v);
-  bind('repCedula', v => state.branding.representante.cedula = v);
-  bind('cWeb', v => state.branding.contacto.web = v);
-  bind('cEmail', v => state.branding.contacto.email = v);
-  bind('cCel', v => state.branding.contacto.cel = v);
-  bind('cCiudad', v => state.branding.contacto.ciudad = v);
-  bind('cPais', v => state.branding.contacto.pais = v);
-
-  // Logo — el área clickeable activa el file input oculto
-  document.getElementById('logoArea')?.addEventListener('click', () => {
-    ($('logoFile') as HTMLInputElement).click();
-  });
-  document.getElementById('logoArea')?.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ($('logoFile') as HTMLInputElement).click(); }
-  });
-  ($('logoFile') as HTMLInputElement).addEventListener('change', async (ev) => {
-    const f = (ev.target as HTMLInputElement).files?.[0];
-    if (!f) return;
-    state.branding.logoDataUrl = await fileToDataUrl(f);
-    updateLogoPreview();
-    refresh();
-  });
-  $('logoClear').addEventListener('click', () => {
-    state.branding.logoDataUrl = undefined;
-    ($('logoFile') as HTMLInputElement).value = '';
-    updateLogoPreview();
+  $in('fechaHidden').addEventListener('change', () => {
+    const v = fromIso($in('fechaHidden').value);
+    if (!v) return;
+    state.fecha = v;
+    $in('fecha').value = v;
     refresh();
   });
 
-  // Firma — área clickeable abre el file input oculto
-  document.getElementById('firmaArea')?.addEventListener('click', () => {
-    ($('firmaFile') as HTMLInputElement).click();
-  });
-  document.getElementById('firmaArea')?.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ($('firmaFile') as HTMLInputElement).click(); }
-  });
-  ($('firmaFile') as HTMLInputElement).addEventListener('change', async (ev) => {
-    const f = (ev.target as HTMLInputElement).files?.[0];
-    if (!f) return;
-    state.branding.representante.firmaDataUrl = await fileToDataUrl(f);
-    updateFirmaPreview();
-    refresh();
-  });
-  $('firmaClear').addEventListener('click', () => {
-    state.branding.representante.firmaDataUrl = undefined;
-    ($('firmaFile') as HTMLInputElement).value = '';
-    updateFirmaPreview();
+  // Pestañas
+  document.querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab!)));
+  let lastTab = 'cotizacion';
+  try { lastTab = localStorage.getItem('cotizador:tab') || lastTab; } catch { /* */ }
+  if (!document.querySelector(`.tab[data-tab="${lastTab}"]`)) lastTab = 'cotizacion';
+
+  // Estado
+  $('estadoGroup').addEventListener('click', (ev) => {
+    const e = (ev.target as HTMLElement).closest<HTMLElement>('[data-estado]')?.dataset.estado as Estado | undefined;
+    if (!e) return;
+    state.estado = e;
+    renderEstado();
     refresh();
   });
 
-  // Add item
+  // Ítems
   $('addItem').addEventListener('click', () => {
     state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
     renderItems();
     refresh();
+    const cards = $('items').querySelectorAll('.item-card');
+    (cards[cards.length - 1]?.querySelector('input[data-action=titulo]') as HTMLInputElement | null)?.focus();
   });
-
-  // Expandir / colapsar todos
-  document.getElementById('toggleAllItems')?.addEventListener('click', () => {
-    const allCollapsed = state.items.every(it => collapsedItems.has(it.id));
-    if (allCollapsed) {
-      state.items.forEach(it => collapsedItems.delete(it.id));
-    } else {
-      state.items.forEach(it => collapsedItems.add(it.id));
-    }
+  $('toggleAllItems').addEventListener('click', () => {
+    const all = state.items.every((it) => collapsedItems.has(it.id));
+    state.items.forEach((it) => (all ? collapsedItems.delete(it.id) : collapsedItems.add(it.id)));
     renderItems();
   });
+  (['precio', 'titulo', 'tipo'] as SortField[]).forEach((f) => $(`sort-${f}`).addEventListener('click', () => applySort(f)));
 
-  // Ordenar por precio / título / tipo (toggle asc/desc)
-  document.getElementById('sort-precio')?.addEventListener('click', () => applySort('precio'));
-  document.getElementById('sort-titulo')?.addEventListener('click', () => applySort('titulo'));
-  document.getElementById('sort-tipo')?.addEventListener('click', () => applySort('tipo'));
-
-  // Save / new / pdf / png
-  $('saveBtn').addEventListener('click', () => {
-    persistSaved(state);
-    renderSavedList();
-    toast(`Cotización ${state.numero} guardada`);
-  });
-  $('newBtn').addEventListener('click', () => {
-    if (!confirm('¿Crear una cotización nueva? El borrador actual se reemplazará.')) return;
-    state = nuevaCotizacion(nextNumero());
-    state.branding = loadBranding() ?? state.branding;
-    hydrateForm();
+  // Diseño y colores
+  $('designGallery').addEventListener('click', (ev) => {
+    const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-diseno]')?.dataset.diseno as DisenoId | undefined;
+    if (!id) return;
+    state.diseno = id;
+    renderDesign();
     refresh();
   });
-  $('pdfBtn').addEventListener('click', async () => {
-    try { await exportPdf(state); toast('PDF exportado'); }
-    catch (e) { console.error(e); toast('Error exportando PDF', 'err'); }
+  const onColor = (which: 'primary' | 'secondary', v: string) => {
+    if (!/^#[0-9a-f]{6}$/i.test(v)) return;
+    const c = coloresDe(state);
+    setColores(which === 'primary' ? v : c.primary, which === 'secondary' ? v : c.secondary);
+  };
+  $in('colorPrimary').addEventListener('input', () => onColor('primary', $in('colorPrimary').value));
+  $in('colorSecondary').addEventListener('input', () => onColor('secondary', $in('colorSecondary').value));
+  $in('colorPrimaryHex').addEventListener('change', () => onColor('primary', $in('colorPrimaryHex').value.trim().replace(/^([^#])/, '#$1')));
+  $in('colorSecondaryHex').addEventListener('change', () => onColor('secondary', $in('colorSecondaryHex').value.trim().replace(/^([^#])/, '#$1')));
+  $('paletteRow').addEventListener('click', (ev) => {
+    const i = (ev.target as HTMLElement).closest<HTMLElement>('[data-paleta]')?.dataset.paleta;
+    if (i == null) return;
+    const p = PALETAS[Number(i)];
+    setColores(p.primary, p.secondary);
   });
+  $('swapColors').addEventListener('click', () => { const c = coloresDe(state); setColores(c.secondary, c.primary); });
+  $('suggestColors').addEventListener('click', () => {
+    const d = DISENOS.find((x) => x.id === disenoDe(state))!;
+    setColores(d.colores.primary, d.colores.secondary);
+  });
+
+  // Logo y firma
+  setupDrop('logoArea', 'logoFile', async (f) => { state.branding.logoDataUrl = await imageToDataUrl(f, 700); paintImages(); refresh(); });
+  setupDrop('firmaArea', 'firmaFile', async (f) => { state.branding.representante.firmaDataUrl = await imageToDataUrl(f, 900); paintImages(); refresh(); });
+  $('logoClear').addEventListener('click', () => { state.branding.logoDataUrl = undefined; paintImages(); refresh(); });
+  $('firmaClear').addEventListener('click', () => { state.branding.representante.firmaDataUrl = undefined; paintImages(); refresh(); });
+
+  // Cuenta de cobro
+  const cuenta = async () => {
+    const falt = faltantesCobro();
+    if (falt.length) { showTab('cobro'); toast('Completa los datos que faltan para la cuenta de cobro', 'err'); return; }
+    try {
+      await printCuentaCobro(state);
+      if ($in('cobroMarcar').checked && estadoDe(state) !== 'pagada') {
+        state.estado = 'cobrada';
+        renderEstado();
+        refresh();
+        persistSaved(state);
+      }
+    } catch (e) { console.error(e); toast('No se pudo generar la cuenta de cobro', 'err'); }
+  };
+  $('cuentaBtn').addEventListener('click', cuenta);
+
+  // Acciones
+  $('saveBtn').addEventListener('click', () => {
+    try { persistSaved(state); toast(`Cotización ${state.numero} guardada`); renderSavedList(); }
+    catch { toast('No hay espacio en el navegador para guardar', 'err'); }
+  });
+  $('newBtn').addEventListener('click', () => {
+    if (!confirm('¿Empezar una cotización nueva? Lo que no hayas guardado de la actual se perderá.')) return;
+    const keep = { diseno: state.diseno, colores: coloresDe(state), terminos: state.terminos, tiempoEntrega: state.tiempoEntrega };
+    const c = nuevaCotizacion(nextNumero());
+    c.branding = loadBranding() ?? state.branding;
+    Object.assign(c, keep);
+    load(c, `Cotización ${c.numero} lista`);
+    showTab('cotizacion');
+  });
+  $('pdfBtn').addEventListener('click', async () => {
+    try { await exportPdf(state); }
+    catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
+  });
+
+  const menu = $('moreMenu');
+  const closeMenu = () => { menu.hidden = true; $('moreBtn').setAttribute('aria-expanded', 'false'); };
+  $('moreBtn').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    menu.hidden = !menu.hidden;
+    $('moreBtn').setAttribute('aria-expanded', String(!menu.hidden));
+  });
+  menu.addEventListener('click', closeMenu);
   $('pngBtn').addEventListener('click', async () => {
-    try { await exportPng(state); toast('PNG exportado'); }
+    toast('Generando PNG…');
+    try { await exportPng(state); toast('PNG descargado'); }
     catch (e) { console.error(e); toast('Error exportando PNG', 'err'); }
   });
+  $('cuentaMenuBtn').addEventListener('click', cuenta);
+  $('exportJsonBtn').addEventListener('click', () => { exportJson(state); toast(`COTIZACION_${state.numero}.json descargado`); });
+  $('exportMdBtn').addEventListener('click', () => { exportMarkdown(state); toast(`COTIZACION_${state.numero}.md descargado`); });
+  $('importJsonBtn').addEventListener('click', () => $in('importJsonFile').click());
+  $in('importJsonFile').addEventListener('change', async () => {
+    const f = $in('importJsonFile').files?.[0];
+    $in('importJsonFile').value = '';
+    if (!f) return;
+    try { load(await importJsonFromFile(f), `Cotización importada`); }
+    catch (e: any) { toast(e?.message ?? 'Error al importar JSON', 'err'); }
+  });
 
-  // Export JSON
-  $('exportJsonBtn').addEventListener('click', () => {
-    try {
-      exportJson(state);
-      toast(`JSON exportado — COTIZACION_${state.numero}.json`);
-    } catch (e) {
-      console.error(e);
-      toast('Error exportando JSON', 'err');
+  // Guardadas
+  $in('savedSearch').addEventListener('input', renderSavedList);
+  $('savedFilters').addEventListener('click', (ev) => {
+    const f = (ev.target as HTMLElement).closest<HTMLElement>('[data-filter]')?.dataset.filter;
+    if (!f) return;
+    savedFilter = f as Estado | 'todas';
+    renderSavedList();
+  });
+  $('savedList').addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest<HTMLElement>('[data-act]');
+    if (!btn) return;
+    const num = btn.dataset.num!;
+    const found = loadSaved().find((x) => x.numero === num);
+    if (btn.dataset.act === 'load' && found) { load(found, `Cotización ${num} abierta`); showTab('cotizacion'); }
+    else if (btn.dataset.act === 'dup' && found) {
+      const c = structuredClone(found);
+      c.numero = nextNumero();
+      c.fecha = today();
+      c.estado = 'borrador';
+      c.cobro = {};
+      load(c, `Copia creada como ${c.numero}`);
+      showTab('cotizacion');
+    } else if (btn.dataset.act === 'del' && confirm(`¿Eliminar la cotización ${num}?`)) {
+      deleteSaved(num);
+      renderSavedList();
     }
   });
 
-  // Export Markdown
-  $('exportMdBtn').addEventListener('click', () => {
-    try {
-      exportMarkdown(state);
-      toast(`Markdown exportado — COTIZACION_${state.numero}.md`);
-    } catch (e) {
-      console.error(e);
-      toast('Error exportando Markdown', 'err');
-    }
+  // Vista previa: zoom y modo celular
+  $('zoomFit').addEventListener('click', () => { zoomMode = 'fit'; $('zoomFit').classList.add('active'); $('zoom100').classList.remove('active'); applyZoom(); });
+  $('zoom100').addEventListener('click', () => { zoomMode = '100'; $('zoom100').classList.add('active'); $('zoomFit').classList.remove('active'); applyZoom(); });
+  new ResizeObserver(() => applyZoom()).observe($('previewScroll'));
+  document.querySelectorAll<HTMLElement>('.mobile-switch [data-view]').forEach((b) => b.addEventListener('click', () => {
+    (document.querySelector('.app') as HTMLElement).dataset.view = b.dataset.view!;
+    document.querySelectorAll('.mobile-switch [data-view]').forEach((x) => x.classList.toggle('active', x === b));
+    applyZoom();
+  }));
+
+  // Cierra menús al hacer clic fuera
+  document.addEventListener('click', (ev) => {
+    document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach((p) => p.classList.add('hidden'));
+    if (!(ev.target as HTMLElement).closest('.menu-wrap')) closeMenu();
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') closeMenu();
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); $('saveBtn').click(); }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'p') { ev.preventDefault(); $('pdfBtn').click(); }
   });
 
-  // Import JSON — dispara el input file oculto
-  $('importJsonBtn').addEventListener('click', () => {
-    ($('importJsonFile') as HTMLInputElement).value = '';
-    $('importJsonFile').click();
-  });
+  $('tourBtn').addEventListener('click', () => startTour(showTab));
 
-  ($('importJsonFile') as HTMLInputElement).addEventListener('change', async (ev) => {
-    const file = (ev.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    try {
-      const imported = await importJsonFromFile(file);
-      state = imported;
-      hydrateForm();
-      refresh();
-      toast(`Cotización ${imported.numero} importada`);
-    } catch (e: any) {
-      console.error(e);
-      toast(e?.message ?? 'Error al importar JSON', 'err');
-    }
-  });
-
-  // Botón guía (sidebar header)
-  document.getElementById('tourBtn')?.addEventListener('click', () => startTour());
-
-  // Panel dev (MD + JSON)
-  document.getElementById('advToggleBtn')?.addEventListener('click', () => {
-    const panel = document.getElementById('advPanel');
-    const btn = document.getElementById('advToggleBtn');
-    const open = panel?.classList.toggle('hidden') === false;
-    btn?.classList.toggle('active', open);
-  });
-
-  // Modal de bienvenida
-  showWelcomeIfNeeded();
-
-  // Cierra icon-pickers al hacer clic fuera
-  document.addEventListener('click', () => {
-    document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
-  });
-
-  // Section collapse
-  document.querySelectorAll('.section > header').forEach(h => {
-    h.addEventListener('click', () => h.parentElement?.classList.toggle('collapsed'));
-  });
-
+  hydrateForm();
+  updateSortButtons();
+  showTab(lastTab);
   refresh();
+  showWelcomeIfNeeded();
 }
 
-// ── Modal de bienvenida ────────────────────────────────────────────────────
 function showWelcomeIfNeeded() {
-  const LS_KEY = 'cotizador:welcomed';
-  if (localStorage.getItem(LS_KEY) === 'true') return;
-
-  const overlay = document.getElementById('welcomeModal');
-  if (!overlay) return;
-
-  overlay.classList.remove('hidden');
-
-  const close = () => overlay.classList.add('hidden');
-
-  // Empezar → cierra modal e inicia el tour
-  document.getElementById('welcomeStart')?.addEventListener('click', () => {
-    close();
-    setTimeout(() => startTour(), 350);
-  });
-
-  // Saltar guía → solo cierra
-  document.getElementById('welcomeSkip')?.addEventListener('click', close);
-
-  // No volver a mostrar → cierra sin tour y guarda preferencia
-  document.getElementById('welcomeNever')?.addEventListener('click', () => {
-    localStorage.setItem(LS_KEY, 'true');
-    close();
-  });
-
-  // Cierra al hacer clic en el fondo oscuro
-  overlay.addEventListener('click', (ev) => {
-    if (ev.target === overlay) close();
-  });
-
-  // Cierra con Escape
+  const KEY = 'cotizador:welcomed';
+  try { if (localStorage.getItem(KEY) === 'true') return; } catch { return; }
+  const overlay = $('welcomeModal');
+  overlay.hidden = false;
+  const close = () => { overlay.hidden = true; };
+  $('welcomeStart').addEventListener('click', () => { close(); window.setTimeout(() => startTour(showTab), 250); });
+  $('welcomeSkip').addEventListener('click', close);
+  $('welcomeNever').addEventListener('click', () => { try { localStorage.setItem(KEY, 'true'); } catch { /* */ } close(); });
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
   document.addEventListener('keydown', function onEsc(ev) {
     if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
   });
-}
-
-function bind(id: string, setter: (v: string) => void) {
-  const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
-  if (!el) return;
-  el.addEventListener('input', () => { setter(el.value); refresh(); });
-  el.addEventListener('change', () => { setter(el.value); refresh(); });
-}
-
-function bindCheckbox(id: string, setter: (v: boolean) => void) {
-  const el = document.getElementById(id) as HTMLInputElement | null;
-  if (!el) return;
-  el.addEventListener('change', () => { setter(el.checked); refresh(); });
 }
