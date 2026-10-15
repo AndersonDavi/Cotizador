@@ -530,7 +530,7 @@ const lateral: Layout = {
   css: `
 .doc{display:grid;grid-template-columns:340px 1fr;min-height:1400px}
 .side{background:var(--p);color:var(--onP);padding:56px 30px;display:flex;flex-direction:column;gap:30px}
-.side .logo{max-width:150px;max-height:110px;object-fit:contain;background:#fff;border-radius:18px;padding:12px}
+.side .logo{max-width:170px;max-height:110px;object-fit:contain;align-self:flex-start}
 .side .emp{font-weight:700;font-size:24px;line-height:1.15}
 .lbl{font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--s);margin-bottom:4px}
 .side .num{font-weight:800;font-size:40px;line-height:1}

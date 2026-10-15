@@ -25,7 +25,9 @@ import {
   cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
   importJsonFromFile, printCuentaCobro,
 } from './export';
-import { startTour } from './tour';
+import { startTour, TOURS, type TourId } from './tour';
+import { moneyField, dateField } from './inputs';
+import { openColorPicker } from './colorpicker';
 
 let state: Cotizacion;
 let saveTimer: number | null = null;
@@ -131,8 +133,11 @@ function scheduleAutosave() {
   }, 400);
 }
 
+let costoMoney: { paint: () => void } | null = null;
 let renderSeq = 0;
-let zoomMode: 'fit' | '100' = 'fit';
+/** 'width' = ocupa el ancho disponible, 'page' = documento completo a la vista, número = zoom fijo. */
+let zoomMode: 'width' | 'page' | number = 'width';
+let zoomK = 1;
 let docSize = { width: 1080, height: 1400 };
 
 function frames() {
@@ -150,7 +155,14 @@ function applyZoom() {
   const pad = parseFloat(getComputedStyle(scroll).paddingLeft) * 2;
   const avail = scroll.clientWidth - pad;
   if (avail <= 0) return; // vista previa oculta (modo celular): se ajusta al mostrarla
-  const k = zoomMode === 'fit' ? Math.min(1, avail / docSize.width) : 1;
+  const availH = scroll.clientHeight - pad;
+  const k = zoomMode === 'width' ? Math.min(1.6, avail / docSize.width)
+    : zoomMode === 'page' ? Math.min(avail / docSize.width, availH / docSize.height)
+    : zoomMode;
+  zoomK = k;
+  $('zoomLabel').textContent = `${Math.round(k * 100)}%`;
+  $('zoomWidth').classList.toggle('active', zoomMode === 'width');
+  $('zoomPage').classList.toggle('active', zoomMode === 'page');
   stage.style.width = `${docSize.width * k}px`;
   stage.style.height = `${docSize.height * k}px`;
   for (const f of [front, stage.querySelector('.pv-frame.back') as HTMLIFrameElement]) {
@@ -162,10 +174,14 @@ function applyZoom() {
 /** Renderiza en el iframe oculto y lo intercambia al terminar (sin parpadeo). */
 async function renderPreview() {
   const seq = ++renderSeq;
-  const { front, back } = frames();
+  const { stage, front, back } = frames();
+  // Skeleton solo si el render tarda (cambio de diseño, imágenes grandes); al escribir no parpadea
+  const skel = window.setTimeout(() => stage.classList.add('loading'), 160);
   try {
     const size = await loadIntoFrame(back, cotizacionHtml(state));
     if (seq !== renderSeq) return;
+    clearTimeout(skel);
+    stage.classList.remove('loading');
     docSize = size;
     back.style.height = `${size.height}px`;
     back.classList.replace('back', 'front');
@@ -291,6 +307,16 @@ function applySort(field: SortField) {
   refresh();
 }
 
+const svgI = (d: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONS: Record<string, string> = {
+  up: svgI('<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>'),
+  down: svgI('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
+  copy: svgI('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  collapse: svgI('<path d="m18 15-6-6-6 6"/>'),
+  expand: svgI('<path d="m6 9 6 6 6-6"/>'),
+  trash: svgI('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+};
+
 function renderItems() {
   const wrap = $('items');
   wrap.innerHTML = '';
@@ -301,11 +327,14 @@ function renderItems() {
     const collapsed = collapsedItems.has(it.id);
     const card = document.createElement('div');
     card.className = 'item-card' + (collapsed ? ' item-collapsed' : '');
-    const ctrl = `
-      <button class="icon-btn" data-action="up" title="Subir" ${idx === 0 ? 'disabled' : ''}>▲</button>
-      <button class="icon-btn" data-action="down" title="Bajar" ${idx === state.items.length - 1 ? 'disabled' : ''}>▼</button>
-      <button class="icon-btn" data-action="toggle" title="${collapsed ? 'Expandir' : 'Colapsar'}">${collapsed ? '▾' : '▴'}</button>
-      <button class="icon-btn danger" data-action="remove" title="Eliminar">✕</button>`;
+    const btn = (action: string, label: string, icon: string, extra = '') =>
+      `<button type="button" class="icon-btn${action === 'remove' ? ' danger' : ''}" data-action="${action}" title="${label}" aria-label="${label}" ${extra}>${ICONS[icon]}</button>`;
+    const ctrl =
+      btn('up', 'Subir este ítem', 'up', idx === 0 ? 'disabled' : '') +
+      btn('down', 'Bajar este ítem', 'down', idx === state.items.length - 1 ? 'disabled' : '') +
+      btn('dup', 'Duplicar ítem', 'copy') +
+      btn('toggle', collapsed ? 'Mostrar detalles' : 'Ocultar detalles', collapsed ? 'expand' : 'collapse') +
+      btn('remove', 'Eliminar ítem', 'trash');
     if (collapsed) {
       card.innerHTML = `<div class="item-head item-head-compact">
         <span class="item-num">${idx + 1}</span>
@@ -316,14 +345,14 @@ function renderItems() {
         <div class="item-head"><span class="item-num">${idx + 1}</span><span class="picker-slot"></span><span class="spacer"></span>${ctrl}</div>
         <div><label>Título</label><input type="text" data-action="titulo" value="${escapeHtml(it.titulo)}" placeholder="Ej. Diseño del logo" /></div>
         <div><label>Descripción</label><textarea class="item-desc" data-action="descripcion" rows="3" placeholder="Qué incluye…">${escapeHtml(it.descripcion)}</textarea></div>
-        <div><label>Valor (COP)</label><input type="number" min="0" step="1000" data-action="valor" value="${it.valor}" /></div>`;
+        <div><label>Valor (COP)</label><input class="valor-slot" /></div>`;
       card.querySelector('.picker-slot')!.replaceWith(buildIconPicker(it.iconKey, (k) => { it.iconKey = k; refresh(); }));
+      moneyField(card.querySelector('.valor-slot') as HTMLInputElement, () => it.valor, (v) => { it.valor = v; refresh(); });
     }
     card.addEventListener('input', (ev) => {
       const t = ev.target as HTMLInputElement | HTMLTextAreaElement;
       if (t.dataset.action === 'titulo') it.titulo = t.value;
       else if (t.dataset.action === 'descripcion') it.descripcion = t.value;
-      else if (t.dataset.action === 'valor') it.valor = Number(t.value) || 0;
       else return;
       refresh();
     });
@@ -334,6 +363,8 @@ function renderItems() {
         state.items.splice(idx, 1);
         collapsedItems.delete(it.id);
         if (!state.items.length) state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
+      } else if (action === 'dup') {
+        state.items.splice(idx + 1, 0, { ...it, id: makeId() });
       } else if (action === 'up' && idx > 0) {
         [state.items[idx - 1], state.items[idx]] = [state.items[idx], state.items[idx - 1]];
       } else if (action === 'down' && idx < state.items.length - 1) {
@@ -379,14 +410,29 @@ function renderDesign() {
       <div class="thumb">${thumb(d.id, primary, secondary)}</div>
       <div><b>${d.nombre}</b><small>${d.descripcion}</small></div>
     </button>`).join('');
-  $in('colorPrimary').value = primary.toLowerCase();
-  $in('colorSecondary').value = secondary.toLowerCase();
-  $in('colorPrimaryHex').value = primary.toUpperCase();
-  $in('colorSecondaryHex').value = secondary.toUpperCase();
-  $('paletteRow').innerHTML = PALETAS.map((p, i) => {
-    const on = p.primary.toLowerCase() === primary.toLowerCase() && p.secondary.toLowerCase() === secondary.toLowerCase();
-    return `<button type="button" class="palette${on ? ' active' : ''}" data-paleta="${i}" title="${p.nombre}"><i style="background:${p.primary}"></i><i style="background:${p.secondary}"></i></button>`;
-  }).join('');
+  $('colorPrimarySw').style.background = primary;
+  $('colorSecondarySw').style.background = secondary;
+  $('colorPrimaryHex').textContent = primary.toUpperCase();
+  $('colorSecondaryHex').textContent = secondary.toUpperCase();
+  const same = (p: { primary: string; secondary: string }) =>
+    p.primary.toLowerCase() === primary.toLowerCase() && p.secondary.toLowerCase() === secondary.toLowerCase();
+  const chip = (p: { primary: string; secondary: string; nombre?: string }, attr: string, del = '') =>
+    `<span class="palette-wrap"><button type="button" class="palette${same(p) ? ' active' : ''}" ${attr} title="${p.nombre ?? `${p.primary} · ${p.secondary}`}"><i style="background:${p.primary}"></i><i style="background:${p.secondary}"></i></button>${del}</span>`;
+  $('paletteRow').innerHTML = PALETAS.map((p, i) => chip(p, `data-paleta="${i}"`)).join('');
+  const mine = misPaletas();
+  $('myPalettes').innerHTML = mine.length
+    ? mine.map((p, i) => chip(p, `data-mia="${i}"`, `<button type="button" class="palette-del" data-del="${i}" title="Quitar paleta" aria-label="Quitar paleta">×</button>`)).join('')
+    : '<span class="hint">Guarda aquí los colores de tu marca o de tus clientes.</span>';
+  ($('savePalette') as HTMLButtonElement).disabled = mine.some(same) || PALETAS.some(same);
+}
+
+// Paletas propias en localStorage
+const PALETAS_KEY = 'cotizador:paletas';
+function misPaletas(): { primary: string; secondary: string }[] {
+  try { return JSON.parse(localStorage.getItem(PALETAS_KEY) || '[]'); } catch { return []; }
+}
+function guardarPaletas(list: { primary: string; secondary: string }[]) {
+  try { localStorage.setItem(PALETAS_KEY, JSON.stringify(list.slice(0, 24))); } catch { toast('No se pudo guardar la paleta', 'err'); }
 }
 
 function setColores(primary: string, secondary: string) {
@@ -435,7 +481,7 @@ function faltantesCobro(): string[] {
   const f: string[] = [];
   if (!state.cliente?.nombre) f.push('Nombre del cliente (pestaña Cotización)');
   if (!state.cliente?.nit) f.push('NIT del cliente (pestaña Cotización)');
-  if (!state.cobro?.desde || !state.cobro?.hasta) f.push('Período del trabajo (desde / hasta)');
+  if (!parseFecha(state.cobro?.desde ?? '') || !parseFecha(state.cobro?.hasta ?? '')) f.push('Período del trabajo (desde / hasta, dd-mm-aaaa)');
   if (!state.branding.banco) f.push('Cuenta bancaria (pestaña Mi marca)');
   if (!state.branding.representante.nombre && !state.branding.nombreLegal) f.push('Tu nombre (pestaña Mi marca)');
   return f;
@@ -493,7 +539,6 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['clienteNombre', () => state.cliente?.nombre ?? '', (v) => { state.cliente = { nit: state.cliente?.nit ?? '', nombre: v }; }],
   ['clienteNit', () => state.cliente?.nit ?? '', (v) => { state.cliente = { nombre: state.cliente?.nombre ?? '', nit: v }; }],
   ['alcance', () => state.alcance, (v) => { state.alcance = v; }],
-  ['costoTotal', () => String(state.costoTotal), (v) => { state.costoTotal = Number(v) || 0; }],
   ['tiempoEntrega', () => state.tiempoEntrega, (v) => { state.tiempoEntrega = v; }],
   ['terminos', () => state.terminos.join('\n'), (v) => { state.terminos = v.split('\n').map((s) => s.trim()).filter(Boolean); }],
   ['empresa', () => state.branding.empresa ?? '', (v) => { state.branding.empresa = v; }],
@@ -507,15 +552,16 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['banco', () => state.branding.banco ?? '', (v) => { state.branding.banco = v; }],
   ['nombreLegal', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
   ['direccion', () => state.branding.direccion ?? '', (v) => { state.branding.direccion = v; }],
-  ['cobroDesde', () => toIso(state.cobro?.desde), (v) => { state.cobro = { ...state.cobro, desde: fromIso(v) }; }],
-  ['cobroHasta', () => toIso(state.cobro?.hasta), (v) => { state.cobro = { ...state.cobro, hasta: fromIso(v) }; }],
-  ['cobroFecha', () => toIso(state.cobro?.fecha) || toIso(today()), (v) => { state.cobro = { ...state.cobro, fecha: fromIso(v) }; }],
+  ['cobroDesde', () => state.cobro?.desde ?? '', (v) => { state.cobro = { ...state.cobro, desde: v }; }],
+  ['cobroHasta', () => state.cobro?.hasta ?? '', (v) => { state.cobro = { ...state.cobro, hasta: v }; }],
+  ['cobroFecha', () => state.cobro?.fecha || today(), (v) => { state.cobro = { ...state.cobro, fecha: v }; }],
   ['cobroConcepto', () => state.cobro?.concepto ?? '', (v) => { state.cobro = { ...state.cobro, concepto: v }; }],
 ];
 
 function hydrateForm() {
   for (const [id, get] of FIELDS) $in(id).value = get();
   $in('costoAuto').checked = state.costoTotalAuto;
+  costoMoney?.paint();
   renderEstado();
   paintImages();
   renderItems();
@@ -539,27 +585,16 @@ export function initEditor() {
   if (branding && !draft) initial.branding = branding;
   state = normalize(initial);
 
+  // Fechas dd-mm-aaaa con máscara y calendario (antes de FIELDS, para que lean el valor ya formateado)
+  document.querySelectorAll<HTMLInputElement>('input[data-date]').forEach((el) => dateField(el, () => el.dispatchEvent(new Event('change'))));
   for (const [id, , set] of FIELDS) {
     const el = $in(id);
     const h = () => { set(el.value); refresh(); };
     el.addEventListener('input', h);
     el.addEventListener('change', h);
   }
-  $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; if (!state.costoTotalAuto) $in('costoTotal').value = String(state.costoTotal); refresh(); });
-
-  // Fecha con calendario nativo
-  $('fechaPickerBtn').addEventListener('click', () => {
-    const h = $in('fechaHidden');
-    h.value = toIso(state.fecha);
-    (h as any).showPicker ? h.showPicker() : h.click();
-  });
-  $in('fechaHidden').addEventListener('change', () => {
-    const v = fromIso($in('fechaHidden').value);
-    if (!v) return;
-    state.fecha = v;
-    $in('fecha').value = v;
-    refresh();
-  });
+  costoMoney = moneyField($in('costoTotal'), () => state.costoTotal, (v) => { state.costoTotal = v; refresh(); }, 50000);
+  $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; refresh(); costoMoney?.paint(); });
 
   // Pestañas
   document.querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab!)));
@@ -604,15 +639,36 @@ export function initEditor() {
     const c = coloresDe(state);
     setColores(which === 'primary' ? v : c.primary, which === 'secondary' ? v : c.secondary);
   };
-  $in('colorPrimary').addEventListener('input', () => onColor('primary', $in('colorPrimary').value));
-  $in('colorSecondary').addEventListener('input', () => onColor('secondary', $in('colorSecondary').value));
-  $in('colorPrimaryHex').addEventListener('change', () => onColor('primary', $in('colorPrimaryHex').value.trim().replace(/^([^#])/, '#$1')));
-  $in('colorSecondaryHex').addEventListener('change', () => onColor('secondary', $in('colorSecondaryHex').value.trim().replace(/^([^#])/, '#$1')));
+  for (const which of ['primary', 'secondary'] as const) {
+    const btn = $(which === 'primary' ? 'colorPrimaryBtn' : 'colorSecondaryBtn');
+    btn.addEventListener('click', () => openColorPicker(btn, coloresDe(state)[which], which === 'primary' ? 'Color principal' : 'Color secundario', (hex) => onColor(which, hex)));
+  }
   $('paletteRow').addEventListener('click', (ev) => {
     const i = (ev.target as HTMLElement).closest<HTMLElement>('[data-paleta]')?.dataset.paleta;
     if (i == null) return;
     const p = PALETAS[Number(i)];
     setColores(p.primary, p.secondary);
+  });
+  $('myPalettes').addEventListener('click', (ev) => {
+    const t = ev.target as HTMLElement;
+    const del = t.closest<HTMLElement>('[data-del]')?.dataset.del;
+    if (del != null) {
+      const list = misPaletas();
+      list.splice(Number(del), 1);
+      guardarPaletas(list);
+      renderDesign();
+      return;
+    }
+    const i = t.closest<HTMLElement>('[data-mia]')?.dataset.mia;
+    if (i == null) return;
+    const p = misPaletas()[Number(i)];
+    if (p) setColores(p.primary, p.secondary);
+  });
+  $('savePalette').addEventListener('click', () => {
+    const c = coloresDe(state);
+    guardarPaletas([{ primary: c.primary.toUpperCase(), secondary: c.secondary.toUpperCase() }, ...misPaletas()]);
+    renderDesign();
+    toast('Paleta guardada en este navegador');
   });
   $('swapColors').addEventListener('click', () => { const c = coloresDe(state); setColores(c.secondary, c.primary); });
   $('suggestColors').addEventListener('click', () => {
@@ -715,14 +771,19 @@ export function initEditor() {
   });
 
   // Vista previa: zoom y modo celular
-  $('zoomFit').addEventListener('click', () => { zoomMode = 'fit'; $('zoomFit').classList.add('active'); $('zoom100').classList.remove('active'); applyZoom(); });
-  $('zoom100').addEventListener('click', () => { zoomMode = '100'; $('zoom100').classList.add('active'); $('zoomFit').classList.remove('active'); applyZoom(); });
+  const zoomBy = (d: number) => { zoomMode = Math.min(2, Math.max(0.2, Math.round((zoomK + d) * 10) / 10)); applyZoom(); };
+  $('zoomIn').addEventListener('click', () => zoomBy(0.1));
+  $('zoomOut').addEventListener('click', () => zoomBy(-0.1));
+  $('zoomWidth').addEventListener('click', () => { zoomMode = 'width'; applyZoom(); });
+  $('zoomPage').addEventListener('click', () => { zoomMode = 'page'; applyZoom(); $('previewScroll').scrollTop = 0; });
+  // Ctrl + rueda sobre la vista previa = zoom
+  $('previewScroll').addEventListener('wheel', (ev) => {
+    if (!ev.ctrlKey) return;
+    ev.preventDefault();
+    zoomBy(ev.deltaY < 0 ? 0.1 : -0.1);
+  }, { passive: false });
   new ResizeObserver(() => applyZoom()).observe($('previewScroll'));
-  document.querySelectorAll<HTMLElement>('.mobile-switch [data-view]').forEach((b) => b.addEventListener('click', () => {
-    (document.querySelector('.app') as HTMLElement).dataset.view = b.dataset.view!;
-    document.querySelectorAll('.mobile-switch [data-view]').forEach((x) => x.classList.toggle('active', x === b));
-    applyZoom();
-  }));
+  document.querySelectorAll<HTMLElement>('.mobile-switch [data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view as 'edit' | 'preview')));
 
   // Cierra menús al hacer clic fuera
   document.addEventListener('click', (ev) => {
@@ -730,12 +791,22 @@ export function initEditor() {
     if (!(ev.target as HTMLElement).closest('.menu-wrap')) closeMenu();
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') closeMenu();
+    if (ev.key === 'Escape') { closeMenu(); if (!$('helpModal').hidden) closeHelp(); }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); $('saveBtn').click(); }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'p') { ev.preventDefault(); $('pdfBtn').click(); }
   });
 
-  $('tourBtn').addEventListener('click', () => startTour(showTab));
+  // Ayuda: centro de ayuda y guías por sección
+  $('tourList').innerHTML = TOURS.map((t) => `<button type="button" data-tour="${t.id}" class="${t.id === 'completa' ? 'main' : ''}"><b>${t.nombre}</b><span>${t.descripcion}</span></button>`).join('');
+  $('helpBtn').addEventListener('click', openHelp);
+  $('helpClose').addEventListener('click', closeHelp);
+  $('helpModal').addEventListener('click', (ev) => { if (ev.target === $('helpModal')) closeHelp(); });
+  document.addEventListener('click', (ev) => {
+    const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-tour]')?.dataset.tour as TourId | undefined;
+    if (!id) return;
+    closeHelp();
+    window.setTimeout(() => tour(id), 150);
+  });
 
   hydrateForm();
   updateSortButtons();
@@ -744,13 +815,32 @@ export function initEditor() {
   showWelcomeIfNeeded();
 }
 
+function setView(view: 'edit' | 'preview') {
+  (document.querySelector('.app') as HTMLElement).dataset.view = view;
+  document.querySelectorAll<HTMLElement>('.mobile-switch [data-view]').forEach((x) => x.classList.toggle('active', x.dataset.view === view));
+  applyZoom();
+}
+
+function tour(id: TourId) {
+  startTour(id, { showTab, setView });
+}
+
+function openHelp() {
+  $('helpModal').hidden = false;
+}
+
+function closeHelp() {
+  $('helpModal').hidden = true;
+  ($('helpVideo') as HTMLVideoElement).pause();
+}
+
 function showWelcomeIfNeeded() {
   const KEY = 'cotizador:welcomed';
   try { if (localStorage.getItem(KEY) === 'true') return; } catch { return; }
   const overlay = $('welcomeModal');
   overlay.hidden = false;
   const close = () => { overlay.hidden = true; };
-  $('welcomeStart').addEventListener('click', () => { close(); window.setTimeout(() => startTour(showTab), 250); });
+  $('welcomeStart').addEventListener('click', () => { close(); window.setTimeout(() => tour('completa'), 250); });
   $('welcomeSkip').addEventListener('click', close);
   $('welcomeNever').addEventListener('click', () => { try { localStorage.setItem(KEY, 'true'); } catch { /* */ } close(); });
   overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });

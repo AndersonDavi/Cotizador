@@ -49,8 +49,8 @@ const I = {
     <meta property="og:title"        content={TITLE} />
     <meta property="og:description"  content={DESC} />
     <meta property="og:locale"       content="es_CO" />
-    <meta property="og:image"        content={`${SITE}/og-image.webp`} />
-    <meta property="og:image:type"   content="image/webp" />
+    <meta property="og:image"        content={`${SITE}/og-image.jpg`} />
+    <meta property="og:image:type"   content="image/jpeg" />
     <meta property="og:image:width"  content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt"    content="Editor de cotizaciones Cotizador — panel de opciones y vista previa de propuesta" />
@@ -58,11 +58,11 @@ const I = {
     <meta name="twitter:card"        content="summary_large_image" />
     <meta name="twitter:title"       content={TITLE} />
     <meta name="twitter:description" content={DESC} />
-    <meta name="twitter:image"       content={`${SITE}/og-image.webp`} />
+    <meta name="twitter:image"       content={`${SITE}/og-image.jpg`} />
     <meta name="twitter:image:alt"   content="Editor de cotizaciones Cotizador" />
 
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#14161b" />
+    <meta name="theme-color" content="#15181e" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -70,7 +70,7 @@ const I = {
 
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/logo-512.webp" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
@@ -84,8 +84,8 @@ const I = {
       "inLanguage": "es-CO",
       "isAccessibleForFree": true,
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "COP" },
-      "image": `${SITE}/og-image.webp`,
-      "screenshot": `${SITE}/og-image.webp`,
+      "image": `${SITE}/og-image.jpg`,
+      "screenshot": `${SITE}/og-image.jpg`,
       "author": {
         "@type": "Person",
         "name": "Anderson Rueda",
@@ -100,13 +100,13 @@ const I = {
       <aside class="editor">
         <header class="topbar">
           <div class="brandmark">
-            <img src="/logo.webp" alt="" width="32" height="32" />
+            <img src="/logo.svg" alt="" width="32" height="32" />
             <div>
               <h1>Cotizador</h1>
               <span id="docLabel" class="doc-label">Cotización 00001</span>
             </div>
           </div>
-          <button id="tourBtn" class="ghost-btn" title="Ver guía interactiva"><Fragment set:html={I.help} /> Guía</button>
+          <button id="helpBtn" class="ghost-btn" title="Video, guías y preguntas frecuentes"><Fragment set:html={I.help} /> Ayuda</button>
         </header>
 
         <nav class="tabs" role="tablist" aria-label="Secciones">
@@ -121,15 +121,12 @@ const I = {
         <div class="panes">
           <!-- Cotización -->
           <section class="pane active" data-pane="cotizacion">
+            <button class="pane-help" type="button" data-tour="cotizacion"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <div class="card">
               <div class="grid2">
                 <label class="field">N.º de cotización<input id="numero" type="text" inputmode="numeric" /></label>
                 <label class="field">Fecha
-                  <span class="with-btn">
-                    <input id="fecha" type="text" placeholder="dd-mm-aaaa" />
-                    <button id="fechaPickerBtn" type="button" class="icon-only" title="Elegir en calendario"><Fragment set:html={I.cal} /></button>
-                    <input id="fechaHidden" type="date" class="sr-only" tabindex="-1" aria-hidden="true" />
-                  </span>
+                  <input id="fecha" type="text" data-date placeholder="dd-mm-aaaa" />
                 </label>
               </div>
               <div class="field">Estado
@@ -153,7 +150,7 @@ const I = {
                 <div class="total-big" id="totalBig">$0</div>
                 <label class="switch"><input id="costoAuto" type="checkbox" /><span></span> Sumar ítems</label>
               </div>
-              <label class="field" id="costoManualWrap">Valor manual (COP)<input id="costoTotal" type="number" min="0" step="1000" /></label>
+              <label class="field" id="costoManualWrap">Valor manual (COP)<input id="costoTotal" type="text" data-money /></label>
             </div>
 
             <div class="card">
@@ -165,6 +162,7 @@ const I = {
 
           <!-- Ítems -->
           <section class="pane" data-pane="items">
+            <button class="pane-help" type="button" data-tour="items"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <div class="items-toolbar">
               <span class="toolbar-label">Ordenar</span>
               <button id="sort-precio" class="chip">Precio</button>
@@ -178,6 +176,7 @@ const I = {
 
           <!-- Diseño -->
           <section class="pane" data-pane="diseno">
+            <button class="pane-help" type="button" data-tour="diseno"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <div class="card">
               <h3 class="card-title">Plantilla</h3>
               <div id="designGallery" class="gallery"></div>
@@ -185,16 +184,17 @@ const I = {
             <div class="card">
               <h3 class="card-title">Colores <small>toda la plantilla sale de estos dos</small></h3>
               <div class="grid2">
-                <label class="color-field">
-                  <input id="colorPrimary" type="color" />
-                  <span><b>Principal</b><input id="colorPrimaryHex" type="text" maxlength="7" spellcheck="false" /></span>
-                </label>
-                <label class="color-field">
-                  <input id="colorSecondary" type="color" />
-                  <span><b>Secundario</b><input id="colorSecondaryHex" type="text" maxlength="7" spellcheck="false" /></span>
-                </label>
+                <button type="button" class="color-field" id="colorPrimaryBtn" data-which="primary" aria-haspopup="dialog">
+                  <i class="sw" id="colorPrimarySw"></i>
+                  <span><b>Principal</b><code id="colorPrimaryHex"></code></span>
+                </button>
+                <button type="button" class="color-field" id="colorSecondaryBtn" data-which="secondary" aria-haspopup="dialog">
+                  <i class="sw" id="colorSecondarySw"></i>
+                  <span><b>Secundario</b><code id="colorSecondaryHex"></code></span>
+                </button>
               </div>
               <div class="field">Paletas rápidas<div id="paletteRow" class="palettes"></div></div>
+              <div class="field"><span class="field-row">Mis paletas <button id="savePalette" class="link-btn" type="button">+ Guardar la actual</button></span><div id="myPalettes" class="palettes"></div></div>
               <div class="link-row">
                 <button id="swapColors" class="link-btn" type="button">⇄ Intercambiar colores</button>
                 <button id="suggestColors" class="link-btn" type="button">Usar colores sugeridos del diseño</button>
@@ -204,6 +204,7 @@ const I = {
 
           <!-- Mi marca -->
           <section class="pane" data-pane="marca">
+            <button class="pane-help" type="button" data-tour="marca"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <p class="hint">Estos datos se guardan en tu navegador y se usan en todas tus cotizaciones.</p>
             <div class="card">
               <h3 class="card-title">Logo y nombre</h3>
@@ -259,13 +260,14 @@ const I = {
 
           <!-- Cobro -->
           <section class="pane" data-pane="cobro">
+            <button class="pane-help" type="button" data-tour="cobro"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <p class="hint">Genera la cuenta de cobro de esta cotización con el total, tus datos y los del cliente.</p>
             <div class="card">
               <div class="grid2">
-                <label class="field">Trabajo desde<input id="cobroDesde" type="date" /></label>
-                <label class="field">Hasta<input id="cobroHasta" type="date" /></label>
+                <label class="field">Trabajo desde<input id="cobroDesde" type="text" data-date placeholder="dd-mm-aaaa" /></label>
+                <label class="field">Hasta<input id="cobroHasta" type="text" data-date placeholder="dd-mm-aaaa" /></label>
               </div>
-              <label class="field">Fecha de la cuenta<input id="cobroFecha" type="date" /></label>
+              <label class="field">Fecha de la cuenta<input id="cobroFecha" type="text" data-date placeholder="dd-mm-aaaa" /></label>
               <label class="field">Por concepto de <small>el período se agrega solo</small><textarea id="cobroConcepto" rows="3" placeholder="Por actividades de desarrollo correspondientes a…"></textarea></label>
               <div id="cobroFaltan" class="warn" hidden></div>
               <div class="cobro-preview" id="cobroResumen"></div>
@@ -276,6 +278,7 @@ const I = {
 
           <!-- Guardadas -->
           <section class="pane" data-pane="guardadas">
+            <button class="pane-help" type="button" data-tour="guardadas"><Fragment set:html={I.help} /> Guía de esta sección</button>
             <div class="saved-tools">
               <input id="savedSearch" type="search" placeholder="Buscar por número, cliente o alcance" />
               <div id="savedFilters" class="chips"></div>
@@ -309,12 +312,16 @@ const I = {
           <span id="previewEstado" class="badge"></span>
           <span id="previewTotal" class="preview-total"></span>
           <div class="zoom">
-            <button id="zoomFit" class="chip active">Ajustar</button>
-            <button id="zoom100" class="chip">100%</button>
+            <button id="zoomOut" class="zbtn" type="button" title="Alejar" aria-label="Alejar">−</button>
+            <span id="zoomLabel" class="zlabel">100%</span>
+            <button id="zoomIn" class="zbtn" type="button" title="Acercar" aria-label="Acercar">+</button>
+            <button id="zoomWidth" class="chip active" type="button" title="Ocupar todo el ancho">Ancho</button>
+            <button id="zoomPage" class="chip" type="button" title="Ver el documento completo">Página</button>
           </div>
         </div>
         <div id="previewScroll" class="preview-scroll">
-          <div id="previewStage" class="preview-stage">
+          <div id="previewStage" class="preview-stage loading">
+            <div class="pv-skeleton" aria-hidden="true"><i class="sk-h"></i><i class="sk-l w60"></i><i class="sk-l w40"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-l w30"></i></div>
             <iframe class="pv-frame front" title="Vista previa de la cotización" tabindex="-1"></iframe>
             <iframe class="pv-frame back" title="" aria-hidden="true" tabindex="-1"></iframe>
           </div>
@@ -330,10 +337,117 @@ const I = {
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <!-- Centro de ayuda -->
+    <div id="helpModal" class="modal-overlay help-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="help-box">
+        <header class="help-head">
+          <div class="brandmark"><img src="/logo.svg" alt="" width="32" height="32" /><h2 id="helpTitle">Centro de ayuda</h2></div>
+          <button id="helpClose" class="icon-only" type="button" aria-label="Cerrar ayuda">✕</button>
+        </header>
+        <div class="help-body">
+          <section class="help-video">
+            <video id="helpVideo" controls preload="none" playsinline poster="/tutorial/poster.jpg">
+              <source src="/tutorial/tutorial.mp4" type="video/mp4" />
+            </video>
+            <p class="hint">Video de 1 minuto: de la marca al PDF.</p>
+          </section>
+
+          <section>
+            <h3 class="help-h">Guías interactivas</h3>
+            <p class="hint">Te llevan paso a paso sobre la app, resaltando cada control.</p>
+            <div id="tourList" class="tour-list"></div>
+          </section>
+
+          <section>
+            <h3 class="help-h">Paso a paso</h3>
+            <details open>
+              <summary>1. Configura tu marca (una sola vez)</summary>
+              <ol>
+                <li>Abre la pestaña <b>Mi marca</b>.</li>
+                <li>Haz clic en el cuadro <b>Logo</b> o arrastra tu imagen (PNG, JPG o SVG). Si es muy grande, se reduce sola.</li>
+                <li>Escribe el <b>nombre de tu marca</b>: aparece junto al logo.</li>
+                <li>En <b>Quién firma</b> pon tu nombre, tu cédula o NIT y sube tu firma. Sirve una foto de tu firma en papel blanco: el fondo se elimina.</li>
+                <li>Completa <b>Contacto</b> (celular, email, web, ciudad) y <b>Datos para cobrar</b> (cuenta bancaria, nombre completo, dirección).</li>
+              </ol>
+              <p class="hint">Estos datos se guardan en tu navegador y se reutilizan en cada cotización nueva.</p>
+            </details>
+            <details>
+              <summary>2. Elige diseño y colores</summary>
+              <ol>
+                <li>En <b>Diseño</b> toca la plantilla que más te guste; la vista previa cambia al instante.</li>
+                <li>Pon tu <b>color principal</b> y tu <b>color secundario</b>, o elige una paleta rápida. Todo el diseño sale de esos dos colores.</li>
+                <li>¿No te convence? <b>Usar colores sugeridos</b> vuelve a los del diseño, e <b>Intercambiar</b> invierte los dos.</li>
+              </ol>
+            </details>
+            <details>
+              <summary>3. Llena la cotización</summary>
+              <ol>
+                <li>En <b>Cotización</b> revisa el número y la fecha (se llenan solos).</li>
+                <li>Escribe el <b>cliente</b>, su NIT y el <b>alcance</b> en una frase.</li>
+                <li>Ajusta el <b>tiempo de entrega</b> y los <b>términos</b>: uno por línea.</li>
+                <li>Marca el <b>estado</b> (borrador, enviada, aprobada…). Es solo para ti: no sale en el documento.</li>
+              </ol>
+            </details>
+            <details>
+              <summary>4. Agrega los ítems</summary>
+              <ol>
+                <li>En <b>Ítems</b>, cada servicio lleva ícono, título, descripción y valor.</li>
+                <li>Con <b>+ Agregar ítem</b> sumas más; con ▲ ▼ cambias el orden y con ✕ borras.</li>
+                <li>El total se suma solo. Si prefieres un valor global, apaga <b>Sumar ítems</b> en la pestaña Cotización.</li>
+              </ol>
+            </details>
+            <details>
+              <summary>5. Descarga el PDF</summary>
+              <ol>
+                <li>Revisa la vista previa (en celular, toca <b>Vista previa</b> abajo).</li>
+                <li>Pulsa <b>PDF</b>. Se abre el diálogo de impresión del navegador.</li>
+                <li>En <b>Destino</b> elige <b>Guardar como PDF</b> y pulsa Guardar.</li>
+              </ol>
+              <p class="hint">El PDF sale en una sola página larga, con texto que se puede seleccionar y enlaces que funcionan. Si ves márgenes o la fecha arriba, en “Más opciones” pon márgenes en <b>Ninguno</b> y desmarca <b>Encabezados y pies de página</b>. En iPhone, usa “Compartir → Guardar en Archivos”.</p>
+            </details>
+            <details>
+              <summary>6. Imagen para WhatsApp o redes</summary>
+              <p>En <b>Más → Descargar PNG</b> obtienes una imagen en alta resolución, ideal para enviar por chat.</p>
+            </details>
+            <details>
+              <summary>7. Guarda y organiza</summary>
+              <ol>
+                <li><b>Guardar</b> (o Ctrl + S) deja la cotización en <b>Guardadas</b>.</li>
+                <li>Ahí puedes buscar, filtrar por estado, abrir, borrar o <b>duplicar</b> (⧉) para empezar una parecida con número nuevo.</li>
+              </ol>
+            </details>
+            <details>
+              <summary>8. Genera la cuenta de cobro</summary>
+              <ol>
+                <li>Cuando el cliente aprueba, ve a <b>Cobro</b>.</li>
+                <li>Pon el período del trabajo (desde / hasta) y, si quieres, el concepto.</li>
+                <li>Revisa el resumen y pulsa <b>Generar cuenta de cobro</b>: sale en tamaño carta con el valor en letras y tu firma.</li>
+              </ol>
+              <p class="hint">Si falta un dato (NIT del cliente, cuenta bancaria…), aparece un aviso con lo que hay que completar.</p>
+            </details>
+            <details>
+              <summary>9. Respaldo y cambio de equipo</summary>
+              <p>Tus cotizaciones viven en este navegador. Con <b>Más → Exportar JSON</b> guardas un archivo de respaldo; con <b>Importar JSON</b> lo abres en otro navegador o computador.</p>
+            </details>
+          </section>
+
+          <section>
+            <h3 class="help-h">Preguntas frecuentes</h3>
+            <details><summary>¿Dónde quedan mis datos?</summary><p>Solo en tu navegador. No hay servidor ni registro: nadie más ve tus cotizaciones.</p></details>
+            <details><summary>¿Si borro el historial del navegador pierdo todo?</summary><p>Sí, se borran. Exporta JSON de las cotizaciones importantes para tener respaldo.</p></details>
+            <details><summary>¿Funciona en el celular?</summary><p>Sí. Usa los botones <b>Editar</b> y <b>Vista previa</b> de abajo para alternar.</p></details>
+            <details><summary>Mi firma sale con un recuadro</summary><p>Usa una foto con buena luz sobre papel blanco, o un PNG con fondo transparente. El blanco se elimina solo; los fondos grises o con sombra no.</p></details>
+            <details><summary>¿Puedo agregar IVA o descuentos?</summary><p>Por ahora agrégalos como un ítem más (por ejemplo “IVA 19%” con su valor), o apaga “Sumar ítems” y escribe el total.</p></details>
+            <details><summary>¿Puedo imprimirlo en hoja carta?</summary><p>El PDF es una sola página larga pensada para enviar por correo o chat. Para imprimir, en el diálogo elige el tamaño Carta y la opción “Ajustar al área de impresión”.</p></details>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <div id="welcomeModal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
       <div class="modal-box">
         <div class="modal-header">
-          <img src="/logo.webp" alt="" width="40" height="40" />
+          <img src="/logo.svg" alt="" width="40" height="40" />
           <div>
             <h2 id="welcomeTitle">Cotizador</h2>
             <p>Propuestas económicas con tu marca</p>

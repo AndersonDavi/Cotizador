@@ -1,24 +1,32 @@
 {
   "name": "Cotizador — Propuestas económicas para freelancers",
   "short_name": "Cotizador",
-  "description": "Crea cotizaciones personalizadas, calcula totales automáticamente y expórtalas en PDF o PNG. Sin registro ni instalación.",
+  "description": "Cotizaciones con tu logo, firma y colores en 8 plantillas. PDF con texto seleccionable, PNG y cuenta de cobro. Sin registro ni instalación.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f1115",
-  "theme_color": "#1a1d24",
+  "background_color": "#0d0f13",
+  "theme_color": "#15181e",
   "lang": "es-CO",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/favicon.ico",
       "sizes": "16x16 32x32 48x48",
       "type": "image/x-icon"
     },
     {
-      "src": "/logo.webp",
-      "sizes": "any",
-      "type": "image/webp",
-      "purpose": "any"
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     },
     {
       "src": "/logo-512.webp",
@@ -33,7 +41,7 @@
       "sizes": "1200x630",
       "type": "image/webp",
       "form_factor": "wide",
-      "label": "Editor de cotizaciones"
+      "label": "Cotizador con varias plantillas"
     }
   ]
 }

@@ -127,7 +127,16 @@ const ENHANCE_JS = `
           maxX = Math.min(c.width - 1, maxX + p); maxY = Math.min(c.height - 1, maxY + p);
           var o = document.createElement('canvas');
           o.width = maxX - minX + 1; o.height = maxY - minY + 1;
-          o.getContext('2d').drawImage(c, minX, minY, o.width, o.height, 0, 0, o.width, o.height);
+          var ox = o.getContext('2d');
+          ox.drawImage(c, minX, minY, o.width, o.height, 0, 0, o.width, o.height);
+          // El papel blanco se vuelve transparente (bordes suaves) para fondos de color
+          var od = ox.getImageData(0, 0, o.width, o.height), px8 = od.data;
+          for (var j = 0; j < px8.length; j += 4) {
+            var lum = (px8[j] + px8[j + 1] + px8[j + 2]) / 3;
+            if (lum > 245) px8[j + 3] = 0;
+            else if (lum > 200) px8[j + 3] = Math.round(px8[j + 3] * (245 - lum) / 45);
+          }
+          ox.putImageData(od, 0, 0);
           img.onload = function () { resolve(); };
           img.src = o.toDataURL('image/png');
         } catch (e) { resolve(); }
