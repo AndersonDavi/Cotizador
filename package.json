@@ -10,7 +10,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "cli": "node bin/cotizador.mjs"
+    "cli": "node bin/cotizador.mjs",
+    "tutorial": "node tutorial/record.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",

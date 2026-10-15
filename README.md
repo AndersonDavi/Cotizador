@@ -67,6 +67,16 @@ El documento es HTML/CSS (`src/lib/doc.ts` y `src/lib/layouts.ts`), no canvas:
 - **Web**: la vista previa es ese HTML dentro de un `iframe`. El botón PDF llama a `print()` del iframe con `@page` del tamaño exacto del documento, así "Guardar como PDF" da una sola página vectorial. El PNG se dibuja con el motor del navegador (SVG `foreignObject`), con html2canvas como plan B.
 - **CLI**: Playwright abre el mismo HTML en Edge/Chrome y usa `page.pdf()` / `screenshot()`.
 
+## Video tutorial
+
+El video del centro de ayuda (`public/tutorial/tutorial.mp4`) se graba solo, con la app real y datos ficticios:
+
+```bash
+npm run tutorial
+```
+
+Necesita `npm run dev` corriendo en otra terminal, Edge o Chrome y `ffmpeg`. El guion, los subtítulos y las animaciones están en `tutorial/record.mjs`; vuelve a grabarlo cuando cambie la interfaz.
+
 ## Build para producción
 
 ```bash

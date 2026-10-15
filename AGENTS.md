@@ -36,6 +36,13 @@ npx tsc --noEmit   # typecheck
 - El iframe que mide el documento nunca debe estar dentro de `display:none` (todo mediría 0); en celular la vista previa se oculta con `visibility`.
 - Al agregar una fuente: sumarla a `FONT_SPECS` (doc.ts) **y** importarla en `export.ts` (en dev hay un aviso en consola si falta).
 
+## Ayuda y video
+
+- `src/lib/tour.ts`: guías de driver.js por sección (`TOURS`); se lanzan desde el centro de ayuda y desde "Guía de esta sección" en cada pestaña. Si cambia un id del HTML, actualizar los pasos.
+- `tutorial/record.mjs` graba `public/tutorial/tutorial.mp4` y `poster.jpg` (`npm run tutorial` con el dev server corriendo). Usa selectores reales de la UI: si cambian, ajustar el guion y regrabar.
+- El material público (video, og-image) usa solo datos ficticios.
+- `src/lib/inputs.ts`: máscaras de dinero y fecha. `src/lib/colorpicker.ts`: selector de color propio.
+
 ## Modelo de datos
 
 `Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit}, `cobro` {fecha, desde, hasta, concepto}.
