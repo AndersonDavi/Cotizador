@@ -146,6 +146,18 @@ export function themeVars(t: Theme): string {
 }
 
 /** Primario/secundario de una cotización (también para las guardadas antes de este cambio). */
+/**
+ * Filtro SVG que pinta el logo con el color principal o el secundario: todo lo que no es
+ * transparente toma ese color (para logos de un solo color). Va dentro del .doc para que
+ * también lo lleven el PNG (foreignObject) y el PDF.
+ */
+export function logoTinteSvg(c: Cotizacion): string {
+  const e = c.branding.logoEstilo;
+  if (e !== 'primario' && e !== 'secundario') return '';
+  const col = e === 'primario' ? coloresDe(c).primary : coloresDe(c).secondary;
+  return `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="logo-tinte" color-interpolation-filters="sRGB"><feFlood flood-color="${col}"/><feComposite in2="SourceAlpha" operator="in"/></filter></svg>`;
+}
+
 export function coloresDe(c: Cotizacion): Colores {
   if (c.colores?.primary && c.colores?.secondary) return c.colores;
   const base = TEMPLATES[c.plantilla] ?? TEMPLATES.oscura;

@@ -156,7 +156,8 @@ button { cursor: pointer; }
 
 /* ── Mi marca ───────────────────────────────────────────────────────────── */
 .brand-row { display: flex; gap: 12px; align-items: center; }
-.brand-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.brand-fields { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+#logoClear, #firmaClear { margin-top: 4px; padding: 4px 0; }
 .drop {
   position: relative; width: 104px; height: 104px; flex: none; border: 2px dashed var(--border-2); border-radius: 12px; display: flex; align-items: center; justify-content: center;
   background: repeating-conic-gradient(#1a1e26 0% 25%, #151920 0% 50%) 50% / 16px 16px; cursor: pointer; overflow: hidden; transition: border-color .15s;
@@ -735,6 +736,11 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 #logoPreview.logo-fondo { background: #fff; padding: 6px; border-radius: 10px; box-sizing: border-box; }
 #logoPreview.logo-blanco { filter: brightness(0) invert(1); }
 #logoPreview.logo-negro { filter: brightness(0); }
+#logoPreview.logo-primario, #logoPreview.logo-secundario { filter: url(#logo-tinte-ui); }
 #logoEstilo button { --dot: var(--accent); }
 .opt-row { margin-top: 14px; color: var(--text); font-size: 13.5px; }
 .opt-row + .hint { display: block; margin: 4px 0 0 44px; }
+
+/* Ítems: la barra del total y Agregar ítem siempre al fondo, aunque la lista sea corta (colapsada) */
+.pane[data-pane="items"].active { min-height: 100%; }
+.pane[data-pane="items"] .items-foot { margin-top: auto; }

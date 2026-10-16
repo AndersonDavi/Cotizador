@@ -5,7 +5,7 @@
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
 import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
-import { disenoDe, onColor, readableOn, shade } from './theme';
+import { disenoDe, onColor, readableOn, shade, logoTinteSvg } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
 
@@ -339,7 +339,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
   }).join('');
 
   const body = `
-<div class="doc cot" style="${vars}">
+<div class="doc cot" style="${vars}">${logoTinteSvg(c)}
   <header class="hdr">
     ${b.logoDataUrl ? `<img class="logo${logoClase(b)}" src="${escapeHtml(b.logoDataUrl)}" alt="">` : ''}
     <h1 class="ab title" data-cv>${escapeHtml((c.titulo || 'Propuesta económica').toUpperCase())}</h1>

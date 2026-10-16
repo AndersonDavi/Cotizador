@@ -292,10 +292,13 @@ const I = {
                   <button type="button" data-logo="fondo" role="radio">Fondo blanco</button>
                   <button type="button" data-logo="blanco" role="radio">Todo blanco</button>
                   <button type="button" data-logo="negro" role="radio">Todo negro</button>
+                  <button type="button" data-logo="primario" role="radio">Color principal</button>
+                  <button type="button" data-logo="secundario" role="radio">Color secundario</button>
                 </div>
-                <small class="hint">Fondo blanco ayuda a un logo a color sobre un diseño oscuro. Todo blanco o todo negro sirven para logos de un solo color.</small>
+                <small class="hint">Fondo blanco ayuda a un logo a color sobre un diseño oscuro. Todo blanco, todo negro o tus colores sirven para logos de un solo color con fondo transparente.</small>
               </div>
               <input id="logoFile" type="file" accept="image/*" hidden />
+              <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="logo-tinte-ui" color-interpolation-filters="sRGB"><feFlood id="logoTinteUi" flood-color="#ffffff"/><feComposite in2="SourceAlpha" operator="in"/></filter></svg>
             </div>
 
             <div class="card">

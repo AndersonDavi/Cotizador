@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { formatCOP, totales, valorItem, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
-import { buildTheme, coloresDe, disenoDe, isDark, themeVars, type DisenoId, type Theme } from './theme';
+import { buildTheme, coloresDe, disenoDe, isDark, themeVars, logoTinteSvg, type DisenoId, type Theme } from './theme';
 import { escapeHtml as e, normalizeWebUrl } from './esc';
 
 const ICON = {
@@ -138,6 +138,9 @@ ${LOGO_CSS}
 .ic svg{width:100%;height:100%}
 .ic-it{display:inline-flex;width:24px;height:24px;vertical-align:middle}
 .ic-it svg{width:100%;height:100%}
+/* La primera columna (ícono o número) va centrada en la altura del ítem */
+.doc td.n{vertical-align:middle}
+.doc .row:not(.h) .n{display:flex;align-items:center;justify-content:center}
 table{border-collapse:collapse;width:100%}
 .contact-list{list-style:none;display:flex;flex-direction:column;gap:10px}
 .contact-list li{display:flex;align-items:center;gap:12px}
@@ -637,6 +640,6 @@ export function renderLayout(c: Cotizacion): { css: string; body: string } {
     `${br}\n${sel.split(',').map((s: string) => `.L-${id} ${s.trim().replace(/^\.doc\b/, '')}`.replace(/ $/, '')).join(',')}{`);
   return {
     css: BASE_CSS + scope(L.css),
-    body: `<div class="doc L-${id}" style="${themeVars(d.t)}">${L.body(d)}</div>`,
+    body: `<div class="doc L-${id}" style="${themeVars(d.t)}">${logoTinteSvg(c)}${L.body(d)}</div>`,
   };
 }

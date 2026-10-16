@@ -6,6 +6,18 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.6.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Tu logo puede tomar el color principal o el secundario de la cotización (para logos de un solo color con fondo transparente).',
+      'El logo y la firma se animan al cargarlos y al quitarlos.',
+      'Los íconos de los ítems quedan centrados en la altura de cada ítem.',
+      'Con la lista de ítems colapsada, la barra del total y "Agregar ítem" se queda abajo.',
+      '"Quitar logo" y "Quitar firma" tienen más espacio.',
+    ],
+  },
+  {
     version: '1.5.2',
     fecha: '16-10-2026',
     tipo: 'arreglo',
