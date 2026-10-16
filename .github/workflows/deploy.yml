@@ -30,6 +30,9 @@ jobs:
       - uses: actions/configure-pages@v4
 
       - run: npm run build
+        env:
+          # ID de cliente OAuth del respaldo en Google Drive (variable del repositorio; no es secreto)
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

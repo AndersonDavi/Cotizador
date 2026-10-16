@@ -1,0 +1,21 @@
+# Cotizador
+
+> Generador de cotizaciones (propuestas económicas) y cuentas de cobro para freelancers y agencias en Colombia. App web estática (Astro) y CLI con el mismo render HTML/CSS. Montos en pesos colombianos (COP), fechas dd-mm-aaaa.
+
+Para crear o manejar cotizaciones desde un agente, usa el CLI (`npm run cli -- <comando>`). Todo comando falla con código 1 y un mensaje `Error: …` que dice qué corregir. Usa las salidas `--json` para leer datos.
+
+## Guías
+
+- [Guía del CLI para personas y agentes](docs/guia-cli.md): comandos, esquema JSON de `nueva --spec`, íconos por categoría, diseños, paletas, estados, reglas de IVA, convenciones y flujos típicos.
+- [Contexto técnico del proyecto](AGENTS.md): estructura del código, render, modelo de datos.
+- [README](README.md): qué hace la app y cómo correrla.
+
+## Comandos clave
+
+- `cotizador esquema`: ejemplo de especificación para crear una cotización.
+- `cotizador nueva --spec archivo.json -o <carpeta> --pdf`: crea la cotización (o `--spec -` por stdin).
+- `cotizador iconos --json` / `cotizador iconos --buscar <palabra>`: claves de íconos válidas.
+- `cotizador disenos --json`: plantillas y paletas válidas.
+- `cotizador resumen <json> --json`: ítems y totales calculados.
+- `cotizador estado <json> [borrador|enviada|aprobada|cobrada|pagada|descartada]`.
+- `cotizador cuenta <json> --desde dd-mm-aaaa --hasta dd-mm-aaaa [--parte anticipo|saldo] [--marcar]`.

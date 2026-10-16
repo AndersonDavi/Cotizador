@@ -13,7 +13,10 @@ Generador de propuestas económicas para freelancers y agencias. Crea cotizacion
 - **Cuenta de cobro** con el mismo total, el período del trabajo y el valor en letras.
 - **Exporta** PDF, PNG, JSON y Markdown. También importa JSON.
 - **Responsive**: en celular alternas entre editar y la vista previa.
-- **CLI** para Windows, macOS y Linux que usa el mismo render.
+- **IVA** sumado o incluido, con tarifa por ítem, descuento, anticipo y vigencia.
+- **Respaldo en Google Drive** (opcional): se actualiza solo al guardar y sirve para pasar tus cotizaciones a otro equipo.
+- **App instalable** que funciona sin conexión.
+- **CLI** para Windows, macOS y Linux que usa el mismo render y crea cotizaciones desde cero. Cualquier agente de IA puede usarlo con la [guía del CLI](docs/guia-cli.md).
 
 ## Demo
 
@@ -21,7 +24,7 @@ Generador de propuestas económicas para freelancers y agencias. Crea cotizacion
 
 ## Correr localmente
 
-Requiere **Node.js 18+**.
+Requiere **Node.js 22+**.
 
 ```bash
 npm install
@@ -41,6 +44,11 @@ npm run cli -- pdf COTIZACION_00007.json
 En Windows también puedes usar `cotizador.cmd` desde la carpeta del proyecto, o `npm link` para tener `cotizador` en cualquier terminal.
 
 ```text
+cotizador nueva  --cliente "Empresa" --item "titulo=Logo; precio=850000" [--pdf]   (o --spec pedido.json)
+cotizador resumen COTIZACION_00007.json [--json]
+cotizador iconos [--buscar camaras] [--json]
+cotizador disenos [--json]
+cotizador esquema
 cotizador pdf    COTIZACION_00007.json [-o salida.pdf]
 cotizador png    COTIZACION_00007.json [-o salida.png] [--escala 2]
 cotizador html   COTIZACION_00007.json [-o salida.html]
@@ -59,6 +67,19 @@ cotizador config
   "clientes": { "mi-cliente": { "nombre": "EMPRESA S.A.S.", "nit": "900.000.000" } }
 }
 ```
+
+La guía completa, con el esquema JSON, los íconos por categoría, los diseños, las reglas de IVA y ejemplos, está en [docs/guia-cli.md](docs/guia-cli.md). Los agentes de IA pueden empezar por [llms.txt](llms.txt).
+
+## Respaldo en Google Drive
+
+Es opcional y no necesita servidor: el navegador pide un permiso de Google (`drive.file`, que solo da acceso a los archivos que crea la app) y guarda `cotizador-respaldo.json` en la carpeta *Cotizador* del Drive de la persona. Para activarlo en tu despliegue:
+
+1. En [Google Cloud](https://console.cloud.google.com/) crea un proyecto y habilita la **Google Drive API**.
+2. En **Google Auth Platform** completa la marca (nombre, correo de soporte, página principal y la URL de `/privacidad`), elige público **Externo** y agrega el permiso `.../auth/drive.file`.
+3. En **Clientes** crea uno de tipo **Aplicación web** con tu dominio (y `http://localhost:4321`) en *Orígenes de JavaScript autorizados*. No hace falta URI de redirección ni el secreto.
+4. Define `PUBLIC_GOOGLE_CLIENT_ID` al compilar: en local, en `.env.local`; en GitHub Pages, como variable del repositorio `GOOGLE_CLIENT_ID` (el workflow ya la pasa).
+
+Sin ese valor, la opción no aparece.
 
 ## Cómo se genera el documento
 

@@ -235,6 +235,14 @@ button { cursor: pointer; }
 .modal-actions .link-btn { margin-left: auto; padding: 0; border: 0; background: none; font-weight: 400; }
 .modal-links { display: flex; gap: 14px; margin-top: 16px; font-size: 12px; }
 .modal-links a { color: var(--muted); }
+.drive-logo { flex: none; }
+.drive-status { margin: 16px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2, rgba(255,255,255,.04)); border: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.drive-status.on { border-color: color-mix(in srgb, var(--ok) 50%, var(--border)); }
+.drive-status.on b { color: var(--ok); }
+.drive-points { margin: 10px 0 18px; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.drive-points b { color: var(--text); font-weight: 600; }
+.drive-box #driveDisconnect:not([hidden]) + .link-btn { margin-left: 0; }
+.drive-box [aria-busy="true"] { opacity: .6; pointer-events: none; cursor: progress; }
 
 /* Guía (driver.js) */
 .driver-popover.cotizador-tour {

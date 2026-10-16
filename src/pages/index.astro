@@ -351,6 +351,7 @@ const I = {
               <hr />
               <button id="backupBtn">Respaldo completo</button>
               <button id="restoreBtn">Restaurar respaldo…</button>
+              <button id="driveBtn" hidden>Respaldo en Google Drive…</button>
               <button id="installBtn" hidden>Instalar como app</button>
               <hr />
               <button id="exportJsonBtn">Exportar JSON</button>
@@ -483,17 +484,17 @@ const I = {
             </details>
             <details>
               <summary>9. Respaldo y cambio de equipo</summary>
-              <p>Tus cotizaciones viven en este navegador. Con <b>Más → Exportar JSON</b> guardas un archivo de respaldo; con <b>Importar JSON</b> lo abres en otro navegador o computador.</p>
+              <p>Tus cotizaciones viven en este navegador. Con <b>Más → Respaldo en Google Drive</b> se copian solas a tu Drive cada vez que guardas, y en otro equipo las traes con la misma cuenta. Sin Drive, <b>Más → Respaldo completo</b> descarga un archivo que abres con <b>Restaurar respaldo</b>.</p>
             </details>
           </section>
 
           <section>
             <h3 class="help-h">Preguntas frecuentes</h3>
-            <details><summary>¿Dónde quedan mis datos?</summary><p>Solo en tu navegador. No hay servidor ni registro: nadie más ve tus cotizaciones.</p></details>
-            <details><summary>¿Si borro el historial del navegador pierdo todo?</summary><p>Sí, se borran. Exporta JSON de las cotizaciones importantes para tener respaldo.</p></details>
+            <details><summary>¿Dónde quedan mis datos?</summary><p>Solo en tu navegador. No hay servidor ni registro: nadie más ve tus cotizaciones. Si conectas Google Drive, el respaldo va a tu propio Drive. <a href="/privacidad">Privacidad</a>.</p></details>
+            <details><summary>¿Si borro el historial del navegador pierdo todo?</summary><p>Sí, se borran del navegador. Conecta Google Drive o descarga un respaldo completo de vez en cuando.</p></details>
             <details><summary>¿Funciona en el celular?</summary><p>Sí. Usa los botones <b>Editar</b> y <b>Vista previa</b> de abajo para alternar.</p></details>
             <details><summary>Mi firma sale con un recuadro</summary><p>Usa una foto con buena luz sobre papel blanco, o un PNG con fondo transparente. El blanco se elimina solo; los fondos grises o con sombra no.</p></details>
-            <details><summary>¿Puedo agregar IVA o descuentos?</summary><p>Por ahora agrégalos como un ítem más (por ejemplo “IVA 19%” con su valor), o apaga “Sumar ítems” y escribe el total.</p></details>
+            <details><summary>¿Puedo agregar IVA o descuentos?</summary><p>Sí. En la pestaña Cotización eliges si el IVA se suma o ya viene incluido, la tarifa general, un descuento (porcentaje o valor) y el anticipo. Cada ítem puede tener su propia tarifa (5 %, exento…).</p></details>
             <details><summary>¿Puedo imprimirlo en hoja carta?</summary><p>El PDF es una sola página larga pensada para enviar por correo o chat. Para imprimir, en el diálogo elige el tamaño Carta y la opción “Ajustar al área de impresión”.</p></details>
           </section>
         </div>
@@ -525,6 +526,32 @@ const I = {
           <a href="https://github.com/AndersonDavi/Cotizador" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://www.linkedin.com/in/anderson-david-rueda-consuegra/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
         </div>
+      </div>
+    </div>
+
+    <div id="driveModal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="driveTitle">
+      <div class="modal-box drive-box">
+        <div class="modal-header">
+          <svg class="drive-logo" viewBox="0 0 87.3 78" width="40" height="36" aria-hidden="true"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+          <div>
+            <h2 id="driveTitle">Respaldo en Google Drive</h2>
+            <p>Tus cotizaciones a salvo y en todos tus equipos</p>
+          </div>
+        </div>
+        <p id="driveStatus" class="drive-status"></p>
+        <ul class="drive-points">
+          <li>Cada vez que guardas, se actualiza el archivo <b>cotizador-respaldo.json</b> en la carpeta <b>Cotizador</b> de tu Drive.</li>
+          <li>En otro equipo, conecta la misma cuenta y trae tus cotizaciones.</li>
+          <li>El Cotizador solo puede ver los archivos que él mismo crea. No lee el resto de tu Drive.</li>
+        </ul>
+        <div class="modal-actions">
+          <button id="driveConnect" class="primary">Conectar con Google</button>
+          <button id="driveSync" class="primary" hidden>Respaldar ahora</button>
+          <button id="driveRestore" hidden>Traer de Drive</button>
+          <button id="driveDisconnect" class="link-btn" hidden>Desconectar</button>
+          <button id="driveClose" class="link-btn">Cerrar</button>
+        </div>
+        <div class="modal-links"><a href="/privacidad">Privacidad</a></div>
       </div>
     </div>
 

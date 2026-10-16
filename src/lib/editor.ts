@@ -36,6 +36,10 @@ import {
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
 import { openColorPicker } from './colorpicker';
+import {
+  driveDisponible, driveInfo, prepararDrive, conectarDrive, subirRespaldo, bajarRespaldo,
+  desconectarDrive, driveTokenVigente, DriveAuthError,
+} from './drive';
 
 let state: Cotizacion;
 let saveTimer: number | null = null;
@@ -935,16 +939,23 @@ type Respaldo = {
   catalogo: CatItem[]; clientes: Cliente[]; paletas: unknown[];
 };
 
-async function respaldar() {
-  const data: Respaldo = {
+function armarRespaldo(): Respaldo {
+  return {
     app: 'cotizador', version: 1, fecha: new Date().toISOString(),
     guardadas: loadSaved(), borrador: state, marca: state.branding,
     catalogo: catalogo(), clientes: clientes(), paletas: loadJson<unknown[]>('cotizador:paletas', []),
   };
+}
+
+const esRespaldo = (d: any): d is Respaldo => d?.app === 'cotizador' && Array.isArray(d.guardadas);
+const resumenRespaldo = (d: Respaldo) => `${d.guardadas.length} cotizaciones, ${d.catalogo?.length ?? 0} servicios y ${d.clientes?.length ?? 0} clientes`;
+
+async function respaldar() {
+  const data = armarRespaldo();
   const f = new Date();
   const name = `cotizador-respaldo-${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}.json`;
   await saveTextFile(JSON.stringify(data), name);
-  toast(`Respaldo listo: ${data.guardadas.length} cotizaciones, ${data.catalogo.length} servicios y ${data.clientes.length} clientes`);
+  toast(`Respaldo listo: ${resumenRespaldo(data)}`);
 }
 
 function restaurar(file: File) {
@@ -952,22 +963,117 @@ function restaurar(file: File) {
   r.onload = () => {
     let data: Respaldo;
     try { data = JSON.parse(String(r.result)); } catch { toast('El archivo no es un respaldo válido', 'err'); return; }
-    if (data?.app !== 'cotizador' || !Array.isArray(data.guardadas)) { toast('El archivo no es un respaldo del Cotizador', 'err'); return; }
-    if (!confirm(`¿Restaurar ${data.guardadas.length} cotizaciones, ${data.catalogo?.length ?? 0} servicios y ${data.clientes?.length ?? 0} clientes? Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`)) return;
-    const byNum = new Map(loadSaved().map((c) => [c.numero, c]));
-    data.guardadas.forEach((c) => byNum.set(c.numero, c));
-    saveJson('cotizador:saved', [...byNum.values()]);
-    const mergeBy = <T,>(a: T[], b: T[], key: (x: T) => string) => { const m = new Map(a.map((x) => [key(x), x])); b.forEach((x) => m.set(key(x), x)); return [...m.values()]; };
-    saveJson(CAT_KEY, mergeBy(catalogo(), data.catalogo ?? [], (x) => x.titulo.toLowerCase()));
-    saveJson(CLI_KEY, mergeBy(clientes(), data.clientes ?? [], (x) => x.nombre.toLowerCase()));
-    if (Array.isArray(data.paletas)) saveJson('cotizador:paletas', mergeBy(loadJson<{ primary: string; secondary: string }[]>('cotizador:paletas', []), data.paletas as { primary: string; secondary: string }[], (x) => x.primary + x.secondary));
-    if (data.marca && !state.branding.representante.nombre) { state.branding = data.marca; saveBranding(data.marca); hydrateForm(); }
-    renderClientes();
-    renderSavedList();
-    refresh();
+    if (!esRespaldo(data)) { toast('El archivo no es un respaldo del Cotizador', 'err'); return; }
+    if (!confirm(`¿Restaurar ${resumenRespaldo(data)}? Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`)) return;
+    aplicarRespaldo(data);
     toast('Respaldo restaurado');
   };
   r.readAsText(file);
+}
+
+/** Combina un respaldo con lo que hay en el navegador (si un número se repite, gana el respaldo). */
+function aplicarRespaldo(data: Respaldo) {
+  const byNum = new Map(loadSaved().map((c) => [c.numero, c]));
+  data.guardadas.forEach((c) => byNum.set(c.numero, c));
+  saveJson('cotizador:saved', [...byNum.values()]);
+  const mergeBy = <T,>(a: T[], b: T[], key: (x: T) => string) => { const m = new Map(a.map((x) => [key(x), x])); b.forEach((x) => m.set(key(x), x)); return [...m.values()]; };
+  saveJson(CAT_KEY, mergeBy(catalogo(), data.catalogo ?? [], (x) => x.titulo.toLowerCase()));
+  saveJson(CLI_KEY, mergeBy(clientes(), data.clientes ?? [], (x) => x.nombre.toLowerCase()));
+  if (Array.isArray(data.paletas)) saveJson('cotizador:paletas', mergeBy(loadJson<{ primary: string; secondary: string }[]>('cotizador:paletas', []), data.paletas as { primary: string; secondary: string }[], (x) => x.primary + x.secondary));
+  if (data.marca && !state.branding.representante.nombre) { state.branding = data.marca; saveBranding(data.marca); hydrateForm(); }
+  renderClientes();
+  renderSavedList();
+  refresh();
+}
+
+// ── Respaldo en Google Drive ─────────────────────────────────────────────────
+
+function hace(iso?: string): string {
+  if (!iso) return '';
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `el ${new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
+function renderDrive() {
+  if (!driveDisponible()) return;
+  const info = driveInfo();
+  $('driveStatus').innerHTML = info.conectado
+    ? `<b>Conectado.</b> ${info.ultimo ? `Último respaldo ${hace(info.ultimo)}.` : 'Todavía no hay respaldo.'}`
+    : 'No conectado. Tus cotizaciones solo están en este navegador.';
+  $('driveStatus').classList.toggle('on', info.conectado);
+  ($('driveConnect') as HTMLElement).hidden = info.conectado;
+  for (const id of ['driveSync', 'driveRestore', 'driveDisconnect']) ($(id) as HTMLElement).hidden = !info.conectado;
+  $('driveBtn').textContent = info.conectado ? 'Google Drive: conectado' : 'Respaldo en Google Drive…';
+}
+
+function driveError(e: unknown) {
+  console.error(e);
+  toast(e instanceof Error ? e.message : 'Algo falló con Google Drive', 'err');
+  renderDrive();
+}
+
+/** Respaldo automático después de guardar o borrar. `interactivo`: dentro de un clic puede renovar el permiso. */
+function driveAuto(interactivo: boolean) {
+  if (!driveDisponible() || !driveInfo().conectado) return;
+  if (!interactivo && !driveTokenVigente()) { driveSucio = true; return; }
+  subirRespaldo(() => JSON.stringify(armarRespaldo()), interactivo)
+    .then(() => { driveSucio = false; toast('Respaldado en Google Drive'); renderDrive(); })
+    .catch((e) => { driveSucio = true; if (e instanceof DriveAuthError) toast(`No se respaldó en Drive: ${e.message}`, 'err'); else driveError(e); });
+}
+let driveSucio = false;
+
+function initDrive() {
+  if (!driveDisponible()) return;
+  ($('driveBtn') as HTMLElement).hidden = false;
+  const overlay = $('driveModal');
+  const close = () => { overlay.hidden = true; };
+  const busy = async (btn: HTMLElement, fn: () => Promise<void>) => {
+    btn.setAttribute('aria-busy', 'true');
+    try { await fn(); } catch (e) { driveError(e); } finally { btn.removeAttribute('aria-busy'); renderDrive(); }
+  };
+  $('driveBtn').addEventListener('click', () => {
+    prepararDrive().catch(() => toast('No se pudo cargar Google. Revisa la conexión.', 'err'));
+    renderDrive();
+    overlay.hidden = false;
+  });
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+  $('driveClose').addEventListener('click', close);
+  $('driveConnect').addEventListener('click', () => busy($('driveConnect'), async () => {
+    await prepararDrive();
+    const r = await conectarDrive();
+    if (r.existe) {
+      const data = await bajarRespaldo(false);
+      if (esRespaldo(data) && confirm(`Ya tienes un respaldo en Drive (${hace(r.fecha)}) con ${resumenRespaldo(data)}. ¿Traerlo a este navegador? Se combina con lo que ya tienes.`)) aplicarRespaldo(data);
+    }
+    await subirRespaldo(() => JSON.stringify(armarRespaldo()), false);
+    toast('Drive conectado: cada vez que guardes se respalda solo');
+  }));
+  $('driveSync').addEventListener('click', () => busy($('driveSync'), async () => {
+    await subirRespaldo(() => JSON.stringify(armarRespaldo()), true);
+    driveSucio = false;
+    toast('Respaldado en Google Drive');
+  }));
+  $('driveRestore').addEventListener('click', () => busy($('driveRestore'), async () => {
+    const data = await bajarRespaldo(true);
+    if (!esRespaldo(data)) { toast('No hay un respaldo en tu Drive todavía', 'err'); return; }
+    if (!confirm(`¿Traer ${resumenRespaldo(data)} desde Drive? Se combinan con lo que ya tienes; si un número se repite, gana el de Drive.`)) return;
+    aplicarRespaldo(data);
+    toast('Respaldo de Drive restaurado');
+  }));
+  $('driveDisconnect').addEventListener('click', () => {
+    if (!confirm('¿Desconectar Google Drive? El respaldo sigue en tu Drive, pero ya no se actualizará.')) return;
+    desconectarDrive();
+    renderDrive();
+    toast('Drive desconectado');
+  });
+  // Al salir de la pestaña, sube lo pendiente si el permiso sigue vigente
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && driveSucio) driveAuto(false); });
+  if (driveInfo().conectado) prepararDrive().catch(() => { /* sin conexión */ });
+  renderDrive();
 }
 
 // ── App instalable (PWA) ─────────────────────────────────────────────────────
@@ -1032,6 +1138,7 @@ function initExtras() {
   $('restoreBtn').addEventListener('click', () => restoreInput.click());
   renderClientes();
   initPwa();
+  initDrive();
 }
 
 // ── Formulario ───────────────────────────────────────────────────────────────
@@ -1296,7 +1403,8 @@ export function initEditor() {
   // Acciones
   $('saveBtn').addEventListener('click', () => {
     try { persistSaved(state); recordarCliente(state.cliente); toast(`Cotización ${state.numero} guardada`); renderSavedList(); }
-    catch { toast('No hay espacio en el navegador para guardar', 'err'); }
+    catch { toast('No hay espacio en el navegador para guardar', 'err'); return; }
+    driveAuto(true);
   });
   $('newBtn').addEventListener('click', () => {
     if (!confirm('¿Empezar una cotización nueva? Lo que no hayas guardado de la actual se perderá.')) return;
@@ -1362,6 +1470,7 @@ export function initEditor() {
     } else if (btn.dataset.act === 'del' && confirm(`¿Eliminar la cotización ${num}?`)) {
       deleteSaved(num);
       renderSavedList();
+      driveAuto(false);
     }
   });
 

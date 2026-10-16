@@ -24,7 +24,9 @@ npx tsc --noEmit   # typecheck
 - `src/lib/layouts.ts`: las otras 7 plantillas (Bloque, Noche, Diagonal, Estudio, Editorial, Redonda, Lateral).
 - `src/lib/export.ts`: solo navegador. Fuentes vía `?url`, `print()` del iframe para PDF, PNG con SVG `foreignObject` (y html2canvas como plan B).
 - `cli/main.ts` + `bin/cotizador.mjs` + `cotizador.cmd`: CLI (tsx + playwright-core con el Edge/Chrome instalado).
-- `src/lib/icons.ts`: íconos Lucide como SVG.
+- `cli/nueva.ts`: comando `nueva` (especificación JSON parcial → `Cotizacion`, usando una cotización base para la marca), numeración, validación de íconos con sugerencias y listados para agentes. Guía de uso: `docs/guia-cli.md` (mantenerla al día si cambian comandos, íconos, diseños o paletas); `llms.txt` apunta a ella.
+- `src/lib/drive.ts`: respaldo en Google Drive sin backend (Google Identity Services, permiso `drive.file`, token solo en memoria). Se activa con `PUBLIC_GOOGLE_CLIENT_ID` al compilar; sin él la opción no aparece. `src/pages/privacidad.astro` es la política que pide Google.
+- `src/lib/icons.ts`: íconos Lucide como SVG, categorías (`ICON_CATEGORIES`) y sinónimos de búsqueda.
 - `src/lib/templates.ts`: paletas legadas de la Clásica (oscura/clara/minimalista).
 
 ## Render (importante)
@@ -45,12 +47,12 @@ npx tsc --noEmit   # typecheck
 
 ## Modelo de datos
 
-`Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit}, `cobro` {fecha, desde, hasta, concepto}.
+`Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`. Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.
 
 Compatibilidad: sin `colores` se usan `plantilla` + `coloresOverride` (formato anterior); sin `diseno` es la Clásica; sin `estado` es borrador.
 
 ## Persistencia local
 
-`cotizador:draft`, `cotizador:saved`, `cotizador:branding`, `cotizador:welcomed`, `cotizador:tab`. Logo y firma se reducen al subirlos para no llenar `localStorage`.
+`cotizador:draft`, `cotizador:saved`, `cotizador:branding`, `cotizador:welcomed`, `cotizador:tab`, `cotizador:catalogo`, `cotizador:clientes`, `cotizador:paletas`, `cotizador:drive` (estado de la conexión, sin tokens). Logo y firma se reducen al subirlos para no llenar `localStorage`.
 
-El CLI lee `~/.cotizador.json` (emisor y clientes frecuentes); no va en el repo porque tiene datos personales.
+El CLI lee `~/.cotizador.json` (emisor, clientes frecuentes y `base`, la cotización de la que `nueva` copia la marca); no va en el repo porque tiene datos personales.

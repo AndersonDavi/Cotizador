@@ -1,0 +1,75 @@
+---
+const SITE = 'https://cotizador.andersonrueda.com';
+const ACTUALIZADO = '15 de octubre de 2026';
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacidad · Cotizador</title>
+    <meta name="description" content="Qué datos usa el Cotizador, dónde quedan y cómo funciona el respaldo opcional en Google Drive." />
+    <link rel="canonical" href={`${SITE}/privacidad`} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root { --bg: #0f1115; --panel: #15181e; --border: #2b313c; --text: #e8eaee; --muted: #a3aab8; --accent: #f2d22b; }
+      @media (prefers-color-scheme: light) {
+        :root { --bg: #f6f7f9; --panel: #ffffff; --border: #e1e4ea; --text: #1c2027; --muted: #555d6b; --accent: #8a7800; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      main { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
+      header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+      header a { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 18px; }
+      h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+      h2 { font-size: 19px; margin: 32px 0 8px; }
+      p, li { color: var(--muted); }
+      b, strong { color: var(--text); }
+      a { color: var(--accent); }
+      .fecha { font-size: 14px; margin: 0 0 24px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 4px 20px; }
+      code { font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="/"><img src="/logo.svg" alt="" width="32" height="32" /> Cotizador</a>
+      </header>
+
+      <h1>Política de privacidad</h1>
+      <p class="fecha">Última actualización: {ACTUALIZADO}</p>
+
+      <div class="card">
+        <p><b>En resumen:</b> el Cotizador no tiene servidor ni cuentas. Lo que escribes se queda en tu navegador. Si conectas Google Drive, el respaldo va a tu propio Drive y nadie más lo ve.</p>
+      </div>
+
+      <h2>Qué datos usa</h2>
+      <p>Los que tú escribes para armar tus documentos: datos de tu marca (nombre, logo, firma, contacto, cuenta bancaria), clientes, ítems, precios, cotizaciones y cuentas de cobro.</p>
+
+      <h2>Dónde quedan</h2>
+      <p>En el almacenamiento local de tu navegador (<code>localStorage</code>), en tu equipo. No se envían a ningún servidor del Cotizador porque no existe uno. Si borras los datos del sitio en el navegador, se borran.</p>
+      <p>Los archivos que exportas (PDF, PNG, JSON, Markdown) se descargan a tu equipo o se comparten con la aplicación que tú elijas.</p>
+
+      <h2>Respaldo en Google Drive (opcional)</h2>
+      <p>Si eliges <b>Conectar con Google</b>, el Cotizador te pide permiso de Google con el alcance <code>drive.file</code>. Ese permiso solo deja ver y modificar los archivos que el Cotizador crea; no da acceso al resto de tu Drive.</p>
+      <ul>
+        <li>Se crea la carpeta <b>Cotizador</b> con el archivo <b>cotizador-respaldo.json</b>, que contiene tus cotizaciones, catálogo, clientes y datos de marca.</li>
+        <li>Ese archivo se actualiza cuando guardas y se lee solo cuando pides traer el respaldo.</li>
+        <li>La comunicación es directa entre tu navegador y Google. El permiso dura una hora, vive solo en la memoria de la página y no se guarda.</li>
+        <li>No usamos los datos de Google para publicidad, no los vendemos, no los compartimos y no los usamos para entrenar modelos de inteligencia artificial.</li>
+        <li>Puedes desconectar desde <b>Más → Google Drive → Desconectar</b> o quitar el acceso en <a href="https://myaccount.google.com/connections" rel="noopener">tu cuenta de Google</a>. El archivo sigue en tu Drive hasta que tú lo borres.</li>
+      </ul>
+      <p>El uso de la información recibida de las API de Google cumple la <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Política de datos de usuario de los servicios de API de Google</a>, incluidos los requisitos de uso limitado.</p>
+
+      <h2>Analítica y cookies</h2>
+      <p>El Cotizador no usa cookies propias ni herramientas de analítica o publicidad. El sitio se sirve desde GitHub Pages, que puede registrar datos técnicos de las visitas (como la dirección IP) según su propia política.</p>
+
+      <h2>Código abierto</h2>
+      <p>El código está publicado en <a href="https://github.com/AndersonDavi/Cotizador" rel="noopener">GitHub</a>; cualquiera puede revisar qué hace con los datos.</p>
+
+      <h2>Contacto</h2>
+      <p>Preguntas sobre esta política: abre un mensaje en <a href="https://github.com/AndersonDavi/Cotizador/issues" rel="noopener">GitHub</a> o escríbele al autor por <a href="https://www.linkedin.com/in/anderson-david-rueda-consuegra/" rel="noopener">LinkedIn</a>.</p>
+    </main>
+  </body>
+</html>

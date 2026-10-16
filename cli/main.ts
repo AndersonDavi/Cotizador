@@ -9,9 +9,15 @@
 //   cotizador estado COTIZACION_00007.json [aprobada]
 //   cotizador lista  [carpeta]
 //   cotizador config
+//   cotizador nueva  --cliente "Empresa" --item "titulo=Logo; precio=850000" [--pdf]   (o --spec spec.json)
+//   cotizador resumen COTIZACION_00007.json [--json]
+//   cotizador iconos [--buscar camaras] [--json]
+//   cotizador disenos [--json]
+//   cotizador esquema
+// Guía completa para personas y agentes: docs/guia-cli.md
 
 import { parseArgs } from 'node:util';
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +28,9 @@ import {
 import {
   ESTADOS, ESTADO_LABELS, estadoDe, formatCOP, totalReal, today,
   type Cotizacion, type Estado, type Cliente,
+  totales, filasDesglose, valorItem, qtyLabel, validaHasta,
 } from '../src/lib/state';
+import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, SpecError, type Spec } from './nueva';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_PATH = join(homedir(), '.cotizador.json');
@@ -30,6 +38,7 @@ const CONFIG_PATH = join(homedir(), '.cotizador.json');
 type Config = {
   emisor?: { nombreLegal?: string; direccion?: string; banco?: string };
   clientes?: Record<string, Cliente>;
+  base?: string;   // cotización de la que "nueva" copia marca, términos y diseño
 };
 
 const AYUDA = `Cotizador CLI
@@ -37,6 +46,11 @@ const AYUDA = `Cotizador CLI
 Uso: cotizador <comando> <cotizacion.json> [opciones]
 
 Comandos:
+  nueva   Crea una cotización desde cero (COTIZACION_<n>.json) y opcionalmente su PDF/PNG
+  resumen Muestra ítems, desglose y total de una cotización (--json para agentes)
+  iconos  Lista los íconos por categoría (--buscar <texto>, --json)
+  disenos Lista las plantillas y paletas (--json)
+  esquema Imprime un ejemplo de especificación JSON para "nueva --spec"
   pdf     Exporta la cotización a PDF vectorial (texto seleccionable)
   png     Exporta la cotización a PNG
   html    Guarda el HTML del documento
@@ -58,6 +72,19 @@ Opciones:
   --parte <total|anticipo|saldo>  Con "cuenta": qué parte se cobra (si la cotización tiene anticipo)
   --marcar               Con "cuenta": guarda los datos de cobro en el JSON y lo marca como cobrada
   --html                 Con "cuenta": guarda también el HTML
+
+Opciones de "nueva" (o todo junto en --spec archivo.json, "-" = entrada estándar):
+  --item "titulo=…; precio=…; cantidad=…; unidad=…; icono=…; iva=…; descripcion=…"   (repetible)
+  --cliente, --nit, --cel, --alcance, --titulo, --fecha, --numero, --estado
+  --diseno <id>  --paleta <nombre> | --colores "#hex,#hex"
+  --iva ninguno|agregar|incluido  --tasa 19  --descuento 10% | 50000  --anticipo 50  --vigencia 15
+  --tiempo "…"  --termino "…" (repetible)
+  --base COTIZACION.json   Copia marca, términos y diseño (por defecto: "base" de la config)
+  -o carpeta|archivo.json  Dónde guardar (por defecto la carpeta actual)
+  --pdf --png              Genera también el PDF / PNG
+  --json                   Con resumen, iconos o disenos: salida en JSON
+
+Guía completa: docs/guia-cli.md
 `;
 
 function fail(msg: string): never {
@@ -148,6 +175,14 @@ async function htmlToPng(html: string, out: string, width: number, scale: number
   }, scale);
 }
 
+function imprimirResumen(c: Cotizacion) {
+  const t = totales(c);
+  console.log(`  ${c.titulo || 'Propuesta económica'} N.º ${c.numero} · ${c.fecha}${validaHasta(c) ? ` · válida hasta ${validaHasta(c)}` : ''} · ${ESTADO_LABELS[estadoDe(c)]}`);
+  if (c.cliente?.nombre) console.log(`  Cliente: ${c.cliente.nombre}${c.cliente.nit ? ` (NIT ${c.cliente.nit})` : ''}`);
+  for (const it of c.items) console.log(`  - ${it.titulo}${qtyLabel(it) ? ` [${qtyLabel(it)}]` : ''}: ${formatCOP(valorItem(it))}`);
+  for (const r of filasDesglose(t)) console.log(r.tipo === 'nota' ? `  ${r.label}` : `  ${r.label}: ${r.value}`);
+}
+
 function outPath(opt: string | undefined, jsonPath: string, name: string): string {
   return resolve(opt ?? join(dirname(jsonPath), name));
 }
@@ -181,6 +216,28 @@ async function main() {
       parte: { type: 'string' },
       marcar: { type: 'boolean' },
       html: { type: 'boolean' },
+      item: { type: 'string', multiple: true },
+      termino: { type: 'string', multiple: true },
+      spec: { type: 'string' },
+      base: { type: 'string' },
+      alcance: { type: 'string' },
+      titulo: { type: 'string' },
+      numero: { type: 'string' },
+      estado: { type: 'string' },
+      cel: { type: 'string' },
+      diseno: { type: 'string' },
+      paleta: { type: 'string' },
+      colores: { type: 'string' },
+      iva: { type: 'string' },
+      tasa: { type: 'string' },
+      descuento: { type: 'string' },
+      anticipo: { type: 'string' },
+      vigencia: { type: 'string' },
+      tiempo: { type: 'string' },
+      pdf: { type: 'boolean' },
+      png: { type: 'boolean' },
+      json: { type: 'boolean' },
+      buscar: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -298,6 +355,88 @@ async function main() {
       } else {
         console.log(`${CONFIG_PATH}\n${readFileSync(CONFIG_PATH, 'utf8')}`);
       }
+      break;
+    }
+    case 'nueva': {
+      let spec: Spec;
+      if (o.spec) {
+        const raw = o.spec === '-' ? readFileSync(0, 'utf8') : readFileSync(resolve(o.spec), 'utf8');
+        try { spec = JSON.parse(raw.replace(/^﻿/, '')); } catch { fail('--spec no es un JSON válido'); }
+        spec.items ??= [];
+      } else spec = { items: [] };
+      try { for (const it of o.item ?? []) spec.items.push(parseItemFlag(it)); } catch (e: any) { fail(e.message); }
+      if (o.cliente) {
+        const k = o.cliente.toLowerCase();
+        const fromCfg = cfg.clientes?.[k] ?? Object.values(cfg.clientes ?? {}).find((x) => x.nombre.toLowerCase() === k);
+        spec.cliente = fromCfg ? { ...fromCfg } : { nombre: o.cliente };
+      }
+      const pick: Record<string, string | undefined> = {
+        nit: o.nit, cel: o.cel, alcance: o.alcance, titulo: o.titulo, numero: o.numero, estado: o.estado, fecha: o.fecha,
+        diseno: o.diseno, paleta: o.paleta, colores: o.colores, iva: o.iva, ivaTasa: o.tasa, descuento: o.descuento,
+        anticipo: o.anticipo, vigencia: o.vigencia, tiempoEntrega: o.tiempo,
+      };
+      for (const [k, v] of Object.entries(pick)) if (v != null) (spec as any)[k] = v;
+      if (o.termino?.length) spec.terminos = o.termino;
+
+      // Destino: carpeta (se numera sola) o archivo .json
+      const target = resolve(o.out ?? '.');
+      const isFile = /\.json$/i.test(target);
+      const dir = isFile ? dirname(target) : target;
+      const leer = (f: string) => { try { return JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, '')) as Cotizacion; } catch { return null; } };
+      const basePath = o.base ?? cfg.base;
+      const base = basePath ? leer(resolve(basePath)) : null;
+      if (basePath && !base) fail(`no pude leer la base ${basePath}`);
+      let c: Cotizacion;
+      try { c = construir(spec, base, siguienteNumero(dir, leer)); } catch (e: any) { if (e instanceof SpecError) fail(e.message); throw e; }
+      applyConfig(c, cfg);
+      const file = isFile ? target : join(dir, `COTIZACION_${c.numero}.json`);
+      if (existsSync(file)) fail(`ya existe ${file}. Usa --numero u otro -o.`);
+      mkdirSync(dir, { recursive: true });
+      saveCotizacion(file, c);
+      console.log(`Cotización ${c.numero}: ${file}`);
+      if (!base) console.log('  (sin base: la marca quedó vacía. Usa --base o "base" en la config)');
+      imprimirResumen(c);
+      if (o.pdf) { const out = file.replace(/\.json$/i, '.pdf'); await htmlToPdf(renderCotizacionHtml(c, fontsAsDataUrls()), out, 1080); console.log(`PDF: ${out}`); }
+      if (o.png) { const out = file.replace(/\.json$/i, '.png'); await htmlToPng(renderCotizacionHtml(c, fontsAsDataUrls()), out, 1080, Number(o.escala) || 2); console.log(`PNG: ${out}`); }
+      break;
+    }
+    case 'resumen': {
+      const { c } = loadCotizacion(arg);
+      if (o.json) {
+        console.log(JSON.stringify({
+          numero: c.numero, fecha: c.fecha, validaHasta: validaHasta(c) || null, estado: estadoDe(c), cliente: c.cliente ?? null, alcance: c.alcance,
+          items: c.items.map((it) => ({ titulo: it.titulo, icono: it.iconKey, cantidad: it.cantidad ?? 1, unidad: it.unidad ?? null, precioUnitario: it.valor, valor: valorItem(it), ivaTasa: it.ivaTasa ?? null })),
+          totales: totales(c),
+        }, null, 2));
+      } else imprimirResumen(c);
+      break;
+    }
+    case 'iconos': {
+      const todos = listaIconos().flatMap((cat) => cat.iconos);
+      if (o.buscar) {
+        const r = buscarIconos(o.buscar);
+        if (o.json) console.log(JSON.stringify(r.map((k) => todos.find((x) => x.clave === k))));
+        else console.log(r.length ? r.map((k) => `${k.padEnd(12)} ${todos.find((x) => x.clave === k)?.nombre}`).join('\n') : 'Sin resultados');
+        break;
+      }
+      if (o.json) { console.log(JSON.stringify(listaIconos(), null, 2)); break; }
+      for (const cat of listaIconos()) {
+        console.log(`\n${cat.categoria}`);
+        for (const i of cat.iconos) console.log(`  ${i.clave.padEnd(12)} ${i.nombre}`);
+      }
+      break;
+    }
+    case 'disenos': {
+      const l = listaDisenos();
+      if (o.json) { console.log(JSON.stringify(l, null, 2)); break; }
+      console.log('Plantillas (--diseno):');
+      for (const d of l.disenos) console.log(`  ${d.id.padEnd(10)} ${d.nombre.padEnd(10)} ${d.descripcion}`);
+      console.log('\nPaletas (--paleta):');
+      for (const p of l.paletas) console.log(`  ${p.nombre.padEnd(10)} ${p.primary} ${p.secondary}`);
+      break;
+    }
+    case 'esquema': {
+      console.log(JSON.stringify(ESQUEMA_EJEMPLO, null, 2));
       break;
     }
     default:
