@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, type Cotizacion } from './state';
+import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
@@ -190,6 +190,7 @@ const ENHANCE_JS = `
       var h = card.offsetHeight, cx = card.offsetWidth - 186 / 2;
       var tl = card.querySelector('.tl'), tv = card.querySelector('.tv');
       var vs = fitSize(tv, 30, 18, 186 - 26);
+      fitSize(tl, 18, 12, 186 - 16);
       place(tl, cx - wOf(tl) / 2, h / 2 - 24 - 9);
       place(tv, cx - wOf(tv) / 2, h / 2 + 14 - vs / 2);
     });
@@ -280,6 +281,12 @@ const COT_CSS = `
 .tl{font-weight:500;font-size:18px;color:var(--cmut)}
 .tv{font-weight:900;font-size:30px}
 .tiempo{height:130px;margin:110px 56px 0}
+.resumen{margin:50px 56px 0;display:flex;justify-content:flex-end}
+.resumen dl{width:470px;background:var(--card);border:1px solid var(--bd);padding:18px 24px;display:grid;grid-template-columns:1fr auto;gap:8px 24px;color:var(--ctxt)}
+.resumen dt{font-size:17px;color:var(--cmut)}
+.resumen dd{font-size:17px;font-weight:700;text-align:right}
+.resumen .tot{font-size:22px;font-weight:900;color:var(--ctxt);padding-top:8px;border-top:1px solid var(--bd)}
+.resumen .nota{grid-column:1/-1;font-size:14px;color:var(--cmut)}
 .tiempo .vl{top:20px;bottom:20px}
 .tiempo .ico{position:absolute;left:42px;top:38px;width:54px;height:54px}
 .tiempo h4{left:138px;top:28px;font-weight:700;font-size:18px}
@@ -324,8 +331,8 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <div class="ico">${buildIconSvg(it.iconKey, t.iconColor, 2)}</div>
     <div class="vl"></div><div class="vl r"></div>
     <div class="cnt"><h3 data-cv>${escapeHtml(it.titulo || '—')}</h3>${desc ? `<p data-cv>${escapeHtml(desc)}</p>` : ''}</div>
-    <span class="ab tl" data-cv>Total</span>
-    <b class="ab tv" data-cv>${formatCOP(it.valor)}</b>
+    <span class="ab tl" data-cv>${escapeHtml([qtyLabel(it), ivaTag(c, it)].filter(Boolean).join(' · ') || 'Total')}</span>
+    <b class="ab tv" data-cv>${formatCOP(valorItem(it))}</b>
   </div>`;
   }).join('');
 
@@ -336,7 +343,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <h1 class="ab title" data-cv>${escapeHtml((c.titulo || 'Propuesta económica').toUpperCase())}</h1>
     <div class="tsep"></div>
     <span class="ab num" data-cv>${escapeHtml(c.numero)}</span>
-    <div class="ab fecha" data-cv>Fecha: ${escapeHtml(c.fecha)}</div>
+    <div class="ab fecha" data-cv>Fecha: ${escapeHtml(c.fecha)}${validaHasta(c) ? ` · Válida hasta: ${escapeHtml(validaHasta(c))}` : ''}</div>
     <div class="hr"></div>
     <h2 class="ab alc-h" data-cv>Alcance</h2>
     <p class="alc-p" data-cv>${escapeHtml(c.alcance || '—')}</p>
@@ -346,7 +353,8 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <span class="ab cop" data-cv>COP</span>
   </header>
   <section class="items">${items}</section>
-  <section class="tiempo">
+  ${resumenClasica(totales(c))}
+  <section class="tiempo"${totales(c).conDesglose ? ' style="margin-top:50px"' : ''}>
     <div class="ico">${buildIconSvg('clock', t.iconColor, 2)}</div>
     <div class="vl"></div>
     <h4 class="ab" data-cv>Tiempo de entrega</h4>
@@ -384,6 +392,12 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
   lines.push('');
   lines.push(`## Costo total de requerimientos`);
   lines.push(`### ${formatCOP(totalReal(c))} COP`);
+  const t = totales(c);
+  if (t.conDesglose) {
+    lines.push('');
+    for (const r of filasDesglose(t)) lines.push(r.tipo === 'nota' ? `_${r.label}_` : `- ${r.label}: ${r.value}`);
+  }
+  if (validaHasta(c)) lines.push('', `Oferta válida hasta: ${validaHasta(c)}`);
   lines.push('');
   lines.push(`## Ítems`);
   lines.push('');
@@ -391,7 +405,7 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
     lines.push(`### ${it.titulo || '_(sin título)_'}`);
     if (it.descripcion) lines.push(it.descripcion);
     lines.push('');
-    lines.push(`**Total: ${formatCOP(it.valor)}**`);
+    lines.push(`**Total: ${formatCOP(valorItem(it))}**${qtyLabel(it) ? ` (${qtyLabel(it)})` : ''}`);
     lines.push('');
   }
   lines.push(`## Tiempo de entrega`);
@@ -411,6 +425,13 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
   lines.push(`CEL: ${k.cel} · Email: ${k.email} · Web: ${k.web}  `);
   lines.push(`${k.ciudad}, ${k.pais}`);
   return lines.join('\n');
+}
+
+function resumenClasica(t: Totales): string {
+  if (!t.conDesglose) return '';
+  return `<section class="resumen"><dl>${filasDesglose(t).map((r) => r.tipo === 'nota'
+    ? `<dd class="nota">${escapeHtml(r.label)}</dd>`
+    : `<dt${r.tipo === 'total' ? ' class="tot"' : ''}>${escapeHtml(r.label)}</dt><dd${r.tipo === 'total' ? ' class="tot"' : ''}>${r.value}</dd>`).join('')}</dl></section>`;
 }
 
 // ── Cuenta de cobro ──────────────────────────────────────────────────────────
@@ -524,6 +545,10 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
   const cobro = c.cobro ?? {};
   const base = (cobro.concepto?.trim() || `Por actividades de desarrollo correspondientes a ${c.alcance.trim() || 'los requerimientos de la cotización ' + c.numero}`).replace(/[.,\s]+$/, '');
   const periodo = cobro.desde && cobro.hasta ? `, realizadas durante el período comprendido ${periodoTexto(cobro.desde, cobro.hasta)}` : '';
+  const t = totales(c);
+  const parte = t.anticipoPct > 0 ? cobro.parte ?? 'total' : 'total';
+  const valor = parte === 'anticipo' ? t.anticipo : parte === 'saldo' ? t.saldo : t.total;
+  const extra = parte === 'anticipo' ? ` (anticipo del ${t.anticipoPct}% de la cotización ${c.numero})` : parte === 'saldo' ? ` (saldo del ${100 - t.anticipoPct}% restante de la cotización ${c.numero})` : '';
   const tel = (b.contacto.cel || '').replace(/^\+57\s*/, '');
   return {
     numero: c.numero,
@@ -537,8 +562,8 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
       telefono: tel,
       firmaDataUrl: b.representante.firmaDataUrl,
     },
-    valor: totalReal(c),
-    concepto: `${base}${periodo}.`,
+    valor,
+    concepto: `${base}${periodo}${extra}.`,
     cuentaBancaria: b.banco || '',
   };
 }

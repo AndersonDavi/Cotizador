@@ -1,5 +1,7 @@
 import {
   type Cotizacion,
+  type Cliente,
+  type Item,
   type Estado,
   ESTADOS,
   ESTADO_LABELS,
@@ -16,6 +18,12 @@ import {
   makeId,
   totalReal,
   formatCOP,
+  totales,
+  valorItem,
+  cantidadDe,
+  filasDesglose,
+  validaHasta,
+  ivaGeneral,
   today,
 } from './state';
 import { getAllIconKeys, getIconLabel, getIconSearchText, buildIconDataUrl, ICON_CATEGORIES, type IconKey } from './icons';
@@ -23,7 +31,7 @@ import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastRe
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
   cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
-  importJsonFromFile, printCuentaCobro,
+  importJsonFromFile, printCuentaCobro, sharePng, saveTextFile,
 } from './export';
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
@@ -227,6 +235,7 @@ function refresh() {
   badge.textContent = ESTADO_LABELS[est];
   badge.style.setProperty('--dot', ESTADO_COLOR[est]);
   renderCobroResumen();
+  renderExtras();
   schedulePreview();
   scheduleAutosave();
 }
@@ -351,7 +360,7 @@ function applySort(field: SortField) {
   const before = cardRects();
   state.items.sort((a, b) => {
     let cmp = 0;
-    if (field === 'precio') cmp = a.valor - b.valor;
+    if (field === 'precio') cmp = valorItem(a) - valorItem(b);
     else if (field === 'titulo') cmp = (a.titulo || '').localeCompare(b.titulo || '', 'es', { sensitivity: 'base' });
     else cmp = getIconLabel(a.iconKey).localeCompare(getIconLabel(b.iconKey), 'es', { sensitivity: 'base' });
     return sortDir === 'asc' ? cmp : -cmp;
@@ -369,6 +378,7 @@ const ICONS: Record<string, string> = {
   copy: svgI('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
   collapse: svgI('<path d="m18 15-6-6-6 6"/>'),
   expand: svgI('<path d="m6 9 6 6 6-6"/>'),
+  bookmark: svgI('<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>'),
   trash: svgI('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
 };
 
@@ -418,7 +428,7 @@ function renderItems() {
       card.innerHTML = `<div class="ic-top ic-compact" data-action="toggle" title="Mostrar detalles">
         ${iconBtn}
         <span class="ic-ctitle">${escapeHtml(it.titulo || 'Ítem sin título')}</span>
-        <span class="ic-cval">${formatCOP(it.valor)}</span>
+        <span class="ic-cval">${formatCOP(valorItem(it))}</span>
         ${btn('toggle', 'Mostrar detalles', 'expand')}</div>`;
     } else {
       card.innerHTML = `
@@ -428,19 +438,40 @@ function renderItems() {
           ${btn('toggle', 'Ocultar detalles', 'collapse')}
         </div>
         <textarea class="ic-desc auto" data-action="descripcion" rows="2" placeholder="Qué incluye: entregables, alcance, número de revisiones…" aria-label="Descripción del ítem ${idx + 1}">${escapeHtml(it.descripcion)}</textarea>
+        <div class="ic-price">
+          <label class="ic-qty"><span>Cantidad</span><input type="text" inputmode="decimal" data-action="cantidad" value="${String(cantidadDe(it)).replace('.', ',')}" aria-label="Cantidad del ítem ${idx + 1}" /></label>
+          <label class="ic-unit"><span>Unidad</span><input type="text" list="unidades" data-action="unidad" value="${escapeHtml(it.unidad ?? '')}" placeholder="und" aria-label="Unidad del ítem ${idx + 1}" /></label>
+          <span class="ic-x" aria-hidden="true">×</span>
+          <label class="ic-unitprice"><span>Precio unitario</span><input class="valor-slot" aria-label="Precio unitario del ítem ${idx + 1}" /></label>
+          ${(state.impuestos?.ivaModo ?? 'ninguno') === 'ninguno' ? '' : `<label class="ic-iva"><span>IVA</span><select data-action="iva" aria-label="IVA del ítem ${idx + 1}">
+            <option value=""${it.ivaTasa == null ? ' selected' : ''}>General (${ivaGeneral(state)}%)</option>
+            ${[19, 5, 0].map((t) => `<option value="${t}"${it.ivaTasa === t ? ' selected' : ''}>${t ? t + '%' : 'Exento (0%)'}</option>`).join('')}
+          </select></label>`}
+        </div>
         <div class="ic-bottom">
           <div class="ic-actions">
             <span class="ic-num">#${idx + 1}</span>
-            ${btn('up', 'Subir', 'up', idx === 0 ? 'disabled' : '')}${btn('down', 'Bajar', 'down', idx === state.items.length - 1 ? 'disabled' : '')}${btn('dup', 'Duplicar', 'copy')}${btn('remove', 'Eliminar', 'trash')}
+            ${btn('up', 'Subir', 'up', idx === 0 ? 'disabled' : '')}${btn('down', 'Bajar', 'down', idx === state.items.length - 1 ? 'disabled' : '')}${btn('dup', 'Duplicar', 'copy')}${btn('cat', 'Guardar en el catálogo', 'bookmark')}${btn('remove', 'Eliminar', 'trash')}
           </div>
-          <input class="valor-slot" aria-label="Valor del ítem ${idx + 1}" />
+          <span class="ic-sub">Valor del ítem <b data-sub>${formatCOP(valorItem(it))}</b></span>
         </div>`;
-      moneyField(card.querySelector('.valor-slot') as HTMLInputElement, () => it.valor, (v) => { it.valor = v; refresh(); });
+      moneyField(card.querySelector('.valor-slot') as HTMLInputElement, () => it.valor, (v) => { it.valor = v; updSub(); refresh(); });
     }
+    const updSub = () => {
+      const el = card.querySelector<HTMLElement>('[data-sub]');
+      if (el && el.textContent !== formatCOP(valorItem(it))) { el.textContent = formatCOP(valorItem(it)); pulse(el); }
+    };
     card.addEventListener('input', (ev) => {
       const t = ev.target as HTMLInputElement | HTMLTextAreaElement;
       if (t.dataset.action === 'titulo') it.titulo = t.value;
       else if (t.dataset.action === 'descripcion') { it.descripcion = t.value; autosize(t as HTMLTextAreaElement); }
+      else if (t.dataset.action === 'cantidad') {
+        t.value = t.value.replace(/[^\d,]/g, '').replace(/,(?=.*,)/g, '');
+        const q = parseFloat(t.value.replace(',', '.'));
+        it.cantidad = Number.isFinite(q) && q > 0 ? q : 1;
+        updSub();
+      } else if (t.dataset.action === 'unidad') it.unidad = t.value.trim() || undefined;
+      else if (t.dataset.action === 'iva') it.ivaTasa = t.value === '' ? undefined : Number(t.value);
       else return;
       refresh();
     });
@@ -454,6 +485,7 @@ function renderItems() {
         return;
       }
       if (action === 'remove') { removeItem(it.id); return; }
+      if (action === 'cat') { guardarEnCatalogo(it); pulse(el!); return; }
       const before = cardRects();
       let enter: string | undefined;
       if (action === 'dup') {
@@ -664,6 +696,7 @@ function renderCobroResumen() {
 // ── Guardadas ────────────────────────────────────────────────────────────────
 
 function renderSavedList() {
+  renderDashboard();
   const q = ($in('savedSearch').value || '').toLowerCase().trim();
   const all = loadSaved();
   const counts = new Map<string, number>();
@@ -685,7 +718,7 @@ function renderSavedList() {
     const e = estadoDe(c);
     return `<div class="saved-row${c.numero === state.numero ? ' current' : ''}">
       <div class="top"><span class="id">${escapeHtml(c.numero)}</span><span class="badge" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</span>
-        <span class="who">${escapeHtml(c.cliente?.nombre || c.alcance || '—')}</span></div>
+        <span class="who">${escapeHtml(c.cliente?.nombre || c.alcance || '—')}</span>${venceBadge(c)}</div>
       <div class="meta">${formatCOP(totalReal(c))} · ${escapeHtml(c.fecha)}${c.cliente?.nombre && c.alcance ? ' · ' + escapeHtml(c.alcance) : ''}</div>
       <div class="acts">
         <button data-num="${escapeHtml(c.numero)}" data-act="load">Abrir</button>
@@ -695,14 +728,325 @@ function renderSavedList() {
   }).join('');
 }
 
+// ── Impuestos, descuento, anticipo y vigencia ────────────────────────────────
+
+const parseNum = (v: string): number | undefined => {
+  const n = parseFloat((v || '').replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : undefined;
+};
+const fmtNum = (n?: number) => (n == null ? '' : String(n).replace('.', ','));
+
+function setImp(patch: Partial<NonNullable<Cotizacion['impuestos']>>) {
+  state.impuestos = { ...state.impuestos, ...patch };
+}
+
+/** Pinta los controles de impuestos, el desglose, la vigencia y la parte a cobrar. */
+function renderExtras() {
+  const t = totales(state);
+  const modo = state.impuestos?.ivaModo ?? 'ninguno';
+  document.querySelectorAll<HTMLElement>('#ivaSeg [data-iva]').forEach((b) => {
+    const on = b.dataset.iva === modo;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  ($('ivaTasaWrap') as HTMLElement).hidden = modo === 'ninguno';
+  $('descTipo').textContent = state.impuestos?.descuentoTipo === 'valor' ? '$' : '%';
+  const dl = $('desglose');
+  dl.hidden = !t.conDesglose;
+  dl.innerHTML = t.conDesglose
+    ? filasDesglose(t).map((r) => r.tipo === 'nota'
+      ? `<dd class="nota">${escapeHtml(r.label)}</dd>`
+      : `<dt${r.tipo === 'total' ? ' class="tot"' : ''}>${escapeHtml(r.label)}</dt><dd${r.tipo === 'total' ? ' class="tot"' : ''}>${r.value}</dd>`).join('')
+    : '';
+  const hasta = validaHasta(state);
+  $('validaHint').textContent = hasta ? `Hasta el ${hasta}` : 'Sin fecha de vencimiento';
+  ($('cobroParteWrap') as HTMLElement).hidden = !(t.anticipoPct > 0);
+  const parte = state.cobro?.parte ?? 'total';
+  document.querySelectorAll<HTMLElement>('#cobroParte [data-parte]').forEach((b) => b.classList.toggle('active', b.dataset.parte === parte));
+}
+
+// ── Catálogo de servicios ────────────────────────────────────────────────────
+
+type CatItem = Omit<Item, 'id'>;
+const CAT_KEY = 'cotizador:catalogo';
+const loadJson = <T,>(k: string, def: T): T => { try { return JSON.parse(localStorage.getItem(k) || '') as T; } catch { return def; } };
+const saveJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('El navegador no tiene espacio para guardar', 'err'); } };
+const catalogo = () => loadJson<CatItem[]>(CAT_KEY, []);
+
+function guardarEnCatalogo(it: Item) {
+  const { id: _id, ...rest } = it;
+  const list = catalogo().filter((x) => x.titulo.trim().toLowerCase() !== it.titulo.trim().toLowerCase());
+  saveJson(CAT_KEY, [rest, ...list].slice(0, 200));
+  toast(`"${it.titulo || 'Ítem'}" quedó en tu catálogo`);
+}
+
+function openCatalog(anchor: HTMLElement) {
+  closeIconPicker?.();
+  const pop = document.createElement('div');
+  pop.className = 'ip cat';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Catálogo de servicios');
+  const paint = (q = '') => {
+    const list = catalogo();
+    const n = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const rows = list.map((x, i) => ({ x, i })).filter(({ x }) => !q || n(`${x.titulo} ${x.descripcion}`).includes(n(q)));
+    (pop.querySelector('.cat-list') as HTMLElement).innerHTML = !list.length
+      ? '<p class="ip-empty">Tu catálogo está vacío. En cualquier ítem usa el botón <b>Guardar en el catálogo</b> para reutilizarlo después.</p>'
+      : !rows.length ? '<p class="ip-empty">Nada coincide con la búsqueda.</p>'
+      : rows.map(({ x, i }) => `<div class="cat-row">
+          <button type="button" class="cat-add" data-add="${i}"><img src="${buildIconDataUrl(x.iconKey, '#e8eaee')}" alt="" />
+            <span><b>${escapeHtml(x.titulo || 'Sin título')}</b><small>${escapeHtml(x.descripcion || '')}</small></span>
+            <em>${formatCOP(x.valor)}${x.unidad ? ' / ' + escapeHtml(x.unidad) : ''}</em></button>
+          <button type="button" class="icon-btn danger" data-del="${i}" title="Quitar del catálogo" aria-label="Quitar del catálogo">${ICONS.trash}</button>
+        </div>`).join('');
+  };
+  pop.innerHTML = `<div class="ip-head"><input class="ip-search" type="search" placeholder="Buscar en tu catálogo" aria-label="Buscar en el catálogo" /><button type="button" class="ip-x" aria-label="Cerrar">✕</button></div><div class="cat-list"></div>`;
+  document.body.appendChild(pop);
+  paint();
+  const mobile = window.matchMedia('(max-width: 860px)').matches;
+  if (mobile) pop.classList.add('sheet');
+  else {
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.max(12, Math.min(window.innerWidth - pop.offsetWidth - 12, r.left))}px`;
+    pop.style.top = `${Math.max(12, r.top - pop.offsetHeight - 8)}px`;
+  }
+  void pop.offsetWidth;
+  pop.classList.add('on');
+  const search = pop.querySelector('.ip-search') as HTMLInputElement;
+  search.addEventListener('input', () => paint(search.value));
+  const close = () => { pop.remove(); document.removeEventListener('pointerdown', onDoc, true); document.removeEventListener('keydown', onKey); if (closeIconPicker === close) closeIconPicker = null; };
+  const onDoc = (ev: Event) => { if (!pop.contains(ev.target as Node) && !anchor.contains(ev.target as Node)) close(); };
+  const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') close(); };
+  pop.addEventListener('click', (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t.closest('.ip-x')) { close(); return; }
+    const del = t.closest<HTMLElement>('[data-del]')?.dataset.del;
+    if (del != null) { const l = catalogo(); l.splice(Number(del), 1); saveJson(CAT_KEY, l); paint(search.value); return; }
+    const add = t.closest<HTMLElement>('[data-add]')?.dataset.add;
+    if (add == null) return;
+    const x = catalogo()[Number(add)];
+    if (!x) return;
+    const before = cardRects();
+    const nuevo: Item = { ...x, id: makeId() };
+    // Si solo hay un ítem vacío, lo reemplaza
+    if (state.items.length === 1 && !state.items[0].titulo && !state.items[0].descripcion && !state.items[0].valor) state.items = [];
+    state.items.push(nuevo);
+    renderItems();
+    flip(before, nuevo.id);
+    refresh();
+    toast(`Agregaste "${x.titulo}"`);
+    close();
+    $('items').querySelector<HTMLElement>(`[data-id="${nuevo.id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+  document.addEventListener('pointerdown', onDoc, true);
+  document.addEventListener('keydown', onKey);
+  closeIconPicker = close;
+  if (!mobile) search.focus();
+}
+
+// ── Clientes guardados ───────────────────────────────────────────────────────
+
+const CLI_KEY = 'cotizador:clientes';
+const clientes = () => loadJson<Cliente[]>(CLI_KEY, []);
+
+function recordarCliente(c: Cliente | undefined) {
+  if (!c?.nombre?.trim()) return;
+  const list = clientes().filter((x) => x.nombre.trim().toLowerCase() !== c.nombre.trim().toLowerCase());
+  saveJson(CLI_KEY, [{ nombre: c.nombre.trim(), nit: c.nit ?? '', cel: c.cel ?? '' }, ...list].slice(0, 300));
+  renderClientes();
+}
+
+function renderClientes() {
+  $('clientesList').innerHTML = clientes().map((c) => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(c.nit)}</option>`).join('');
+}
+
+/** Al elegir un cliente guardado, completa NIT y celular. */
+function autocompletarCliente() {
+  const nombre = $in('clienteNombre').value.trim().toLowerCase();
+  const c = clientes().find((x) => x.nombre.trim().toLowerCase() === nombre);
+  if (!c) return;
+  state.cliente = { nombre: c.nombre, nit: c.nit, cel: c.cel };
+  $in('clienteNit').value = c.nit;
+  $in('clienteCel').value = c.cel ?? '';
+  pulse($in('clienteNit'));
+  refresh();
+}
+
+// ── Tablero de Guardadas ─────────────────────────────────────────────────────
+
+/** Días que faltan para que venza la oferta (negativo = vencida), o null. */
+function diasParaVencer(c: Cotizacion): number | null {
+  const f = parseFecha(validaHasta(c));
+  if (!f) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(f.y, f.m - 1, f.d).getTime() - hoy.getTime()) / 86400000);
+}
+
+function venceBadge(c: Cotizacion): string {
+  if (estadoDe(c) !== 'enviada' && estadoDe(c) !== 'borrador') return '';
+  const d = diasParaVencer(c);
+  if (d == null) return '';
+  if (d < 0) return '<span class="vence late">Vencida</span>';
+  if (d <= 3) return `<span class="vence soon">${d === 0 ? 'Vence hoy' : `Vence en ${d} ${d === 1 ? 'día' : 'días'}`}</span>`;
+  return '';
+}
+
+function renderDashboard() {
+  const all = loadSaved();
+  const sum = (e: Estado) => all.filter((c) => estadoDe(c) === e).reduce((a, c) => a + totalReal(c), 0);
+  const count = (e: Estado) => all.filter((c) => estadoDe(c) === e).length;
+  const card = (e: Estado, label: string, hint: string) => `
+    <button type="button" class="dash-card" data-filter="${e}" style="--dot:${ESTADO_COLOR[e]}">
+      <span>${label}</span><b>${formatCOP(sum(e))}</b><small>${count(e)} ${count(e) === 1 ? 'cotización' : 'cotizaciones'} · ${hint}</small>
+    </button>`;
+  $('dashboard').innerHTML = all.length ? card('enviada', 'Por aprobar', 'enviadas') + card('aprobada', 'Por cobrar', 'aprobadas') + card('cobrada', 'Esperando pago', 'cobradas') + card('pagada', 'Pagado', 'pagadas') : '';
+}
+
+// ── Compartir ────────────────────────────────────────────────────────────────
+
+function mensajeCliente(): string {
+  const t = totales(state);
+  const hasta = validaHasta(state);
+  const nombre = state.cliente?.nombre?.trim();
+  return [
+    `Hola${nombre ? ' ' + nombre : ''}, te comparto la ${(state.titulo || 'propuesta económica').toLowerCase()} N.º ${state.numero}`,
+    state.alcance?.trim() ? `para: ${state.alcance.trim()}` : '',
+    `Total: ${formatCOP(t.total)} COP${t.ivaModo === 'incluido' ? ' (IVA incluido)' : ''}.`,
+    t.anticipoPct ? `Anticipo del ${t.anticipoPct}%: ${formatCOP(t.anticipo)}.` : '',
+    hasta ? `La oferta es válida hasta el ${hasta}.` : '',
+    '¡Quedo atento a tus comentarios!',
+    state.branding.empresa || state.branding.representante.nombre || '',
+  ].filter(Boolean).join('\n');
+}
+
+function abrirWhatsApp() {
+  const dig = (state.cliente?.cel ?? '').replace(/\D/g, '');
+  const tel = dig.length === 10 && dig.startsWith('3') ? '57' + dig : dig;
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensajeCliente())}`;
+  window.open(url, '_blank', 'noopener');
+  toast(tel ? 'Abriendo WhatsApp con el mensaje listo. Adjunta el PDF o la imagen.' : 'Agrega el celular del cliente para abrir su chat directamente');
+}
+
+// ── Respaldo completo ────────────────────────────────────────────────────────
+
+type Respaldo = {
+  app: 'cotizador'; version: 1; fecha: string;
+  guardadas: Cotizacion[]; borrador: Cotizacion; marca: Cotizacion['branding'];
+  catalogo: CatItem[]; clientes: Cliente[]; paletas: unknown[];
+};
+
+async function respaldar() {
+  const data: Respaldo = {
+    app: 'cotizador', version: 1, fecha: new Date().toISOString(),
+    guardadas: loadSaved(), borrador: state, marca: state.branding,
+    catalogo: catalogo(), clientes: clientes(), paletas: loadJson<unknown[]>('cotizador:paletas', []),
+  };
+  const f = new Date();
+  const name = `cotizador-respaldo-${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}.json`;
+  await saveTextFile(JSON.stringify(data), name);
+  toast(`Respaldo listo: ${data.guardadas.length} cotizaciones, ${data.catalogo.length} servicios y ${data.clientes.length} clientes`);
+}
+
+function restaurar(file: File) {
+  const r = new FileReader();
+  r.onload = () => {
+    let data: Respaldo;
+    try { data = JSON.parse(String(r.result)); } catch { toast('El archivo no es un respaldo válido', 'err'); return; }
+    if (data?.app !== 'cotizador' || !Array.isArray(data.guardadas)) { toast('El archivo no es un respaldo del Cotizador', 'err'); return; }
+    if (!confirm(`¿Restaurar ${data.guardadas.length} cotizaciones, ${data.catalogo?.length ?? 0} servicios y ${data.clientes?.length ?? 0} clientes? Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`)) return;
+    const byNum = new Map(loadSaved().map((c) => [c.numero, c]));
+    data.guardadas.forEach((c) => byNum.set(c.numero, c));
+    saveJson('cotizador:saved', [...byNum.values()]);
+    const mergeBy = <T,>(a: T[], b: T[], key: (x: T) => string) => { const m = new Map(a.map((x) => [key(x), x])); b.forEach((x) => m.set(key(x), x)); return [...m.values()]; };
+    saveJson(CAT_KEY, mergeBy(catalogo(), data.catalogo ?? [], (x) => x.titulo.toLowerCase()));
+    saveJson(CLI_KEY, mergeBy(clientes(), data.clientes ?? [], (x) => x.nombre.toLowerCase()));
+    if (Array.isArray(data.paletas)) saveJson('cotizador:paletas', mergeBy(loadJson<{ primary: string; secondary: string }[]>('cotizador:paletas', []), data.paletas as { primary: string; secondary: string }[], (x) => x.primary + x.secondary));
+    if (data.marca && !state.branding.representante.nombre) { state.branding = data.marca; saveBranding(data.marca); hydrateForm(); }
+    renderClientes();
+    renderSavedList();
+    refresh();
+    toast('Respaldo restaurado');
+  };
+  r.readAsText(file);
+}
+
+// ── App instalable (PWA) ─────────────────────────────────────────────────────
+
+let installEvent: any = null;
+function initPwa() {
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* sin modo offline */ });
+  }
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    installEvent = ev;
+    ($('installBtn') as HTMLElement).hidden = false;
+  });
+  $('installBtn').addEventListener('click', async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => null);
+    installEvent = null;
+    ($('installBtn') as HTMLElement).hidden = true;
+  });
+}
+
+function initExtras() {
+  $('ivaSeg').addEventListener('click', (ev) => {
+    const m = (ev.target as HTMLElement).closest<HTMLElement>('[data-iva]')?.dataset.iva as 'ninguno' | 'agregar' | 'incluido' | undefined;
+    if (!m) return;
+    setImp({ ivaModo: m });
+    renderItems();
+    refresh();
+  });
+  $('descTipo').addEventListener('click', () => {
+    setImp({ descuentoTipo: state.impuestos?.descuentoTipo === 'valor' ? 'porcentaje' : 'valor' });
+    refresh();
+  });
+  $('cobroParte').addEventListener('click', (ev) => {
+    const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-parte]')?.dataset.parte as 'total' | 'anticipo' | 'saldo' | undefined;
+    if (!p) return;
+    state.cobro = { ...state.cobro, parte: p };
+    refresh();
+  });
+  $('fromCatalog').addEventListener('click', (ev) => { ev.stopPropagation(); openCatalog($('fromCatalog')); });
+  $in('clienteNombre').addEventListener('change', autocompletarCliente);
+  $('dashboard').addEventListener('click', (ev) => {
+    const f = (ev.target as HTMLElement).closest<HTMLElement>('[data-filter]')?.dataset.filter;
+    if (!f) return;
+    savedFilter = f as Estado;
+    renderSavedList();
+  });
+  $('waBtn').addEventListener('click', abrirWhatsApp);
+  $('shareBtn').addEventListener('click', async () => {
+    toast('Preparando imagen…');
+    try {
+      const shared = await sharePng(state, mensajeCliente());
+      if (!shared) toast('Tu navegador no comparte archivos: la imagen se descargó');
+    } catch (e) { console.error(e); toast('No se pudo compartir', 'err'); }
+  });
+  $('backupBtn').addEventListener('click', () => { respaldar().catch(() => toast('No se pudo crear el respaldo', 'err')); });
+  const restoreInput = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json', hidden: true });
+  document.body.appendChild(restoreInput);
+  restoreInput.addEventListener('change', () => { const f = restoreInput.files?.[0]; restoreInput.value = ''; if (f) restaurar(f); });
+  $('restoreBtn').addEventListener('click', () => restoreInput.click());
+  renderClientes();
+  initPwa();
+}
+
 // ── Formulario ───────────────────────────────────────────────────────────────
 
 const FIELDS: [string, () => string, (v: string) => void][] = [
   ['numero', () => state.numero, (v) => { state.numero = v; }],
   ['fecha', () => state.fecha, (v) => { state.fecha = v; }],
   ['titulo', () => state.titulo ?? '', (v) => { state.titulo = v; }],
-  ['clienteNombre', () => state.cliente?.nombre ?? '', (v) => { state.cliente = { nit: state.cliente?.nit ?? '', nombre: v }; }],
-  ['clienteNit', () => state.cliente?.nit ?? '', (v) => { state.cliente = { nombre: state.cliente?.nombre ?? '', nit: v }; }],
+  ['clienteNombre', () => state.cliente?.nombre ?? '', (v) => { state.cliente = { nit: '', ...state.cliente, nombre: v }; }],
+  ['clienteNit', () => state.cliente?.nit ?? '', (v) => { state.cliente = { nombre: '', ...state.cliente, nit: v }; }],
+  ['clienteCel', () => state.cliente?.cel ?? '', (v) => { state.cliente = { nombre: '', nit: '', ...state.cliente, cel: v }; }],
+  ['vigencia', () => fmtNum(state.vigenciaDias), (v) => { const n = parseNum(v); state.vigenciaDias = n && n > 0 ? Math.round(n) : undefined; }],
+  ['ivaTasa', () => fmtNum(state.impuestos?.ivaTasa), (v) => { setImp({ ivaTasa: parseNum(v) }); }],
+  ['descuento', () => fmtNum(state.impuestos?.descuento), (v) => { setImp({ descuento: parseNum(v) }); }],
+  ['anticipo', () => fmtNum(state.impuestos?.anticipo), (v) => { setImp({ anticipo: parseNum(v) }); }],
   ['alcance', () => state.alcance, (v) => { state.alcance = v; }],
   ['tiempoEntrega', () => state.tiempoEntrega, (v) => { state.tiempoEntrega = v; }],
   ['empresa', () => state.branding.empresa ?? '', (v) => { state.branding.empresa = v; }],
@@ -951,7 +1295,7 @@ export function initEditor() {
 
   // Acciones
   $('saveBtn').addEventListener('click', () => {
-    try { persistSaved(state); toast(`Cotización ${state.numero} guardada`); renderSavedList(); }
+    try { persistSaved(state); recordarCliente(state.cliente); toast(`Cotización ${state.numero} guardada`); renderSavedList(); }
     catch { toast('No hay espacio en el navegador para guardar', 'err'); }
   });
   $('newBtn').addEventListener('click', () => {
@@ -1059,6 +1403,7 @@ export function initEditor() {
     window.setTimeout(() => tour(id), 150);
   });
 
+  initExtras();
   hydrateForm();
   updateSortButtons();
   showTab(lastTab);

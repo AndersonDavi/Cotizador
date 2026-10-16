@@ -107,24 +107,51 @@ async function rasterize(doc: Document, size: DocSize, scale: number): Promise<s
   return canvas.toDataURL('image/png'); // lanza si el navegador marca el canvas como "tainted"
 }
 
-export async function exportPng(c: Cotizacion): Promise<void> {
+/** PNG del documento como data URL (escala 2). */
+export async function pngDataUrl(c: Cotizacion): Promise<string> {
   const frame = offscreenFrame(1080);
   try {
     const size = await loadIntoFrame(frame, renderCotizacionHtml(c, await inlineFonts()));
     frame.style.height = `${size.height}px`;
-    let url: string;
     try {
-      url = await rasterize(frame.contentDocument!, size, 2);
+      return await rasterize(frame.contentDocument!, size, 2);
     } catch {
       // Navegadores que no permiten leer un canvas con foreignObject (Safari): html2canvas
       const { default: html2canvas } = await import('html2canvas');
       const doc = frame.contentDocument!.querySelector('.doc') as HTMLElement;
-      url = (await html2canvas(doc, { scale: 2, backgroundColor: '#ffffff', logging: false })).toDataURL('image/png');
+      return (await html2canvas(doc, { scale: 2, backgroundColor: '#ffffff', logging: false })).toDataURL('image/png');
     }
-    download(url, `COTIZACION_${c.numero}.png`);
   } finally {
     frame.remove();
   }
+}
+
+export async function exportPng(c: Cotizacion): Promise<void> {
+  download(await pngDataUrl(c), `COTIZACION_${c.numero}.png`);
+}
+
+/**
+ * Comparte la imagen con el menú del sistema (WhatsApp, correo, Drive…).
+ * Devuelve false si el navegador no permite compartir archivos (entonces se descarga).
+ */
+export async function sharePng(c: Cotizacion, text: string): Promise<boolean> {
+  const blob = await (await fetch(await pngDataUrl(c))).blob();
+  const file = new File([blob], `COTIZACION_${c.numero}.png`, { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], text, title: `Cotización ${c.numero}` }); } catch { /* cancelado */ }
+    return true;
+  }
+  download(URL.createObjectURL(blob), file.name);
+  return false;
+}
+
+/** Descarga (o comparte en el celular) un archivo de texto. */
+export async function saveTextFile(text: string, name: string, type = 'application/json'): Promise<void> {
+  const file = new File([text], name, { type });
+  if (window.matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch { /* cancelado: descarga */ }
+  }
+  downloadText(text, type, name);
 }
 
 function download(href: string, name: string) {

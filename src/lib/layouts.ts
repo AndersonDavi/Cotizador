@@ -3,7 +3,7 @@
 // así cualquier marca se ve bien en cualquier diseño.
 
 import { buildIconSvg } from './icons';
-import { formatCOP, totalReal, type Cotizacion } from './state';
+import { formatCOP, totales, valorItem, qtyLabel, ivaTag, filasDesglose, validaHasta, type Cotizacion, type Totales } from './state';
 import { buildTheme, coloresDe, disenoDe, isDark, themeVars, type DisenoId, type Theme } from './theme';
 import { escapeHtml as e, normalizeWebUrl } from './esc';
 
@@ -28,7 +28,9 @@ type Data = {
   alcance: string;
   cliente: { nombre: string; nit: string } | null;
   total: string;
-  items: { n: string; titulo: string; desc: string; valor: string; iconKey: string }[];
+  tot: Totales;
+  valida: string;
+  items: { n: string; titulo: string; desc: string; valor: string; qty: string; iconKey: string }[];
   tiempo: string;
   terminos: string[];
   banco: string;
@@ -50,12 +52,15 @@ function data(c: Cotizacion): Data {
     fecha: e(c.fecha),
     alcance: e(c.alcance || ''),
     cliente,
-    total: formatCOP(totalReal(c)),
+    tot: totales(c),
+    total: formatCOP(totales(c).total),
+    valida: e(validaHasta(c)),
     items: c.items.map((it, i) => ({
       n: String(i + 1).padStart(2, '0'),
       titulo: e(it.titulo || '—'),
       desc: e((it.descripcion ?? '').split('\n').filter((l) => l.trim()).join('\n')),
-      valor: formatCOP(it.valor),
+      valor: formatCOP(valorItem(it)),
+      qty: e([qtyLabel(it), ivaTag(c, it)].filter(Boolean).join(' · ')),
       iconKey: it.iconKey,
     })),
     tiempo: e(c.tiempoEntrega || ''),
@@ -91,6 +96,25 @@ function contactList(d: Data): string {
   return `<ul class="contact-list">${rows.join('')}</ul>`;
 }
 
+const qty = (it: Data['items'][number]) => (it.qty ? `<small class="qty">${it.qty}</small>` : '');
+const row = (r: { label: string; value: string; tipo?: string }) =>
+  r.tipo === 'nota' ? `<div class="dg-note">${e(r.label)}</div>` : `<div class="dg-row"><span>${e(r.label)}</span><b>${r.value}</b></div>`;
+/** Filas antes del total (subtotal, descuento, IVA agregado). */
+function pre(d: Data): string {
+  if (!d.tot.conDesglose) return '';
+  const f = filasDesglose(d.tot);
+  const rows = f.slice(0, f.findIndex((r) => r.tipo === 'total'));
+  return rows.length ? `<div class="dg">${rows.map(row).join('')}</div>` : '';
+}
+/** Filas después del total (IVA incluido, anticipo, saldo). */
+function post(d: Data): string {
+  if (!d.tot.conDesglose) return '';
+  const f = filasDesglose(d.tot);
+  const rows = f.slice(f.findIndex((r) => r.tipo === 'total') + 1);
+  return rows.length ? `<div class="dg">${rows.map(row).join('')}</div>` : '';
+}
+const side = (html: string, w = 420) => (html ? `<div style="display:flex;justify-content:flex-end"><div style="width:${w}px">${html}</div></div>` : '');
+
 const BASE_CSS = `
 .doc{width:1080px;position:relative;overflow:hidden;color:var(--ink);background:var(--paper);font-family:Poppins,Roboto,Arial,sans-serif;font-size:16px;line-height:1.45}
 .pre{white-space:pre-line}
@@ -102,6 +126,12 @@ table{border-collapse:collapse;width:100%}
 .contact-list{list-style:none;display:flex;flex-direction:column;gap:10px}
 .contact-list li{display:flex;align-items:center;gap:12px}
 .muted{color:var(--muted)}
+.qty{display:block;font-size:12.5px;font-weight:400;opacity:.72;margin-top:3px;white-space:nowrap}
+.dg{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-size:15px}
+.dg-row{display:flex;justify-content:space-between;gap:28px}
+.dg-row span{opacity:.75}
+.dg-row b{font-weight:700;white-space:nowrap}
+.dg-note{font-size:13px;opacity:.72}
 `;
 
 type Layout = { css: string; body: (d: Data) => string };
@@ -149,7 +179,7 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
 <div class="top">
   <div class="l">
     <h1 data-fit data-min="34">${d.titulo}</h1>
-    <dl class="meta"><dt>N.º</dt><dd>${d.numero}</dd><dt>Fecha</dt><dd>${d.fecha}</dd></dl>
+    <dl class="meta"><dt>N.º</dt><dd>${d.numero}</dd><dt>Fecha</dt><dd>${d.fecha}</dd>${d.valida ? `<dt>Válida hasta</dt><dd>${d.valida}</dd>` : ''}</dl>
   </div>
   <div class="r">${logo(d)}<div class="emp">${d.empresa}</div></div>
 </div>
@@ -167,8 +197,8 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
   <div class="sec">
     <h2>Detalle de la propuesta</h2>
     <table><thead><tr><th class="s">#</th><th class="s">Descripción</th><th class="p">Valor</th></tr></thead>
-    <tbody>${d.items.map((it) => `<tr><td class="n">${it.n}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}</td></tr>`).join('')}</tbody></table>
-    <div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>
+    <tbody>${d.items.map((it) => `<tr><td class="n">${it.n}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+    ${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}
   </div>
   <div class="foot-cols">
     <div>
@@ -239,14 +269,14 @@ ${sw('tl')}${sw('br')}
     ${logo(d)}<div class="emp">${d.empresa}</div>
     <h1>${d.titulo}</h1>
     <div class="meta">N.º ${d.numero}</div>
-    <div class="meta">Fecha: ${d.fecha}</div>
+    <div class="meta">Fecha: ${d.fecha}</div>${d.valida ? `<div class="meta">Válida hasta: ${d.valida}</div>` : ''}
   </div>
 </div>
 <div class="rows">
   <div class="row h"><div>#</div><div>Descripción</div><div>Valor</div></div>
-  ${d.items.map((it) => `<div class="row"><div class="n">${it.n}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}</div></div>`).join('')}
+  ${d.items.map((it) => `<div class="row"><div class="n">${it.n}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
 </div>
-<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>
+${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}
 <div class="bt">
   <div>
     ${d.banco ? `<h3 style="color:var(--sOnP)">Información de pago</h3><p>${d.banco}</p>` : ''}
@@ -302,7 +332,7 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 `,
   body: (d) => `
 <div class="hd"><h1 data-fit data-min="30">${d.titulo}</h1><div class="brand">${logo(d)}<div class="emp">${d.empresa}</div></div></div>
-<div class="band"><div class="a">Información del cliente</div><div class="b"><b>Fecha:</b> ${d.fecha}</div></div>
+<div class="band"><div class="a">Información del cliente</div><div class="b"><b>Fecha:</b> ${d.fecha}${d.valida ? ` &nbsp;·&nbsp; <b>Válida hasta:</b> ${d.valida}` : ''}</div></div>
 <div class="info">
   <div><b>Cliente:</b> ${d.cliente?.nombre ?? '—'}</div>
   <div><b>Cotización N.º:</b> ${d.numero}</div>
@@ -313,10 +343,11 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 <div class="tbl"><table>
   <thead><tr><th>N.º</th><th style="text-align:left">Servicio</th><th>Valor</th></tr></thead>
   <tbody>
-    ${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}</td></tr>`).join('')}
+    ${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}
+    ${d.tot.conDesglose ? filasDesglose(d.tot).filter((r, i, a) => i < a.findIndex((x) => x.tipo === 'total')).map((r) => `<tr class="dz"><td></td><td>${e(r.label)}</td><td class="v">${r.value}</td></tr>`).join('') : ''}
     <tr class="t"><td></td><td>Total</td><td class="v">${d.total}</td></tr>
   </tbody>
-</table></div>
+</table>${side(post(d), 460)}</div>
 <div class="terms">
   ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
   ${d.terminos.length || d.banco ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}${d.banco ? `<li>Pago: ${d.banco}</li>` : ''}</ul>` : ''}
@@ -382,15 +413,15 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
     <div><h2>Para:</h2><div class="kv">
       ${d.cliente ? `<div><b>Cliente:</b> ${d.cliente.nombre}</div>${d.cliente.nit ? `<div><b>NIT:</b> ${d.cliente.nit}</div>` : ''}` : ''}
       <div class="pre"><b>Alcance:</b> ${d.alcance}</div></div></div>
-    <div class="meta"><b>Cotización N.º:</b><span>${d.numero}</span><b>Fecha:</b><span>${d.fecha}</span></div>
+    <div class="meta"><b>Cotización N.º:</b><span>${d.numero}</span><b>Fecha:</b><span>${d.fecha}</span>${d.valida ? `<b>Válida hasta:</b><span>${d.valida}</span>` : ''}</div>
   </div>
   <div class="sec"><h2>Detalle del servicio:</h2>
     <table><thead><tr><th style="text-align:center">N.º</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
-    <tbody>${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}</td></tr>`).join('')}</tbody></table>
+    <tbody>${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
   </div>
   <div class="mid">
     <div>${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
-    <div><div class="sum"><span>Total</span><strong>${d.total}</strong></div></div>
+    <div>${pre(d)}<div class="sum"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div>
   </div>
 </div>
 <div class="pay">Información de pago:</div>
@@ -445,14 +476,14 @@ tbody tr:last-child td{border-bottom:1.5px solid var(--p)}
 `,
   body: (d) => `
 <div class="hd"><div class="brand">${logo(d)}<div class="emp">${d.empresa}</div></div><h1>${d.titulo}</h1></div>
-<div class="info"><div>Cotización N.º: #${d.numero}</div><div class="r">Fecha: ${d.fecha}</div></div>
+<div class="info"><div>Cotización N.º: #${d.numero}</div><div class="r">Fecha: ${d.fecha}${d.valida ? `<br>Válida hasta: ${d.valida}` : ''}</div></div>
 ${d.cliente ? `<div class="client"><b>${d.cliente.nombre}</b>${d.cliente.nit ? `<br>NIT ${d.cliente.nit}` : ''}</div>` : ''}
 <div class="thick"></div>
 <div class="scope"><b>Alcance del proyecto</b><div class="pre">${d.alcance || '—'}</div></div>
 ${d.tiempo ? `<div class="scope" style="margin-top:20px"><b>Tiempo de entrega</b><div class="pre">${d.tiempo}</div></div>` : ''}
 <table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
-<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}</td></tr>`).join('')}</tbody></table>
-<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>
+<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}
 ${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>Términos</b><div>${d.terminos.map((x) => `<div>${x}</div>`).join('')}${d.banco ? `<div>${d.banco}</div>` : ''}</div></div>` : ''}
 <div class="thin"></div>
 <div class="ft">
@@ -504,19 +535,19 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 <div class="band">
   <div class="tab"><span class="dot a"></span><span class="dot b"></span><h1>${d.titulo}</h1></div>
   <p><b>Cotización N.º:</b> ${d.numero}</p>
-  <p><b>Fecha:</b> ${d.fecha}</p>
+  <p><b>Fecha:</b> ${d.fecha}${d.valida ? ` · <b>Válida hasta:</b> ${d.valida}` : ''}</p>
   ${d.cliente ? `<p><b>Para: ${d.cliente.nombre}</b>${d.cliente.nit ? ` · NIT ${d.cliente.nit}` : ''}</p>` : ''}
   <p class="pre" style="max-width:560px;line-height:1.4">${d.alcance}</p>
 </div>
 <div class="card"><table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
-<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}</td></tr>`).join('')}</tbody></table></div>
+<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table></div>
 <div class="mid">
   <div>
     ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
     ${d.terminos.length ? `<h3 style="margin-top:16px">Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}
     ${d.banco ? `<h3 style="margin-top:16px">Método de pago</h3><p>${d.banco}</p>` : ''}
   </div>
-  <div><div class="sum"><b>Total</b><strong>${d.total}</strong></div></div>
+  <div>${pre(d)}<div class="sum"><b>Total</b><strong>${d.total}</strong></div>${post(d)}</div>
 </div>
 <div class="bt">
   <div class="contact">${contactList(d)}</div>
@@ -559,16 +590,16 @@ const lateral: Layout = {
 <aside class="side">
   ${logo(d)}
   <div class="emp">${d.empresa}</div>
-  <div><div class="lbl">Cotización</div><div class="num">${d.numero}</div><div class="sm">${d.fecha}</div></div>
+  <div><div class="lbl">Cotización</div><div class="num">${d.numero}</div><div class="sm">${d.fecha}</div>${d.valida ? `<div class="sm">Válida hasta ${d.valida}</div>` : ''}</div>
   <hr>
   ${d.cliente ? `<div><div class="lbl">Para</div><div style="font-weight:600;font-size:17px">${d.cliente.nombre}</div>${d.cliente.nit ? `<div class="sm">NIT ${d.cliente.nit}</div>` : ''}</div><hr>` : ''}
-  <div><div class="lbl">Total</div><div class="tot" data-fit data-min="20">${d.total}</div><div class="sm">COP</div></div>
+  <div><div class="lbl">Total</div><div class="tot" data-fit data-min="20">${d.total}</div><div class="sm">COP</div>${d.tot.conDesglose ? `<div class="dg" style="font-size:13px">${filasDesglose(d.tot).filter((r) => r.tipo !== 'total').map(row).join('')}</div>` : ''}</div>
   ${contactList(d)}
 </aside>
 <main class="main">
   <h1>${d.titulo}</h1>
   ${d.alcance ? `<p class="alc pre">${d.alcance}</p>` : ''}
-  <div class="items">${d.items.map((it) => `<div class="it"><div class="bd">${buildIconSvg(it.iconKey, d.t.pDeep, 2)}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}</div></div>`).join('')}</div>
+  <div class="items">${d.items.map((it) => `<div class="it"><div class="bd">${buildIconSvg(it.iconKey, d.t.pDeep, 2)}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
   <div class="blocks">
     <div>${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}${d.banco ? `<h3 style="margin-top:18px">Pago</h3><p>${d.banco}</p>` : ''}</div>
     <div>${d.terminos.length ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>

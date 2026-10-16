@@ -1,7 +1,7 @@
 // Video promocional (redes / LinkedIn): 24 s, 1080×1350 (4:5), 120 BPM.
 //
 //   npm run dev                      (en otra terminal, para la captura del celular)
-//   node tutorial/promo.mjs [url]    → tutorial/out/promo-4x5.mp4
+//   node tutorial/promo.mjs [url] [4x5|9x16]  → tutorial/out/promo-4x5.mp4 / promo-9x16.mp4
 //
 // Las escenas se animan con Web Animations y se capturan cuadro a cuadro en
 // tiempos exactos, así cada corte cae en el beat de la música (tutorial/music.mjs).
@@ -21,11 +21,14 @@ const doc = await import('../src/lib/doc.ts');
 const { DISENOS, PALETAS } = await import('../src/lib/theme.ts');
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const URL = process.argv[2] ?? 'http://localhost:4321';
+const URL = process.argv.slice(2).find((a) => a.startsWith('http')) ?? 'http://localhost:4321';
+const FORMATO = process.argv.includes('9x16') ? '9x16' : '4x5';
 const OUT = join(ROOT, 'tutorial', 'out');
 const WORK = join(tmpdir(), 'cotizador-promo');
 const FRAMES = join(WORK, 'frames');
-const W = 1080, H = 1350, FPS = 30, SECONDS = 24;
+// Las escenas se diseñan en 1080×1350; en 9:16 se centran en un lienzo de 1080×1920
+const W = 1080, H = FORMATO === '9x16' ? 1920 : 1350, FPS = 30, SECONDS = 24;
+const OFFSET = (H - 1350) / 2;
 
 rmSync(WORK, { recursive: true, force: true });
 mkdirSync(FRAMES, { recursive: true });
@@ -160,6 +163,7 @@ body{width:${W}px;height:${H}px;overflow:hidden;background:#0b0d11;font-family:P
 .fade{position:absolute;inset:0;background:#000}
 </style></head><body>
 <div class="bg"></div><div class="grid"></div><div class="blob b1"></div><div class="blob b2"></div>
+<div class="stage" style="position:absolute;left:0;top:${OFFSET}px;width:1080px;height:1350px">
 
 <section class="scene s1">
   <div class="big w1">¿Cotizar</div>
@@ -208,10 +212,10 @@ body{width:${W}px;height:${H}px;overflow:hidden;background:#0b0d11;font-family:P
 <section class="scene s7">
   <div class="title">Desde tu <em>celular</em></div>
   <div class="phone"><div class="scr"><img class="m1" src="mobile-items.png"><img class="m2" src="mobile-preview.png"></div></div>
-  <div class="fchip f1" style="left:80px;top:520px">Gratis</div>
-  <div class="fchip f2" style="right:70px;top:640px">Sin registro</div>
+  <div class="fchip f1" style="left:80px;top:520px">Gratis y sin registro</div>
+  <div class="fchip f2" style="right:60px;top:640px">Funciona sin internet</div>
   <div class="fchip f3" style="left:60px;top:880px">Tus datos en tu navegador</div>
-  <div class="fchip f4" style="right:80px;top:1080px">PDF · PNG · JSON</div>
+  <div class="fchip f4" style="right:50px;top:1080px">IVA, descuentos y anticipos</div>
 </section>
 
 <section class="scene s8">
@@ -220,6 +224,7 @@ body{width:${W}px;height:${H}px;overflow:hidden;background:#0b0d11;font-family:P
   <div class="cta">Pruébalo gratis</div>
   <div class="tags"><span>8 plantillas</span>·<span>Cuenta de cobro</span>·<span>Sin registro</span></div>
 </section>
+</div>
 <div class="fade"></div>
 
 <script>
@@ -306,7 +311,8 @@ pop('.s8 h1', 21.25); pop('.url', 21.5, 0.8); pop('.cta', 22.0, 0.7); pop('.tags
 for (let t = 22.5; t < 23.5; t += B) T('.cta', [{ transform: 'scale(1.07)' }, { transform: 'scale(1)' }], t, 0.4, { fill: 'none', ease: 'ease-out' });
 T('.fade', [{ opacity: 0 }, { opacity: 1 }], 23.55, 0.45);
 
-window.seek = (ms) => document.getAnimations().forEach((a) => { a.currentTime = ms; });
+// +1 ms: los cambios exactos en el beat (transiciones de 1 ms) ya se ven completos en ese cuadro
+window.seek = (ms) => document.getAnimations().forEach((a) => { a.currentTime = ms + 1; });
 window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))]);
 </script></body></html>`;
 writeFileSync(join(WORK, 'stage.html'), STAGE);
@@ -326,8 +332,8 @@ await browser.close();
 
 // ── 5. Video final ───────────────────────────────────────────────────────────
 console.log('Codificando…');
-const out = join(OUT, 'promo-4x5.mp4');
+const out = join(OUT, `promo-${FORMATO}.mp4`);
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', join(FRAMES, 'f%05d.jpg'), '-i', join(WORK, 'music.wav'),
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '19', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '21.9', '-i', out, '-frames:v', '1', join(OUT, 'promo-portada.jpg')]);
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '21.9', '-i', out, '-frames:v', '1', join(OUT, `promo-${FORMATO}-portada.jpg`)]);
 console.log(`Listo: ${out}`);

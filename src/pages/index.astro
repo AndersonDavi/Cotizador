@@ -130,6 +130,10 @@ const I = {
                 </div>
                 <label class="field hero-date">Fecha<input id="fecha" type="text" data-date placeholder="dd-mm-aaaa" /></label>
               </div>
+              <label class="field">Oferta válida por
+                <span class="with-suffix"><input id="vigencia" type="text" inputmode="numeric" placeholder="15" /><i>días</i></span>
+                <small id="validaHint" class="hint"></small>
+              </label>
               <div class="field">Estado
                 <div id="estadoGroup" class="seg" role="radiogroup" aria-label="Estado"></div>
               </div>
@@ -146,6 +150,8 @@ const I = {
                 <label class="field">Cliente<input id="clienteNombre" type="text" placeholder="Panadería La Esquina S.A.S." autocomplete="organization" /></label>
                 <label class="field">NIT o documento<input id="clienteNit" type="text" placeholder="901.234.567-8" /></label>
               </div>
+              <label class="field">Celular del cliente <small>para enviarle la cotización por WhatsApp</small><input id="clienteCel" type="tel" placeholder="300 000 0000" /></label>
+              <datalist id="clientesList"></datalist>
               <label class="field">Alcance <small>una frase que resuma el trabajo</small><textarea id="alcance" class="auto" rows="1" placeholder="Sitio web y tienda en línea para la panadería"></textarea></label>
             </div>
 
@@ -159,6 +165,19 @@ const I = {
                 <label class="switch"><input id="costoAuto" type="checkbox" /><span></span> Sumar ítems</label>
               </div>
               <label class="field" id="costoManualWrap">Valor total (COP)<input id="costoTotal" type="text" data-money /></label>
+              <div class="field">IVA
+                <div id="ivaSeg" class="seg" role="radiogroup" aria-label="IVA">
+                  <button type="button" data-iva="ninguno" style="--dot:#8b93a1">Sin IVA</button>
+                  <button type="button" data-iva="agregar" style="--dot:#5aa9ff">Sumar IVA</button>
+                  <button type="button" data-iva="incluido" style="--dot:#4ec47e">IVA incluido</button>
+                </div>
+              </div>
+              <div class="tax-grid">
+                <label class="field" id="ivaTasaWrap">Tasa de IVA<span class="with-suffix"><input id="ivaTasa" type="text" inputmode="decimal" placeholder="19" /><i>%</i></span></label>
+                <label class="field">Descuento<span class="with-btn"><input id="descuento" type="text" inputmode="decimal" placeholder="0" /><button id="descTipo" type="button" class="icon-only" title="Cambiar entre porcentaje y valor">%</button></span></label>
+                <label class="field">Anticipo<span class="with-suffix"><input id="anticipo" type="text" inputmode="numeric" placeholder="0" /><i>%</i></span></label>
+              </div>
+              <dl id="desglose" class="desglose-ui" hidden></dl>
             </div>
 
             <div class="card">
@@ -184,8 +203,16 @@ const I = {
             <div id="items" class="items"></div>
             <div class="items-foot">
               <div class="items-sum"><span id="itemsSummary">0 ítems</span><b id="itemsTotal">$0</b></div>
-              <button id="addItem" class="primary add-item"><Fragment set:html={I.plus} /> Agregar ítem</button>
+              <div class="items-foot-acts">
+                <button id="fromCatalog" class="add-cat" type="button" title="Agregar un servicio guardado"><Fragment set:html={I.folder} /> Catálogo</button>
+                <button id="addItem" class="primary add-item"><Fragment set:html={I.plus} /> Agregar ítem</button>
+              </div>
             </div>
+            <datalist id="unidades">
+              <option value="und"></option><option value="m"></option><option value="m²"></option><option value="m³"></option>
+              <option value="horas"></option><option value="días"></option><option value="meses"></option><option value="punto"></option>
+              <option value="visita"></option><option value="servicio"></option><option value="global"></option><option value="kg"></option><option value="licencia"></option>
+            </datalist>
           </section>
 
           <!-- Diseño -->
@@ -283,6 +310,13 @@ const I = {
                 <label class="field">Hasta<input id="cobroHasta" type="text" data-date placeholder="dd-mm-aaaa" /></label>
               </div>
               <label class="field">Fecha de la cuenta<input id="cobroFecha" type="text" data-date placeholder="dd-mm-aaaa" /></label>
+              <div class="field" id="cobroParteWrap" hidden>¿Qué cobras?
+                <div id="cobroParte" class="seg" role="radiogroup" aria-label="Parte a cobrar">
+                  <button type="button" data-parte="total" style="--dot:#f2d22b">Total</button>
+                  <button type="button" data-parte="anticipo" style="--dot:#5aa9ff">Anticipo</button>
+                  <button type="button" data-parte="saldo" style="--dot:#4ec47e">Saldo</button>
+                </div>
+              </div>
               <label class="field">Por concepto de <small>el período se agrega solo</small><textarea id="cobroConcepto" rows="3" placeholder="Por actividades de desarrollo correspondientes a…"></textarea></label>
               <div id="cobroFaltan" class="warn" hidden></div>
               <div class="cobro-preview" id="cobroResumen"></div>
@@ -294,6 +328,7 @@ const I = {
           <!-- Guardadas -->
           <section class="pane" data-pane="guardadas">
             <button class="pane-help" type="button" data-tour="guardadas"><Fragment set:html={I.help} /> Guía de esta sección</button>
+            <div id="dashboard" class="dash"></div>
             <div class="saved-tools">
               <input id="savedSearch" type="search" placeholder="Buscar por número, cliente o alcance" />
               <div id="savedFilters" class="chips"></div>
@@ -309,8 +344,14 @@ const I = {
           <div class="menu-wrap">
             <button id="moreBtn" class="act" aria-haspopup="true" aria-expanded="false" title="Más opciones"><Fragment set:html={I.more} /><span>Más</span></button>
             <div id="moreMenu" class="menu" hidden>
+              <button id="waBtn">Enviar por WhatsApp</button>
+              <button id="shareBtn">Compartir imagen…</button>
               <button id="pngBtn">Descargar PNG</button>
               <button id="cuentaMenuBtn">Cuenta de cobro (PDF)</button>
+              <hr />
+              <button id="backupBtn">Respaldo completo</button>
+              <button id="restoreBtn">Restaurar respaldo…</button>
+              <button id="installBtn" hidden>Instalar como app</button>
               <hr />
               <button id="exportJsonBtn">Exportar JSON</button>
               <button id="importJsonBtn">Importar JSON…</button>

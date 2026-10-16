@@ -518,3 +518,70 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .cp-hint .cp-ct.bien b { color: #7fdca4; }
 .cp-hint .cp-ct.justo b { color: #f6c46f; }
 .cp-hint .cp-ct.bajo b { color: #ff9b9b; }
+
+/* ── Cantidad, precio unitario e IVA por ítem ───────────────────────────── */
+.ic-price { display: grid; grid-template-columns: 90px 96px auto minmax(150px, 1fr); gap: 8px; align-items: end; }
+.ic-price:has(.ic-iva) { grid-template-columns: 82px 90px auto minmax(140px, 1fr) 128px; }
+.ic-price label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ic-price label > span { font-size: 11px; color: var(--muted); font-weight: 500; }
+.ic-price input, .ic-price select { min-height: 40px; }
+.ic-price .money { min-width: 0; }
+.ic-x { align-self: center; padding-top: 16px; color: var(--muted); font-weight: 700; }
+.ic-iva select { width: 100%; padding: 8px; }
+.ic-sub { font-size: 12px; color: var(--muted); }
+.ic-sub b { font-size: 15px; color: var(--text); margin-left: 6px; font-variant-numeric: tabular-nums; display: inline-block; }
+@media (max-width: 860px) {
+  .ic-price, .ic-price:has(.ic-iva) { grid-template-columns: 1fr 1fr; }
+  .ic-x { display: none; }
+  .ic-unitprice, .ic-iva { grid-column: 1 / -1; }
+}
+
+/* Impuestos y desglose en la pestaña Cotización */
+.tax-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.with-suffix { position: relative; display: block; }
+.with-suffix input { padding-right: 46px; }
+.with-suffix i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); font-size: 13px; pointer-events: none; }
+#descTipo { font-weight: 800; }
+.desglose-ui { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; padding: 12px 14px; background: #10131a; border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; }
+.desglose-ui dt { color: var(--muted); }
+.desglose-ui dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.desglose-ui .tot { color: var(--text); font-weight: 800; font-size: 15px; padding-top: 6px; border-top: 1px solid var(--border); }
+.desglose-ui .nota { grid-column: 1 / -1; text-align: left; font-weight: 400; color: var(--muted); font-size: 12px; }
+@media (max-width: 420px) { .tax-grid { grid-template-columns: 1fr 1fr; } }
+
+/* Catálogo */
+.items-foot-acts { display: flex; gap: 8px; }
+.add-cat { display: inline-flex; align-items: center; gap: 6px; padding: 11px 14px; border-radius: 11px; background: var(--card-2); border: 1px solid var(--border-2); font-weight: 600; }
+.add-cat svg { width: 16px; height: 16px; }
+.add-cat:hover { border-color: var(--accent); }
+.ip.cat { width: min(520px, calc(100vw - 24px)); }
+.cat-list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.cat-row { display: flex; gap: 6px; align-items: center; }
+.cat-add { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid transparent; text-align: left; }
+.cat-add:hover { border-color: var(--accent); }
+.cat-add img { width: 22px; height: 22px; flex: none; }
+.cat-add span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cat-add b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-add small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-add em { font-style: normal; font-weight: 700; font-size: 13px; white-space: nowrap; }
+
+/* Tablero de Guardadas */
+.dash { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dash:empty { display: none; }
+.dash-card { text-align: left; padding: 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; position: relative; overflow: hidden; }
+.dash-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--dot); }
+.dash-card span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.dash-card b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.dash-card small { font-size: 11px; color: var(--muted); }
+.dash-card:hover { border-color: var(--dot); }
+.vence { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.vence.soon { background: rgba(242,169,59,.15); color: #f6c46f; }
+.vence.late { background: rgba(239,103,103,.15); color: #ff9b9b; }
+
+.total-card .hint { display: block; margin-top: 2px; }
+.total-card .total-row { align-items: flex-start; }
+/* La barra lateral es angosta: cantidad · unidad · IVA arriba, precio unitario abajo */
+.ic-price, .ic-price:has(.ic-iva) { grid-template-columns: 1fr 1fr 1.25fr; }
+.ic-price .ic-x { display: none; }
+.ic-price .ic-unitprice { grid-column: 1 / -1; order: 5; }
+.ic-price:not(:has(.ic-iva)) { grid-template-columns: 1fr 1fr; }

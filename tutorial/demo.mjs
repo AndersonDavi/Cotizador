@@ -2,7 +2,9 @@
 
 const b64 = (s) => Buffer.from(s).toString('base64');
 
-export const DEMO_LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#E8623A"/><path d="M18 40c6-14 22-14 28 0" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="24" r="6" fill="#fff"/></svg>`;
+import { readFileSync } from 'node:fs';
+// El logo del Cotizador como logo de la marca de ejemplo
+export const DEMO_LOGO = readFileSync(new URL('../public/logo.svg', import.meta.url), 'utf8');
 export const DEMO_FIRMA = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100"><rect width="300" height="100" fill="#fff"/><path d="M20 70c20-40 30-50 40-20s10 30 25-5 20-30 30 0 15 20 30-10 25-20 35 10 20 15 40-15 30-5 45 10" fill="none" stroke="#1a1a2e" stroke-width="3.5" stroke-linecap="round"/></svg>`;
 
 export const DEMO = {

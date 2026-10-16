@@ -7,7 +7,10 @@ export type Item = {
   iconKey: IconKey;
   titulo: string;
   descripcion: string;
-  valor: number;
+  valor: number;          // precio unitario (con cantidad 1 = valor del ítem)
+  cantidad?: number;      // por defecto 1
+  unidad?: string;        // "und", "m²", "horas", "punto"…
+  ivaTasa?: number;       // tarifa propia (0 = exento); sin valor usa la general
 };
 
 export type Representante = {
@@ -46,7 +49,7 @@ export const ESTADO_LABELS: Record<Estado, string> = {
   descartada: 'Descartada',
 };
 
-export type Cliente = { nombre: string; nit: string };
+export type Cliente = { nombre: string; nit: string; cel?: string };
 
 /** Datos para generar la cuenta de cobro de la cotización. Fechas dd-mm-aaaa. */
 export type DatosCobro = {
@@ -54,6 +57,16 @@ export type DatosCobro = {
   desde?: string;
   hasta?: string;
   concepto?: string;
+  parte?: 'total' | 'anticipo' | 'saldo';  // qué se cobra en la cuenta
+};
+
+/** IVA, descuento y anticipo. Sin esto, el total es la suma de los ítems (como antes). */
+export type Impuestos = {
+  ivaModo?: 'ninguno' | 'agregar' | 'incluido';
+  ivaTasa?: number;                     // % (19 por defecto)
+  descuentoTipo?: 'porcentaje' | 'valor';
+  descuento?: number;
+  anticipo?: number;                    // % del total que se paga al inicio
 };
 
 export type ColoresOverride = {
@@ -83,6 +96,8 @@ export type Cotizacion = {
   estado?: Estado;        // sin estado = borrador (cotizaciones viejas)
   cliente?: Cliente;
   cobro?: DatosCobro;
+  impuestos?: Impuestos;
+  vigenciaDias?: number;  // días de validez de la oferta (desde la fecha)
 };
 
 export function estadoDe(c: Cotizacion): Estado {
@@ -146,12 +161,137 @@ export function nuevaCotizacion(numero = '00001'): Cotizacion {
   };
 }
 
-export function sumaItems(items: Item[]): number {
-  return items.reduce((acc, it) => acc + (Number.isFinite(it.valor) ? it.valor : 0), 0);
+export function cantidadDe(it: Item): number {
+  const q = Number(it.cantidad);
+  return Number.isFinite(q) && q > 0 ? q : 1;
 }
 
+/** Valor total del ítem: precio unitario × cantidad. */
+export function valorItem(it: Item): number {
+  return (Number.isFinite(it.valor) ? it.valor : 0) * cantidadDe(it);
+}
+
+export function sumaItems(items: Item[]): number {
+  return items.reduce((acc, it) => acc + valorItem(it), 0);
+}
+
+export type Totales = {
+  subtotal: number;      // suma de ítems (o valor manual)
+  descuento: number;     // valor descontado
+  base: number;          // subtotal - descuento
+  ivaModo: 'ninguno' | 'agregar' | 'incluido';
+  ivaTasa: number;       // tasa general
+  iva: number;           // valor del IVA (sumado o incluido), todas las tarifas
+  baseSinIva: number;    // base gravable total (en "incluido" sin el IVA)
+  ivaDetalle: { tasa: number; base: number; iva: number }[]; // por tarifa, de mayor a menor
+  total: number;         // lo que paga el cliente
+  anticipoPct: number;
+  anticipo: number;
+  saldo: number;
+  conDesglose: boolean;  // hay algo que mostrar además del total
+};
+
+const redondear = (n: number) => Math.round(n);
+
+/** Tasa general de IVA de la cotización. */
+export function ivaGeneral(c: Cotizacion): number {
+  const t = Number(c.impuestos?.ivaTasa);
+  return Number.isFinite(t) && t >= 0 && c.impuestos?.ivaTasa != null ? t : 19;
+}
+
+/** Tasa de IVA de un ítem (la propia o la general). */
+export function ivaDeItem(c: Cotizacion, it: Item): number {
+  return it.ivaTasa != null && Number.isFinite(it.ivaTasa) ? it.ivaTasa : ivaGeneral(c);
+}
+
+/** "IVA 5%" o "Exento de IVA" cuando el ítem no usa la tarifa general. */
+export function ivaTag(c: Cotizacion, it: Item): string {
+  if ((c.impuestos?.ivaModo ?? 'ninguno') === 'ninguno' || it.ivaTasa == null || it.ivaTasa === ivaGeneral(c)) return '';
+  return it.ivaTasa === 0 ? 'Exento de IVA' : `IVA ${it.ivaTasa}%`;
+}
+
+export function totales(c: Cotizacion): Totales {
+  const imp = c.impuestos ?? {};
+  const subtotal = c.costoTotalAuto ? sumaItems(c.items) : (Number.isFinite(c.costoTotal) ? c.costoTotal : 0);
+  const dv = Math.max(0, Number(imp.descuento) || 0);
+  const descuento = redondear(Math.min(subtotal, imp.descuentoTipo === 'valor' ? dv : subtotal * Math.min(dv, 100) / 100));
+  const base = subtotal - descuento;
+  const ivaModo = imp.ivaModo ?? 'ninguno';
+  const ivaTasa = ivaGeneral(c);
+
+  // IVA por tarifa: cada ítem con la suya; el descuento se reparte en proporción al valor
+  const lineas = c.costoTotalAuto ? c.items.map((it) => ({ v: valorItem(it), t: ivaDeItem(c, it) })) : [{ v: subtotal, t: ivaTasa }];
+  const factor = subtotal > 0 ? base / subtotal : 0;
+  const porTasa = new Map<number, { base: number; iva: number }>();
+  for (const l of lineas) {
+    const b = l.v * factor;
+    const g = porTasa.get(l.t) ?? { base: 0, iva: 0 };
+    if (ivaModo === 'incluido') { const sin = b / (1 + l.t / 100); g.base += sin; g.iva += b - sin; }
+    else { g.base += b; g.iva += ivaModo === 'agregar' ? b * l.t / 100 : 0; }
+    porTasa.set(l.t, g);
+  }
+  const ivaDetalle = ivaModo === 'ninguno' ? [] : [...porTasa.entries()]
+    .map(([tasa, g]) => ({ tasa, base: redondear(g.base), iva: redondear(g.iva) }))
+    .filter((d) => d.base > 0 || d.iva > 0)
+    .sort((a, b) => b.tasa - a.tasa);
+  const iva = ivaDetalle.reduce((a, d) => a + d.iva, 0);
+  const total = ivaModo === 'agregar' ? base + iva : base;
+  const baseSinIva = ivaModo === 'incluido' ? base - iva : base;
+  const anticipoPct = Math.min(100, Math.max(0, Number(imp.anticipo) || 0));
+  const anticipo = redondear(total * anticipoPct / 100);
+  return {
+    subtotal, descuento, base, ivaModo, ivaTasa, iva, baseSinIva, ivaDetalle, total, anticipoPct, anticipo, saldo: total - anticipo,
+    conDesglose: descuento > 0 || ivaModo !== 'ninguno' || anticipoPct > 0,
+  };
+}
+
+/** Total que paga el cliente (con descuento e IVA). */
 export function totalReal(c: Cotizacion): number {
-  return c.costoTotalAuto ? sumaItems(c.items) : c.costoTotal;
+  return totales(c).total;
+}
+
+/** "8 und × $350.000" cuando hay cantidad o unidad; vacío si es un ítem simple. */
+export function qtyLabel(it: Item): string {
+  const q = cantidadDe(it);
+  if (q === 1 && !it.unidad) return '';
+  const n = Number.isInteger(q) ? String(q) : String(q).replace('.', ',');
+  return `${n}${it.unidad ? ' ' + it.unidad : ''} × ${formatCOP(it.valor)}`;
+}
+
+/** Filas del desglose (subtotal, descuento, IVA, total, anticipo, saldo). */
+export function filasDesglose(t: Totales): { label: string; value: string; tipo?: 'total' | 'nota' }[] {
+  const f: { label: string; value: string; tipo?: 'total' | 'nota' }[] = [];
+  if (t.descuento > 0 || t.ivaModo === 'agregar') f.push({ label: 'Subtotal', value: formatCOP(t.subtotal) });
+  if (t.descuento > 0) f.push({ label: 'Descuento', value: '−' + formatCOP(t.descuento) });
+  const gravadas = t.ivaDetalle.filter((d) => d.tasa > 0);
+  const exento = t.ivaDetalle.find((d) => d.tasa === 0);
+  if (t.ivaModo === 'agregar') {
+    for (const d of gravadas) f.push({ label: `IVA ${d.tasa}%`, value: formatCOP(d.iva) });
+    if (exento && gravadas.length) f.push({ label: 'Exento de IVA', value: formatCOP(exento.base) });
+  }
+  f.push({ label: 'Total', value: formatCOP(t.total), tipo: 'total' });
+  if (t.ivaModo === 'incluido' && t.iva > 0) {
+    const partes = gravadas.map((d) => `IVA ${d.tasa}%: ${formatCOP(d.iva)}`).join(' · ');
+    f.push({ label: `Incluye ${partes} (base ${formatCOP(t.baseSinIva)})${exento ? ` · Exento: ${formatCOP(exento.base)}` : ''}`, value: '', tipo: 'nota' });
+  }
+  if (t.anticipoPct > 0) {
+    f.push({ label: `Anticipo ${t.anticipoPct}%`, value: formatCOP(t.anticipo) });
+    f.push({ label: 'Saldo contra entrega', value: formatCOP(t.saldo) });
+  }
+  return f;
+}
+
+/** "dd-mm-aaaa" + días → "dd-mm-aaaa" (vacío si la fecha no es válida). */
+export function sumarDias(fecha: string, dias: number): string {
+  const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec((fecha ?? '').trim());
+  if (!m || !dias) return '';
+  const d = new Date(+m[3], +m[2] - 1, +m[1] + dias);
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+}
+
+/** Fecha hasta la que vale la oferta, o vacío. */
+export function validaHasta(c: Cotizacion): string {
+  return c.vigenciaDias ? sumarDias(c.fecha, c.vigenciaDias) : '';
 }
 
 export function formatCOP(n: number): string {

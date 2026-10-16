@@ -55,6 +55,7 @@ Opciones:
   --cliente <clave|nombre>  Cliente (clave de config o nombre)
   --nit <nit>            NIT del cliente
   --concepto <texto>     Inicio del párrafo "Por concepto de" (el período se agrega solo)
+  --parte <total|anticipo|saldo>  Con "cuenta": qué parte se cobra (si la cotización tiene anticipo)
   --marcar               Con "cuenta": guarda los datos de cobro en el JSON y lo marca como cobrada
   --html                 Con "cuenta": guarda también el HTML
 `;
@@ -177,6 +178,7 @@ async function main() {
       cliente: { type: 'string' },
       nit: { type: 'string' },
       concepto: { type: 'string' },
+      parte: { type: 'string' },
       marcar: { type: 'boolean' },
       html: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -224,6 +226,10 @@ async function main() {
       const hasta = normFecha(o.hasta, '--hasta'); if (hasta) c.cobro.hasta = hasta;
       const fecha = normFecha(o.fecha, '--fecha'); if (fecha) c.cobro.fecha = fecha;
       if (o.concepto) c.cobro.concepto = o.concepto;
+      if (o.parte) {
+        if (!['total', 'anticipo', 'saldo'].includes(o.parte)) fail('--parte debe ser total, anticipo o saldo');
+        c.cobro.parte = o.parte as 'total' | 'anticipo' | 'saldo';
+      }
       if (o.cliente) {
         const k = o.cliente.toLowerCase();
         const fromCfg = cfg.clientes?.[k] ?? Object.values(cfg.clientes ?? {}).find(x => x.nombre.toLowerCase() === k);
