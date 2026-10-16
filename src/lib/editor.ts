@@ -248,7 +248,14 @@ function refresh() {
 
 // ── Pestañas ─────────────────────────────────────────────────────────────────
 
+// Pestañas visitadas, para que el gesto atrás vuelva a la anterior
+const pilaTabs: string[] = [];
+let tabActual = '';
+let volviendoTab = false;
+
 function showTab(tab: string) {
+  if (tabActual && tabActual !== tab && !volviendoTab) { pilaTabs.push(tabActual); if (pilaTabs.length > 20) pilaTabs.shift(); }
+  tabActual = tab;
   document.querySelectorAll<HTMLElement>('.tab').forEach((t) => {
     const on = t.dataset.tab === tab;
     t.classList.toggle('active', on);
@@ -1302,6 +1309,37 @@ function initExtras() {
   initDrive();
   initSincronizacion();
   initTeclado();
+  initAtras();
+}
+
+/**
+ * Gesto / botón atrás en el celular (sobre todo en la app instalada, donde sin historial
+ * cierra la app). Atrás cierra primero lo que esté abierto, luego vuelve de la vista previa
+ * o a la pestaña anterior; en la pantalla inicial pide un segundo gesto para salir.
+ */
+function initAtras() {
+  if (!matchMedia('(pointer: coarse)').matches && !esStandalone()) return;
+  const abierto = () => document.querySelector('.modal-overlay:not([hidden]):not(.closing), #moreMenu:not([hidden]), .ip, .cp, .driver-popover');
+  const atras = (): boolean => {
+    if (abierto()) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; }
+    if ((document.querySelector('.app') as HTMLElement).dataset.view === 'preview') { setView('edit'); return true; }
+    const prev = pilaTabs.pop();
+    if (prev) { volviendoTab = true; showTab(prev); volviendoTab = false; return true; }
+    return false;
+  };
+  // Una entrada "guardia" en el historial: atrás la consume y aquí se decide qué hacer
+  if (history.state?.cot !== 'guardia') {
+    history.replaceState({ cot: 'base' }, '');
+    history.pushState({ cot: 'guardia' }, '');
+  }
+  let salirHasta = 0;
+  window.addEventListener('popstate', () => {
+    if (atras()) { history.pushState({ cot: 'guardia' }, ''); return; }
+    if (Date.now() < salirHasta) { history.back(); return; } // segundo gesto: ahora sí sale
+    salirHasta = Date.now() + 2000;
+    toast('Desliza atrás otra vez para salir');
+    history.pushState({ cot: 'guardia' }, '');
+  });
 }
 
 /**

@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.1.1',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'El gesto atrás ya no cierra la app: primero cierra lo que esté abierto, luego vuelve de la vista previa o a la pestaña anterior, y en la pantalla inicial pide deslizar otra vez para salir.',
+      'La descripción para Google ahora dice gratis, ilimitado, sin anuncios ni registro.',
+    ],
+  },
+  {
     version: '1.1.0',
     fecha: '15-10-2026',
     tipo: 'nueva',
