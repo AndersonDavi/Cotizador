@@ -1,7 +1,7 @@
 {
-  "name": "Cotizador — Propuestas económicas para freelancers",
+  "name": "Cotizador — Cotizaciones y cuentas de cobro",
   "short_name": "Cotizador",
-  "description": "Cotizaciones con tu logo, firma y colores en 8 plantillas. PDF con texto seleccionable, PNG y cuenta de cobro. Sin registro ni instalación.",
+  "description": "Cotizaciones y cuentas de cobro en PDF con tu logo y firma. IVA, anticipos, 8 plantillas y envío por WhatsApp. Gratis y sin registro.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d0f13",

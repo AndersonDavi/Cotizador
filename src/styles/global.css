@@ -700,18 +700,25 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
   html.teclado .actions, html.teclado .mobile-switch, html.teclado .items-foot { display: none; }
 }
 
-/* ── Ventana de Drive: acciones a lo ancho, cerrar arriba y pie ordenado ── */
+/* ── Ventanas: acciones a lo ancho, cerrar arriba y pie ordenado ───────── */
 .modal-header { position: relative; }
 .modal-header .modal-x { margin-left: auto; align-self: flex-start; height: 34px; width: 34px; flex: none; }
-.drive-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.drive-actions button { padding: 12px 14px; border-radius: 11px; font-weight: 700; background: var(--card-2); border: 1px solid var(--border); color: var(--text); transition: transform .12s, filter .12s, border-color .12s; }
-.drive-actions button:hover { border-color: var(--border-2); }
-.drive-actions button:active { transform: scale(.97); }
-.drive-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.drive-actions .primary:hover { filter: brightness(1.08); }
-.drive-actions #driveConnect { grid-column: 1 / -1; }
-.drive-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
-.drive-foot a { color: var(--muted); }
-.drive-foot a:hover { color: var(--text); }
-.drive-foot button { background: none; border: 0; padding: 4px 0; color: color-mix(in srgb, var(--danger) 80%, var(--muted)); font-size: 13px; }
-.drive-foot button:hover { color: var(--danger); text-decoration: underline; }
+.m-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-actions.one { grid-template-columns: 1fr; }
+.m-actions.first-wide { grid-template-columns: 1.45fr 1fr; }
+.m-actions button { white-space: nowrap; }
+.m-actions button { padding: 12px 14px; border-radius: 11px; font-weight: 700; background: var(--card-2); border: 1px solid var(--border); color: var(--text); transition: transform .12s, filter .12s, border-color .12s; }
+.m-actions button:hover { border-color: var(--border-2); }
+.m-actions button:active { transform: scale(.97); }
+.m-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.m-actions .primary:hover { filter: brightness(1.08); }
+.m-actions #driveConnect { grid-column: 1 / -1; }
+.m-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.m-foot a { color: var(--muted); }
+.m-foot a:hover { color: var(--text); }
+.m-foot button { background: none; border: 0; padding: 4px 0; color: var(--muted); font-size: 13px; }
+.m-foot button:hover { color: var(--text); text-decoration: underline; }
+.m-foot #driveDisconnect { color: color-mix(in srgb, var(--danger) 80%, var(--muted)); margin-left: auto; }
+.m-foot #driveDisconnect:hover { color: var(--danger); }
+.m-links { display: flex; gap: 14px; }
+.modal-note + .m-actions, .modal-steps + .m-actions { margin-top: 4px; }

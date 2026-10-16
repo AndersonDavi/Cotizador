@@ -1,6 +1,6 @@
 # Cotizador
 
-Generador de propuestas económicas para freelancers y agencias. Crea cotizaciones con tu logo, firma y colores, expórtalas en PDF con texto seleccionable y genera la cuenta de cobro cuando el cliente aprueba. Sin backend ni registro: todo queda en el navegador.
+Generador de cotizaciones y cuentas de cobro para freelancers y agencias. Crea cotizaciones con tu logo, firma y colores, expórtalas en PDF o envíalas por WhatsApp, y genera la cuenta de cobro cuando el cliente aprueba. Sin backend ni registro: todo queda en el navegador.
 
 ![Preview del cotizador](docs/preview.png)
 

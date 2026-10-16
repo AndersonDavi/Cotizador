@@ -9,8 +9,8 @@ import { NOVEDADES } from '../lib/novedades';
 const B = __BUILD__;
 
 const SITE = 'https://cotizador.andersonrueda.com';
-const TITLE = 'Cotizador — Propuestas económicas para freelancers';
-const DESC  = 'Crea cotizaciones con tu logo, firma y colores en 8 diseños. Exporta PDF con texto seleccionable, PNG y cuentas de cobro. Sin registro ni instalación.';
+const TITLE = 'Cotizador: crea cotizaciones y cuentas de cobro en PDF gratis';
+const DESC  = 'Genera cotizaciones y cuentas de cobro en PDF con tu logo y firma. IVA, descuentos, anticipos, 8 plantillas y envío por WhatsApp. Gratis y sin registro.';
 
 const ic = (d: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const I = {
@@ -41,7 +41,7 @@ const I = {
 
     <title>{TITLE}</title>
     <meta name="description" content={DESC} />
-    <meta name="keywords" content="cotizador freelance, propuesta económica, cotización PDF, cuenta de cobro, generador de cotizaciones, presupuesto online" />
+    <meta name="keywords" content="cuenta de cobro, generar cuenta de cobro, cuenta de cobro PDF, formato cuenta de cobro Colombia, cotización PDF, generador de cotizaciones, cotizador gratis, cotización con IVA, propuesta económica, presupuesto online, freelance" />
     <meta name="author" content="Anderson Rueda" />
     <meta name="robots" content="index, follow" />
     <meta name="google-site-verification" content="ahZS4qCnXiX1NPEs2xwk0r2orlPFeorWpFTa6KkBEok" />
@@ -54,16 +54,17 @@ const I = {
     <meta property="og:description"  content={DESC} />
     <meta property="og:locale"       content="es_CO" />
     <meta property="og:image"        content={`${SITE}/og-image.jpg`} />
+    <meta property="og:image:secure_url" content={`${SITE}/og-image.jpg`} />
     <meta property="og:image:type"   content="image/jpeg" />
     <meta property="og:image:width"  content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt"    content="Editor de cotizaciones Cotizador — panel de opciones y vista previa de propuesta" />
+    <meta property="og:image:alt"    content="Cotizador: cotizaciones y cuentas de cobro en PDF con tu logo, en 8 plantillas" />
 
     <meta name="twitter:card"        content="summary_large_image" />
     <meta name="twitter:title"       content={TITLE} />
     <meta name="twitter:description" content={DESC} />
     <meta name="twitter:image"       content={`${SITE}/og-image.jpg`} />
-    <meta name="twitter:image:alt"   content="Editor de cotizaciones Cotizador" />
+    <meta name="twitter:image:alt"   content="Cotizador: cotizaciones y cuentas de cobro en PDF" />
 
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#15181e" />
@@ -80,6 +81,7 @@ const I = {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "Cotizador",
+      "alternateName": "Generador de cotizaciones y cuentas de cobro",
       "url": SITE,
       "description": DESC,
       "applicationCategory": "BusinessApplication",
@@ -87,6 +89,16 @@ const I = {
       "browserRequirements": "Requires JavaScript. Compatible con Chrome, Firefox, Safari y Edge.",
       "inLanguage": "es-CO",
       "isAccessibleForFree": true,
+      "featureList": [
+        "Cotizaciones en PDF con logo, firma y colores",
+        "Cuentas de cobro con valor en letras",
+        "IVA sumado o incluido, por ítem",
+        "Descuentos, anticipos y vigencia",
+        "8 plantillas de diseño",
+        "Envío por WhatsApp",
+        "Respaldo en Google Drive",
+        "Funciona sin conexión"
+      ],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "COP" },
       "image": `${SITE}/og-image.jpg`,
       "screenshot": `${SITE}/og-image.jpg`,
@@ -549,14 +561,16 @@ const I = {
           <li><b>PDF:</b> se descarga con el texto seleccionable, listo para enviar.</li>
         </ol>
         <p class="modal-note">Todo queda en tu navegador: sin registro y sin servidor.</p>
-        <div class="modal-actions">
+        <div class="m-actions first-wide">
           <button id="welcomeStart" class="primary">Empezar con la guía</button>
           <button id="welcomeSkip">Empezar ya</button>
-          <button id="welcomeNever" class="link-btn">No volver a mostrar</button>
         </div>
-        <div class="modal-links">
-          <a href="https://github.com/AndersonDavi/Cotizador" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <a href="https://www.linkedin.com/in/anderson-david-rueda-consuegra/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <div class="m-foot">
+          <button id="welcomeNever" type="button">No volver a mostrar</button>
+          <span class="m-links">
+            <a href="/privacidad">Privacidad</a>
+            <a href="https://github.com/AndersonDavi/Cotizador" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </span>
         </div>
       </div>
     </div>
@@ -577,12 +591,12 @@ const I = {
           <li>En otro equipo, conecta la misma cuenta y trae tus cotizaciones.</li>
           <li>El Cotizador solo puede ver los archivos que él mismo crea. No lee el resto de tu Drive.</li>
         </ul>
-        <div class="drive-actions">
+        <div class="m-actions">
           <button id="driveConnect" class="primary">Conectar con Google</button>
           <button id="driveSync" class="primary" hidden>Respaldar ahora</button>
           <button id="driveRestore" hidden>Traer de Drive</button>
         </div>
-        <div class="drive-foot">
+        <div class="m-foot">
           <a href="/privacidad">Política de privacidad</a>
           <button id="driveDisconnect" type="button" hidden>Desconectar Drive</button>
         </div>
@@ -603,7 +617,7 @@ const I = {
           <li>Baja y elige <b>Agregar a inicio</b>.</li>
           <li>Toca <b>Agregar</b>. El ícono del Cotizador aparece en tu pantalla de inicio.</li>
         </ol>
-        <div class="modal-actions">
+        <div class="m-actions one">
           <button id="iosClose" class="primary">Entendido</button>
         </div>
       </div>
@@ -618,7 +632,7 @@ const I = {
       <style>.app { display: none; }</style>
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#0f1115;color:#e0e0e0;text-align:center;padding:32px">
         <strong style="font-size:1.4rem;margin-bottom:12px">Cotizador necesita JavaScript</strong>
-        <p style="max-width:420px;color:#9a9a9a;line-height:1.6">Esta herramienta genera propuestas económicas directamente en tu navegador, sin servidor ni registro. Activa JavaScript para usarla.</p>
+        <p style="max-width:420px;color:#9a9a9a;line-height:1.6">Esta herramienta genera cotizaciones y cuentas de cobro directamente en tu navegador, sin servidor ni registro. Activa JavaScript para usarla.</p>
       </div>
     </noscript>
 

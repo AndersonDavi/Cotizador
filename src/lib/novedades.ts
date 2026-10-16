@@ -6,6 +6,16 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.1.0',
+    fecha: '15-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Al compartir el enlace del Cotizador sale una vista previa nueva (sin la franja blanca) y el texto habla de cotizaciones y cuentas de cobro.',
+      'Mejor contraste en los colores sugeridos: Diagonal, Cielo y Coral se leen mejor.',
+      'Las ventanas de inicio, iPhone y Drive tienen el mismo orden: acciones a lo ancho y enlaces al pie.',
+    ],
+  },
+  {
     version: '1.0.3',
     fecha: '15-10-2026',
     tipo: 'arreglo',
