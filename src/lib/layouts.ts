@@ -636,7 +636,8 @@ export function renderLayout(c: Cotizacion): { css: string; body: string } {
   const id = disenoDe(c);
   const L = LAYOUTS[id as Exclude<DisenoId, 'clasica'>] ?? LAYOUTS.bloque;
   const d = data(c);
-  const scope = (css: string) => css.replace(/(^|\})\s*([^{}@]+)\{/g, (_m, br, sel) =>
+  // Los comentarios se quitan antes: si no, quedan pegados al selector y la regla deja de aplicar
+  const scope = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\})\s*([^{}@]+)\{/g, (_m, br, sel) =>
     `${br}\n${sel.split(',').map((s: string) => `.L-${id} ${s.trim().replace(/^\.doc\b/, '')}`.replace(/ $/, '')).join(',')}{`);
   return {
     css: BASE_CSS + scope(L.css),

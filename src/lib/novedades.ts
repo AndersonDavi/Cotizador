@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.6.2',
+    fecha: '16-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'Editorial recupera sus márgenes y su tipografía (en la 1.5.1 quedó con el texto pegado a los bordes).',
+    ],
+  },
+  {
     version: '1.6.1',
     fecha: '16-10-2026',
     tipo: 'arreglo',
