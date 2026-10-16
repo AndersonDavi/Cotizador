@@ -33,7 +33,7 @@ import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastRe
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
   cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
-  importJsonFromFile, printCuentaCobro, sharePng, saveTextFile, pdfParaCompartir,
+  importJsonFromFile, printCuentaCobro, pdfCuentaCobro, sharePng, saveTextFile, pdfParaCompartir,
 } from './export';
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
@@ -1981,12 +1981,20 @@ export function initEditor() {
     burbuja($('firmaArea').querySelector('.drop-empty'), true);
   });
 
-  // Cuenta de cobro
+  const descargar = (pdf: File) => {
+    const url = URL.createObjectURL(pdf);
+    Object.assign(document.createElement('a'), { href: url, download: pdf.name }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(`${pdf.name} descargado`);
+  };
+
+  // Cuenta de cobro: PDF directo; la versión para imprimir queda en un enlace aparte
   const cuenta = async () => {
     const falt = faltantesCobro();
     if (falt.length) { showTab('cobro'); toast('Completa los datos que faltan para la cuenta de cobro', 'err'); return; }
+    toast('Preparando la cuenta de cobro…');
     try {
-      await printCuentaCobro(state);
+      descargar(await pdfCuentaCobro(state));
       if ($in('cobroMarcar').checked && estadoDe(state) !== 'pagada') {
         state.estado = 'cobrada';
         renderEstado();
@@ -1996,6 +2004,10 @@ export function initEditor() {
     } catch (e) { console.error(e); toast('No se pudo generar la cuenta de cobro', 'err'); }
   };
   $('cuentaBtn').addEventListener('click', cuenta);
+  $('cuentaPrintBtn').addEventListener('click', async () => {
+    if (faltantesCobro().length) { showTab('cobro'); toast('Completa los datos que faltan para la cuenta de cobro', 'err'); return; }
+    try { await printCuentaCobro(state); } catch (e) { console.error(e); toast('No se pudo generar la cuenta de cobro', 'err'); }
+  });
 
   // Acciones
   $('saveBtn').addEventListener('click', () => {
@@ -2029,11 +2041,7 @@ export function initEditor() {
   $('pdfBtn').addEventListener('click', async () => {
     toast('Preparando el PDF…');
     try {
-      const pdf = await pdfParaCompartir(state);
-      const url = URL.createObjectURL(pdf);
-      Object.assign(document.createElement('a'), { href: url, download: pdf.name }).click();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-      toast(`${pdf.name} descargado`);
+      descargar(await pdfParaCompartir(state));
     } catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
   });
   $('pdfPrintBtn').addEventListener('click', pdfImprimir);

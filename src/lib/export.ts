@@ -151,9 +151,19 @@ export async function sharePng(c: Cotizacion, text: string): Promise<boolean> {
  * el texto se selecciona, se copia y se busca, y los enlaces (correo, web) funcionan.
  */
 export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
-  const frame = offscreenFrame(1080);
+  return pdfDeHtml(renderCotizacionHtml(c, await inlineFonts()), 1080, `Cotización ${c.numero}`, `COTIZACION_${c.numero}.pdf`);
+}
+
+/** La cuenta de cobro como PDF directo (tamaño carta), igual que la cotización. */
+export async function pdfCuentaCobro(c: Cotizacion): Promise<File> {
+  const html = renderCuentaCobroHtml(cuentaDesdeCotizacion(c, today()), await inlineFonts());
+  return pdfDeHtml(html, 816, `Cuenta de cobro ${c.numero}`, `CUENTA-COBRO-COTIZACION-${c.numero}.pdf`);
+}
+
+async function pdfDeHtml(html: string, ancho: number, titulo: string, nombre: string): Promise<File> {
+  const frame = offscreenFrame(ancho);
   try {
-    const size = await loadIntoFrame(frame, renderCotizacionHtml(c, await inlineFonts()));
+    const size = await loadIntoFrame(frame, html);
     frame.style.height = `${size.height}px`;
     const doc = frame.contentDocument!;
     const root = doc.querySelector('.doc') as HTMLElement;
@@ -176,8 +186,8 @@ export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
     ctx.drawImage(img, 0, 0);
     const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear la imagen'))), 'image/jpeg', 0.9));
     const jpeg = new Uint8Array(await blob.arrayBuffer());
-    const pdf = armarPdf({ jpeg, w: canvas.width, h: canvas.height, docW: size.width, docH: size.height, titulo: `Cotización ${c.numero}`, ...capa });
-    return new File([pdf], `COTIZACION_${c.numero}.pdf`, { type: 'application/pdf' });
+    const pdf = armarPdf({ jpeg, w: canvas.width, h: canvas.height, docW: size.width, docH: size.height, titulo, ...capa });
+    return new File([pdf], nombre, { type: 'application/pdf' });
   } finally {
     frame.remove();
   }

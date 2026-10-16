@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.9.1',
+    fecha: '16-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'La cuenta de cobro se descarga directo en PDF, sin pasar por la impresora. Si la quieres imprimir, en la pestaña Cobro está "Abrir para imprimir".',
+      'La cuenta de cobro ya no muestra Dirección, Teléfono o Cédula vacíos.',
+    ],
+  },
+  {
     version: '1.9.0',
     fecha: '16-10-2026',
     tipo: 'nueva',

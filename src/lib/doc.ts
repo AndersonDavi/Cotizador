@@ -537,9 +537,11 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   <p style="margin-top:96px">Atentamente,</p>
   <div class="firma">${e.firmaDataUrl ? `<img data-trim src="${escapeHtml(e.firmaDataUrl)}" alt="">` : ''}</div>
   <p>${escapeHtml(e.nombre)}</p>
-  <p style="margin-top:22px">Dirección: ${escapeHtml(e.direccion)}</p>
-  <p>Teléfono: ${escapeHtml(e.telefono)}</p>
-  <p>Cedula de ciudadanía: ${escapeHtml(e.cedula)}</p>
+  <div style="margin-top:22px">
+    ${e.direccion?.trim() ? `<p>Dirección: ${escapeHtml(e.direccion)}</p>` : ''}
+    ${e.telefono?.trim() ? `<p>Teléfono: ${escapeHtml(e.telefono)}</p>` : ''}
+    ${e.cedula?.trim() ? `<p>Cédula de ciudadanía: ${escapeHtml(e.cedula)}</p>` : ''}
+  </div>
 </div>`;
   const css = CUENTA_CSS + '\n@page{size:letter;margin:0}';
   return page(`CUENTA-COBRO-COTIZACION-${cc.numero ?? ''}`.replace(/-$/, ''), css, body, fonts);
