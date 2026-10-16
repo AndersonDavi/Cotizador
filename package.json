@@ -11,7 +11,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "cli": "node bin/cotizador.mjs",
-    "tutorial": "node tutorial/record.mjs"
+    "tutorial": "node tutorial/record.mjs",
+    "promo": "node tutorial/promo.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
