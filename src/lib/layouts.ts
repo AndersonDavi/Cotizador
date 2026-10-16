@@ -544,9 +544,9 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 .bt{display:grid;grid-template-columns:520px 1fr;gap:40px;margin-top:46px;align-items:center}
 .contact{background:var(--p);color:var(--onP);padding:40px 40px 40px 90px}
 .contact .contact-list{border-left:2px solid currentColor;padding-left:28px;gap:16px;font-size:17px}
-.sig{display:flex;flex-direction:column;align-items:center;text-align:center;padding-right:90px}
+.sig{display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 90px 32px 0}
 .sig .ln{border-top:2px solid #9AA0A8;width:280px;padding-top:10px;margin-top:6px;font-size:18px}
-.end{height:56px;background:var(--s);margin-top:56px}
+.end{height:56px;background:var(--s)}
 `,
   body: (d) => `
 <div class="hd">${logo(d)}<div class="emp">${d.empresa}</div></div>

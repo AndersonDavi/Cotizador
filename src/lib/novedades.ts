@@ -6,6 +6,16 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.5.2',
+    fecha: '16-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'Redonda ya no deja espacio en blanco sobre la barra final: el contacto se apoya en ella.',
+      'La vista previa ya no muestra una línea blanca en el borde derecho (se notaba en Diagonal, Estudio y Bloque).',
+      'Coral ahora es negro de principal y naranja de secundario (también en los colores sugeridos de Redonda).',
+    ],
+  },
+  {
     version: '1.5.1',
     fecha: '16-10-2026',
     tipo: 'arreglo',

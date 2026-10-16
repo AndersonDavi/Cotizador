@@ -23,7 +23,7 @@ export const DISENOS: DisenoInfo[] = [
   { id: 'diagonal',  nombre: 'Diagonal',  descripcion: 'Franjas en diagonal y pie a dos colores',    colores: { primary: '#356B22', secondary: '#D4EC7A' } },
   { id: 'estudio',   nombre: 'Estudio',   descripcion: 'Bandas, esquinas y tabla a rayas',           colores: { primary: '#0E2240', secondary: '#F6C443' } },
   { id: 'editorial', nombre: 'Editorial', descripcion: 'Tipografía serif, blanco y negro',           colores: { primary: '#16181C', secondary: '#A8ADB5' } },
-  { id: 'redonda',   nombre: 'Redonda',   descripcion: 'Banda de color con esquinas redondeadas',    colores: { primary: '#E8623A', secondary: '#232428' } },
+  { id: 'redonda',   nombre: 'Redonda',   descripcion: 'Banda de color con esquinas redondeadas',    colores: { primary: '#232428', secondary: '#E8623A' } },
   { id: 'lateral',   nombre: 'Lateral',   descripcion: 'Columna lateral con tu marca y el total',    colores: { primary: '#1F3B57', secondary: '#4FD1C5' } },
 ];
 
@@ -34,7 +34,7 @@ export const PALETAS: (Colores & { nombre: string })[] = [
   { nombre: 'Marino',    primary: '#0E2240', secondary: '#F6C443' },
   { nombre: 'Océano',    primary: '#1F3B57', secondary: '#4FD1C5' },
   { nombre: 'Bosque',    primary: '#245A2F', secondary: '#C5E063' },
-  { nombre: 'Coral',     primary: '#E8623A', secondary: '#232428' },
+  { nombre: 'Coral',     primary: '#232428', secondary: '#E8623A' },
   { nombre: 'Uva',       primary: '#4B2A7B', secondary: '#F08BB4' },
   { nombre: 'Vino',      primary: '#7A1F2B', secondary: '#E9C46A' },
   { nombre: 'Grafito',   primary: '#16181C', secondary: '#A8ADB5' },

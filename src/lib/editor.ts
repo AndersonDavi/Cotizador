@@ -187,8 +187,13 @@ function applyZoom() {
   $('zoomPage').classList.toggle('active', zoomMode === 'page');
   stage.style.width = `${docSize.width * k}px`;
   stage.style.height = `${docSize.height * k}px`;
+  // El borde del documento escalado cae entre píxeles y se mezcla con el fondo blanco del
+  // contenedor (línea clara junto a bordes oscuros). Se dibuja 1 px más grande por lado y
+  // el contenedor (overflow: hidden) lo recorta.
+  const kx = (docSize.width * k + 2) / docSize.width;
+  const ky = (docSize.height * k + 2) / docSize.height;
   for (const f of [front, stage.querySelector('.pv-frame.back') as HTMLIFrameElement]) {
-    f.style.transform = `scale(${k})`;
+    f.style.transform = `translate(-1px, -1px) scale(${kx}, ${ky})`;
   }
   front.style.height = `${docSize.height}px`;
 }

@@ -149,7 +149,7 @@ Todas las plantillas se pintan con dos colores: principal y secundario. Usa una 
 | Marino | `#0E2240` | `#F6C443` |
 | Océano | `#1F3B57` | `#4FD1C5` |
 | Bosque | `#245A2F` | `#C5E063` |
-| Coral | `#E8623A` | `#232428` |
+| Coral | `#232428` | `#E8623A` |
 | Uva | `#4B2A7B` | `#F08BB4` |
 | Vino | `#7A1F2B` | `#E9C46A` |
 | Grafito | `#16181C` | `#A8ADB5` |
