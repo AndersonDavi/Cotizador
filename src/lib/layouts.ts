@@ -459,7 +459,8 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 // ── Editorial ────────────────────────────────────────────────────────────────
 const editorial: Layout = {
   css: `
-.doc{padding:100px 112px 96px;font-family:Roboto,Arial,sans-serif;color:var(--pOnW)}
+/* Editorial es de revista: el texto siempre en tinta y gris; el color de la marca solo en barras, líneas y el total */
+.doc{padding:100px 112px 96px;font-family:Roboto,Arial,sans-serif;color:var(--ink)}
 .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:40px}
 .brand .logo{max-width:160px;max-height:90px;object-fit:contain;margin-bottom:12px;display:block}
 .brand .emp{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:46px;line-height:.98;text-transform:uppercase;max-width:420px}
@@ -475,12 +476,12 @@ table{margin-top:70px}
 th{font-weight:700;font-size:18px;text-align:left;padding:0 18px 18px;border-bottom:1.5px solid var(--p)}
 th.v,td.v{text-align:right}
 td{padding:26px 18px;font-size:18px;vertical-align:top}
-td p{font-size:15px;color:var(--sOnW);margin-top:6px;line-height:1.5}
+td p{font-size:15px;color:var(--muted);margin-top:6px;line-height:1.5}
 td.v{width:220px;white-space:nowrap}
 tbody tr:last-child td{border-bottom:1.5px solid var(--p)}
 .tot{display:flex;justify-content:flex-end;margin-top:22px}
 .tot div{display:grid;grid-template-columns:auto 230px;align-items:center;gap:30px;font-size:19px}
-.tot b{font-weight:700;color:var(--sOnW)}
+.tot b{font-weight:700}
 .tot strong{background:var(--p);color:var(--onP);font-weight:700;text-align:center;padding:6px 10px}
 .thin{height:6px;background:var(--p);margin-top:60px}
 .ft{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:40px;font-size:18px;letter-spacing:.03em;line-height:1.6}
