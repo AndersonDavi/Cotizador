@@ -6,6 +6,19 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.10.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Cuentas de cobro sin cotización: toca Nueva → Cuenta de cobro. Solo pide a quién le cobras, cuánto y por qué; tienen su propio número (0001, 0002…) y se guardan solas al generarlas.',
+      'Repetir el próximo mes: copia la cuenta con el número siguiente y el período corrido un mes. Ideal si cobras lo mismo cada mes.',
+      'En la pestaña Cobro la vista previa muestra la cuenta de cobro tal como va a salir.',
+      'La cuenta que sale de una cotización carga sus datos, pero puedes cambiar cualquier cosa (cliente, valor, concepto, ciudad, cuenta bancaria y tus datos) sin tocar la cotización. "Cargar valores de la cotización" deshace los cambios.',
+      'Nota al final opcional (por ejemplo, "No soy responsable de IVA").',
+      'En Guardadas las cuentas se distinguen y se pueden filtrar; en una cuenta suelta puedes cargar los valores de una cotización guardada.',
+    ],
+  },
+  {
     version: '1.9.1',
     fecha: '16-10-2026',
     tipo: 'arreglo',

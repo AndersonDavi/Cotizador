@@ -151,6 +151,49 @@ export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string
   });
 }
 
+export type Opcion = { id: string; titulo: string; detalle?: string };
+
+/** Elige entre varias opciones (botones grandes). Devuelve el id elegido o null si cancela. */
+export function elegir(o: { titulo: string; mensaje?: string; opciones: Opcion[] }): Promise<string | null> {
+  let el = document.getElementById('elegirModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'elegirModal';
+    el.className = 'modal-overlay confirm-overlay';
+    el.hidden = true;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'elegirTitle');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="modal-box confirm-box elegir-box">
+      <h2 id="elegirTitle">${escapeHtml(o.titulo)}</h2>
+      ${o.mensaje ? `<p>${escapeHtml(o.mensaje)}</p>` : ''}
+      <div class="elegir-ops">${o.opciones.map((x) => `<button type="button" data-op="${escapeHtml(x.id)}"><b>${escapeHtml(x.titulo)}</b>${x.detalle ? `<span>${escapeHtml(x.detalle)}</span>` : ''}</button>`).join('')}</div>
+      <div class="confirm-actions"><button type="button" data-op="">Cancelar</button></div>
+    </div>`;
+  const overlay = el;
+  const antes = document.activeElement as HTMLElement | null;
+  return new Promise((resolve) => {
+    const fin = (v: string | null) => {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.removeEventListener('click', onClick);
+      cerrarModal(overlay).then(() => { antes?.focus?.(); resolve(v); });
+    };
+    const onClick = (ev: MouseEvent) => {
+      const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-op]');
+      if (b) fin(b.dataset.op || null);
+      else if (ev.target === overlay) fin(null);
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fin(null); } };
+    overlay.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey, true);
+    abrirModal(overlay);
+    overlay.querySelector<HTMLElement>('.elegir-ops button')?.focus();
+  });
+}
+
 /** Anima la salida de un elemento (fila de una lista) antes de quitarlo. */
 export function animarSalida(el: Element | null): Promise<void> {
   if (!el || sinMovimiento()) return Promise.resolve();

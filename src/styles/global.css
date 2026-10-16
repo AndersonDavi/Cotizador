@@ -755,3 +755,19 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .marca-aviso b { color: var(--text); }
 .texto-input { width: 100%; margin-top: 14px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-2); background: #10131a; color: var(--text); font-size: 15px; }
 .texto-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Cuenta de cobro sola: solo Mi marca, Cobro y Guardadas */
+.tab[hidden] { display: none; }
+body.modo-cuenta .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#cuentaRepetir { align-self: flex-start; }
+.saved-row .tipo-tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 6px; padding: 1px 6px; }
+
+/* Elegir qué documento crear */
+.elegir-box { max-width: 420px; }
+.elegir-ops { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 14px; }
+.elegir-ops button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 13px 16px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); color: var(--text); transition: border-color .12s, transform .12s, background .12s; }
+.elegir-ops button b { font-size: 15px; }
+.elegir-ops button span { font-size: 13px; color: var(--muted); }
+.elegir-ops button:hover, .elegir-ops button:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card-2)); }
+.elegir-ops button:active { transform: scale(.98); }
+.cobro-origen { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }

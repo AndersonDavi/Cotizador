@@ -69,6 +69,13 @@ export type DatosCobro = {
   hasta?: string;
   concepto?: string;
   parte?: 'total' | 'anticipo' | 'saldo';  // qué se cobra en la cuenta
+  valor?: number;   // valor escrito a mano; sin él sale del total, el anticipo o el saldo
+  ciudad?: string;  // ciudad de la cuenta; sin ella, la de tu marca
+  nota?: string;    // línea al final (p. ej. "No soy responsable de IVA")
+  // Cambios solo para la cuenta (lo vacío sale de la cotización o de Mi marca)
+  cliente?: Cliente;
+  banco?: string;
+  emisor?: { nombre?: string; cedula?: string; direccion?: string; telefono?: string };
 };
 
 /** IVA, descuento y anticipo. Sin esto, el total es la suma de los ítems (como antes). */
@@ -90,6 +97,8 @@ export type ColoresOverride = {
 };
 
 export type Cotizacion = {
+  /** 'cuenta' = cuenta de cobro sola (sin ítems ni diseño), con consecutivo COB-0001. Sin tipo = cotización. */
+  tipo?: 'cotizacion' | 'cuenta';
   numero: string;
   fecha: string;
   alcance: string;
@@ -265,6 +274,34 @@ export function totalReal(c: Cotizacion): number {
   return totales(c).total;
 }
 
+export const esCuenta = (c: Pick<Cotizacion, 'tipo'>) => c.tipo === 'cuenta';
+const PREFIJO_CUENTA = 'COB-';
+/** Número que se muestra: las cuentas guardan "COB-0001" (para no chocar con las cotizaciones) y muestran "0001". */
+export const numeroVisible = (c: Pick<Cotizacion, 'tipo' | 'numero'>) => (esCuenta(c) ? c.numero.replace(PREFIJO_CUENTA, '') : c.numero);
+export const numeroCuenta = (visible: string) => PREFIJO_CUENTA + visible.trim();
+
+/** Lo que se cobra con la cotización: el total, el anticipo o el saldo. */
+export function valorCalculadoCobro(c: Cotizacion): number {
+  const t = totales(c);
+  const parte = t.anticipoPct > 0 ? c.cobro?.parte ?? 'total' : 'total';
+  return parte === 'anticipo' ? t.anticipo : parte === 'saldo' ? t.saldo : t.total;
+}
+
+/** Valor de la cuenta de cobro: el escrito a mano o el calculado (una cuenta sola no tiene cálculo). */
+export function valorCobro(c: Cotizacion): number {
+  const v = c.cobro?.valor;
+  if (v != null && Number.isFinite(v)) return v;
+  return esCuenta(c) ? 0 : valorCalculadoCobro(c);
+}
+
+/** Cliente de la cuenta: en una cuenta suelta es el del documento; desde una cotización, el cambiado o el de la cotización. */
+export function clienteCobro(c: Cotizacion): Cliente {
+  return (esCuenta(c) ? c.cliente : c.cobro?.cliente ?? c.cliente) ?? { nombre: '', nit: '' };
+}
+
+/** Valor del documento en listas y tablero. */
+export const valorDoc = (c: Cotizacion) => (esCuenta(c) ? valorCobro(c) : totalReal(c));
+
 /** "8 und × $350.000" cuando hay cantidad o unidad; vacío si es un ítem simple. */
 /** La unidad es un texto (und, m, hora…); un número suelto ahí es un error de digitación y se ignora. */
 export function unidadDe(it: Pick<Item, 'unidad'>): string {
@@ -373,11 +410,38 @@ export function deleteSaved(numero: string): Cotizacion[] {
 }
 
 export function nextNumero(): string {
-  const list = loadSaved();
+  const list = loadSaved().filter((c) => !esCuenta(c));
   let max = 0;
   for (const c of list) {
     const n = parseInt(c.numero, 10);
     if (Number.isFinite(n) && n > max) max = n;
   }
   return String(max + 1).padStart(5, '0');
+}
+
+/** Siguiente consecutivo de cuentas de cobro: "COB-0001", "COB-0002"… */
+export function nextNumeroCuenta(): string {
+  let max = 0;
+  for (const c of loadSaved()) {
+    if (!esCuenta(c)) continue;
+    const n = parseInt(numeroVisible(c), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return numeroCuenta(String(max + 1).padStart(4, '0'));
+}
+
+/** Cuenta de cobro sola: sin ítems ni diseño, lista para cobrar. */
+export function nuevaCuenta(numero = nextNumeroCuenta()): Cotizacion {
+  return { ...nuevaCotizacion(numero), tipo: 'cuenta', items: [], titulo: 'Cuenta de cobro', estado: 'cobrada', tiempoEntrega: '' };
+}
+
+/** Corre una fecha dd-mm-aaaa un mes (el último día de un mes pasa al último del siguiente). */
+export function masUnMes(fecha: string): string {
+  const m = (fecha ?? '').trim().match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (!m) return fecha;
+  const d = +m[1], mes = +m[2], y = +m[3];
+  const dias = (yy: number, mm: number) => new Date(yy, mm, 0).getDate(); // mm de 1 a 12
+  const ny = mes === 12 ? y + 1 : y, nm = mes === 12 ? 1 : mes + 1;
+  const nd = d >= dias(y, mes) ? dias(ny, nm) : Math.min(d, dias(ny, nm));
+  return `${String(nd).padStart(2, '0')}-${String(nm).padStart(2, '0')}-${ny}`;
 }

@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
+import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade, logoTinteSvg } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
@@ -451,6 +451,9 @@ export type CuentaCobro = {
   valor: number;
   concepto: string;         // párrafo completo "Por actividades de ..."
   cuentaBancaria: string;   // "Cuenta de Ahorros BANCOLOMBIA No. ..."
+  titulo?: string;          // "CUENTA DE COBRO N.º 0001" (cuentas sueltas, con consecutivo)
+  nota?: string;            // línea final opcional
+  archivo?: string;         // nombre del archivo sin extensión
 };
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -521,6 +524,7 @@ const CUENTA_CSS = `
 .just{text-align:justify;margin-top:22px;line-height:1.25}
 .firma{height:64px;margin:26px 0 22px}
 .firma img{max-height:64px;max-width:220px;object-fit:contain}
+.tit{margin-top:30px;font-weight:700;letter-spacing:.02em}
 `;
 
 export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): string {
@@ -528,13 +532,15 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   const body = `
 <div class="doc" data-fixed-page="1">
   <p>${cc.ciudad ? `${escapeHtml(cc.ciudad)}, ` : ''}${escapeHtml(fechaLarga(cc.fecha))}</p>
-  <div class="c blk"><p>${escapeHtml(cc.cliente.nombre)}</p><p>NIT ${escapeHtml(cc.cliente.nit)}</p></div>
+  ${cc.titulo ? `<p class="c tit">${escapeHtml(cc.titulo)}</p>` : ''}
+  <div class="c blk"><p>${escapeHtml(cc.cliente.nombre)}</p>${cc.cliente.nit?.trim() ? `<p>NIT ${escapeHtml(cc.cliente.nit)}</p>` : ''}</div>
   <div class="c blk"><p>DEBE A:</p><p>${escapeHtml(e.nombre)}</p><p>C.C. ${escapeHtml(e.cedula)}</p></div>
   <div class="c blk"><p>LA SUMA DE ${formatCOP(cc.valor)}</p><p>${escapeHtml(numeroALetras(cc.valor))}</p></div>
   <p class="c" style="margin-top:28px">Por concepto de:</p>
   <p class="just">${escapeHtml(cc.concepto)}</p>
-  <p style="margin-top:14px">Por favor consignar en la ${escapeHtml(cc.cuentaBancaria)}</p>
-  <p style="margin-top:96px">Atentamente,</p>
+  ${cc.cuentaBancaria ? `<p style="margin-top:14px">Por favor consignar en la ${escapeHtml(cc.cuentaBancaria)}</p>` : ''}
+  ${cc.nota ? `<p class="just" style="margin-top:14px">${escapeHtml(cc.nota)}</p>` : ''}
+  <p style="margin-top:${cc.nota ? 60 : 96}px">Atentamente,</p>
   <div class="firma">${e.firmaDataUrl ? `<img data-trim src="${escapeHtml(e.firmaDataUrl)}" alt="">` : ''}</div>
   <p>${escapeHtml(e.nombre)}</p>
   <div style="margin-top:22px">
@@ -544,34 +550,40 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   </div>
 </div>`;
   const css = CUENTA_CSS + '\n@page{size:letter;margin:0}';
-  return page(`CUENTA-COBRO-COTIZACION-${cc.numero ?? ''}`.replace(/-$/, ''), css, body, fonts);
+  return page(cc.archivo ?? `CUENTA-COBRO-COTIZACION-${cc.numero ?? ''}`.replace(/-$/, ''), css, body, fonts);
 }
 
 /** Arma la cuenta de cobro de una cotización con sus datos de cobro. */
 export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
   const b = c.branding;
   const cobro = c.cobro ?? {};
-  const base = (cobro.concepto?.trim() || `Por actividades de desarrollo correspondientes a ${c.alcance.trim() || 'los requerimientos de la cotización ' + c.numero}`).replace(/[.,\s]+$/, '');
-  const periodo = cobro.desde && cobro.hasta ? `, realizadas durante el período comprendido ${periodoTexto(cobro.desde, cobro.hasta)}` : '';
+  const sola = esCuenta(c);
+  const base = (cobro.concepto?.trim() || (sola ? 'Por servicios prestados' : `Por actividades de desarrollo correspondientes a ${c.alcance.trim() || 'los requerimientos de la cotización ' + c.numero}`)).replace(/[.,\s]+$/, '');
+  const periodo = parseFecha(cobro.desde ?? '') && parseFecha(cobro.hasta ?? '') ? `, realizadas durante el período comprendido ${periodoTexto(cobro.desde!, cobro.hasta!)}` : '';
   const t = totales(c);
-  const parte = t.anticipoPct > 0 ? cobro.parte ?? 'total' : 'total';
-  const valor = parte === 'anticipo' ? t.anticipo : parte === 'saldo' ? t.saldo : t.total;
-  const extra = parte === 'anticipo' ? ` (anticipo del ${t.anticipoPct}% de la cotización ${c.numero})` : parte === 'saldo' ? ` (saldo del ${100 - t.anticipoPct}% restante de la cotización ${c.numero})` : '';
+  const parte = !sola && t.anticipoPct > 0 ? cobro.parte ?? 'total' : 'total';
+  const valor = valorCobro(c);
+  // Con valor escrito a mano ya no es "el anticipo" ni "el saldo" exactos
+  const extra = sola || cobro.valor != null ? '' : parte === 'anticipo' ? ` (anticipo del ${t.anticipoPct}% de la cotización ${c.numero})` : parte === 'saldo' ? ` (saldo del ${100 - t.anticipoPct}% restante de la cotización ${c.numero})` : '';
   const tel = (b.contacto.cel || '').replace(/^\+57\s*/, '');
+  const em = cobro.emisor ?? {};
   return {
     numero: c.numero,
-    ciudad: b.contacto.ciudad?.trim() || '',
+    ciudad: cobro.ciudad?.trim() || b.contacto.ciudad?.trim() || '',
     fecha: cobro.fecha || hoy,
-    cliente: { nombre: c.cliente?.nombre ?? '', nit: c.cliente?.nit ?? '' },
+    cliente: { nombre: clienteCobro(c).nombre ?? '', nit: clienteCobro(c).nit ?? '' },
     emisor: {
-      nombre: b.nombreLegal?.trim() || b.representante.nombre,
-      cedula: b.representante.cedula,
-      direccion: b.direccion ?? '',
-      telefono: tel,
+      nombre: em.nombre?.trim() || b.nombreLegal?.trim() || b.representante.nombre,
+      cedula: em.cedula?.trim() || b.representante.cedula,
+      direccion: em.direccion?.trim() || (b.direccion ?? ''),
+      telefono: em.telefono?.trim() || tel,
       firmaDataUrl: b.representante.firmaDataUrl,
     },
     valor,
     concepto: `${base}${periodo}${extra}.`,
-    cuentaBancaria: b.banco || '',
+    cuentaBancaria: cobro.banco?.trim() || b.banco || '',
+    titulo: sola ? `CUENTA DE COBRO N.º ${numeroVisible(c)}` : undefined,
+    nota: cobro.nota?.trim() || undefined,
+    archivo: sola ? `CUENTA-DE-COBRO_${numeroVisible(c)}` : `CUENTA-COBRO-COTIZACION-${c.numero}`,
   };
 }

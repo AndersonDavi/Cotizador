@@ -9,7 +9,8 @@ const FAQ = [
   ['¿El generador de cuentas de cobro es gratis?', 'Sí. Es gratis, ilimitado y sin anuncios. No pide registro ni pone marca de agua en el PDF.'],
   ['¿Una cuenta de cobro es lo mismo que una factura?', 'No. La factura electrónica la expiden quienes están obligados a facturar ante la DIAN. La cuenta de cobro la usan personas naturales no obligadas a facturar para pedir el pago de un servicio; no tiene un formato oficial único.'],
   ['¿Qué datos necesito para hacer una cuenta de cobro?', 'Tu nombre completo y cédula, el nombre o razón social y el NIT de quien te paga, el valor, el concepto del servicio con su período, tu cuenta bancaria y tu firma. Con eso el Cotizador arma el documento y escribe el valor en letras.'],
-  ['¿Puedo cobrar solo el anticipo o el saldo?', 'Sí. Si tu cotización tiene anticipo, en la pestaña Cobro eliges si cobras el total, el anticipo o el saldo, y el concepto lo dice solo.'],
+  ['¿Necesito hacer una cotización primero?', 'No. Con Nueva → Cuenta de cobro la haces directo, con su propio consecutivo. Si cobras lo mismo cada mes, Repetir el próximo mes la copia con el período del mes siguiente.'],
+  ['¿Puedo cobrar solo el anticipo o el saldo?', 'Sí. Si la cuenta sale de una cotización con anticipo, en la pestaña Cobro eliges si cobras el total, el anticipo o el saldo, y el concepto lo dice solo. También puedes escribir otro valor.'],
   ['¿Qué más me puede pedir la empresa que me paga?', 'Depende de la empresa. Es común que pidan copia del RUT, la planilla de seguridad social (PILA) del período y, si están obligadas, ellas generan el documento soporte electrónico. Confirma con tu cliente antes de enviar la cuenta de cobro.'],
   ['¿Dónde quedan mis datos?', 'En tu navegador. El Cotizador no tiene servidor: tu cédula, tu firma y tu cuenta bancaria no salen de tu equipo, salvo que conectes tu propio Google Drive como respaldo.'],
   ['¿Funciona en el celular?', 'Sí. Puedes instalarlo como app, funciona sin conexión y el PDF se descarga directo o se envía por WhatsApp.'],
@@ -25,8 +26,8 @@ const jsonLd = [
     tool: [{ '@type': 'HowToTool', name: 'Cotizador (gratis, en el navegador)' }],
     step: [
       { '@type': 'HowToStep', name: 'Tus datos', text: 'En Mi marca escribe tu nombre completo, cédula, ciudad, cuenta bancaria y sube tu firma.' },
-      { '@type': 'HowToStep', name: 'El cliente', text: 'En Cotización escribe el nombre o razón social y el NIT de quien te paga, y los servicios con su valor.' },
-      { '@type': 'HowToStep', name: 'El período', text: 'En Cobro indica desde y hasta cuándo trabajaste y si cobras el total, el anticipo o el saldo.' },
+      { '@type': 'HowToStep', name: 'El cobro', text: 'Toca Nueva → Cuenta de cobro y escribe el nombre y el NIT de quien te paga, el valor, el concepto y, si quieres, el período.' },
+      { '@type': 'HowToStep', name: 'Revisa', text: 'A la derecha ves la cuenta tal como va a salir, con el valor en letras.' },
       { '@type': 'HowToStep', name: 'El PDF', text: 'Toca Generar cuenta de cobro: sale en tamaño carta con el valor en letras y tu firma.' },
     ],
   },
@@ -49,7 +50,7 @@ const jsonLd = [
     <h1>Cuenta de cobro en PDF, lista en un minuto</h1>
     <p class="lead">Llena tus datos y los de tu cliente, y descarga la cuenta de cobro con el valor en letras, tu firma y tu cuenta bancaria. Para personas naturales e independientes en Colombia.</p>
     <div class="ctas">
-      <a class="btn primary" href="/?tab=cobro">Crear mi cuenta de cobro</a>
+      <a class="btn primary" href="/?nueva=cuenta">Crear mi cuenta de cobro</a>
       <a class="btn ghost" href="#que-debe-llevar">Qué debe llevar</a>
     </div>
     <ul class="badges"><li>Gratis e ilimitado</li><li>Sin anuncios</li><li>Sin registro</li><li>Sin marca de agua</li><li>Valor en letras automático</li></ul>
@@ -81,11 +82,11 @@ const jsonLd = [
   <h2>Cómo hacer tu cuenta de cobro con el Cotizador</h2>
   <ol class="pasos">
     <li><strong>Tus datos, una sola vez.</strong> En <em>Mi marca</em> escribe tu nombre completo, cédula, ciudad y cuenta bancaria, y sube tu firma (el fondo blanco se quita solo).</li>
-    <li><strong>El cliente y el servicio.</strong> En <em>Cotización</em> escribe el nombre y el NIT de quien te paga; en <em>Ítems</em>, lo que hiciste y su valor.</li>
-    <li><strong>El período.</strong> En <em>Cobro</em> indica desde y hasta cuándo trabajaste. Si pactaste anticipo, elige si cobras el total, el anticipo o el saldo.</li>
-    <li><strong>Descarga o envía.</strong> Toca <em>Generar cuenta de cobro</em>: sale en tamaño carta, lista para enviar por correo o WhatsApp.</li>
+    <li><strong>El cobro.</strong> Toca <em>Nueva → Cuenta de cobro</em> y escribe a quién le cobras (nombre y NIT), cuánto, por qué concepto y, si quieres, el período. Mientras escribes ves la cuenta tal como va a salir.</li>
+    <li><strong>Descarga o envía.</strong> Toca <em>Generar cuenta de cobro</em>: sale en tamaño carta, con su número, lista para enviar por correo o WhatsApp, y queda guardada.</li>
+    <li><strong>El mes siguiente.</strong> Si cobras lo mismo cada mes, toca <em>Repetir el próximo mes</em>: copia la cuenta con el número siguiente y el período corrido un mes.</li>
   </ol>
-  <p>Si ya le habías enviado una <a href="/cotizacion">cotización</a> a ese cliente, la cuenta de cobro sale de la misma información: no vuelves a escribir nada.</p>
+  <p>Si ya le habías enviado una <a href="/cotizacion">cotización</a> a ese cliente, la cuenta de cobro también puede salir de ella (pestaña <em>Cobro</em>), con el total, el anticipo o el saldo: no vuelves a escribir nada.</p>
 
   <h2>Cuenta de cobro o factura electrónica</h2>
   <div class="tabla">
@@ -107,6 +108,6 @@ const jsonLd = [
   <section class="cierre">
     <h2>Haz tu cuenta de cobro ahora</h2>
     <p>Gratis, sin registro y sin anuncios. Tus datos se quedan en tu navegador.</p>
-    <a class="btn primary" href="/?tab=cobro">Crear mi cuenta de cobro</a>
+    <a class="btn primary" href="/?nueva=cuenta">Crear mi cuenta de cobro</a>
   </section>
 </Contenido>

@@ -201,11 +201,14 @@ Cuando el cliente aprueba y el trabajo se entrega:
 cotizador cuenta COTIZACION_00008.json --cliente grupo-logis --desde 07-09-2026 --hasta 15-10-2026 --marcar
 ```
 
-- `--desde` / `--hasta`: período del trabajo (obligatorio).
+- `--desde` / `--hasta`: período del trabajo (obligatorio en cuentas de una cotización).
 - `--parte total|anticipo|saldo`: qué se cobra si la cotización tiene anticipo.
 - `--concepto "…"`: inicio del párrafo "Por concepto de".
+- `--valor 1500000`: valor escrito a mano (si no, sale del total, el anticipo o el saldo).
 - `--marcar`: guarda los datos en el JSON y marca la cotización como `cobrada`.
 - Sale `CUENTA-COBRO-COTIZACION-<n>.pdf` al lado del JSON.
+
+**Cuenta de cobro suelta** (sin cotización): un JSON con `"tipo": "cuenta"`, número `COB-0001`, sin ítems, con `cliente` y `cobro` (`valor`, `concepto`, opcionalmente `desde`/`hasta`, `ciudad`, `nota`, `banco`). Ahí el período es opcional y el valor es obligatorio (`--valor` o `cobro.valor`). Sale `CUENTA-DE-COBRO_<n>.pdf` con el título "CUENTA DE COBRO N.º <n>". Son las mismas que crea la app con Nueva → Cuenta de cobro (se pueden exportar e importar como JSON).
 
 El nombre legal, la dirección y la cuenta bancaria del emisor vienen de `~/.cotizador.json`.
 

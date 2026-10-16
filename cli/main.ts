@@ -70,6 +70,7 @@ Opciones:
   --nit <nit>            NIT del cliente
   --concepto <texto>     Inicio del párrafo "Por concepto de" (el período se agrega solo)
   --parte <total|anticipo|saldo>  Con "cuenta": qué parte se cobra (si la cotización tiene anticipo)
+  --valor <pesos>        Con "cuenta": valor a cobrar escrito a mano (obligatorio en una cuenta suelta)
   --marcar               Con "cuenta": guarda los datos de cobro en el JSON y lo marca como cobrada
   --html                 Con "cuenta": guarda también el HTML
 
@@ -214,6 +215,7 @@ async function main() {
       nit: { type: 'string' },
       concepto: { type: 'string' },
       parte: { type: 'string' },
+      valor: { type: 'string' },
       marcar: { type: 'boolean' },
       html: { type: 'boolean' },
       item: { type: 'string', multiple: true },
@@ -299,11 +301,18 @@ async function main() {
         c.cliente = fromCfg ? { ...fromCfg } : { nombre: o.cliente, nit: o.nit ?? c.cliente?.nit ?? '' };
       }
       if (o.nit) c.cliente = { nombre: c.cliente?.nombre ?? '', nit: o.nit };
+      if (o.valor) {
+        const v = Number(o.valor.replace(/[$.\s]/g, '').replace(',', '.'));
+        if (!Number.isFinite(v) || v <= 0) fail('--valor debe ser un número mayor que 0 (por ejemplo 1500000)');
+        c.cobro.valor = v;
+      }
 
       const faltan: string[] = [];
       if (!c.cliente?.nombre) faltan.push('cliente (--cliente)');
       if (!c.cliente?.nit) faltan.push('NIT (--nit)');
-      if (!c.cobro.desde || !c.cobro.hasta) faltan.push('período (--desde y --hasta)');
+      // En una cuenta suelta (tipo "cuenta") el período es opcional y el valor es obligatorio
+      if (c.tipo === 'cuenta' ? Boolean(c.cobro.desde) !== Boolean(c.cobro.hasta) : !c.cobro.desde || !c.cobro.hasta) faltan.push('período (--desde y --hasta)');
+      if (c.tipo === 'cuenta' && !(c.cobro.valor! > 0)) faltan.push('valor (--valor)');
       if (!c.branding.contacto?.ciudad?.trim()) faltan.push('ciudad del emisor (Mi marca → Contacto en la cotización)');
       if (!c.branding.banco) faltan.push(`cuenta bancaria (emisor.banco en ${CONFIG_PATH})`);
       if (!c.branding.direccion) faltan.push(`dirección (emisor.direccion en ${CONFIG_PATH})`);
@@ -311,7 +320,7 @@ async function main() {
 
       const cc = cuentaDesdeCotizacion(c, today());
       const html = renderCuentaCobroHtml(cc);
-      const out = outPath(o.out, path, `CUENTA-COBRO-COTIZACION-${c.numero}.pdf`);
+      const out = outPath(o.out, path, `${cc.archivo ?? 'CUENTA-COBRO-COTIZACION-' + c.numero}.pdf`);
       await htmlToPdf(html, out, 816, 'Letter');
       if (o.html) writeFileSync(out.replace(/\.pdf$/i, '.html'), html, 'utf8');
       console.log(`Cuenta de cobro: ${out}`);

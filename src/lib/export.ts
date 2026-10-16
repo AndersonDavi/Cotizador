@@ -2,7 +2,7 @@ import {
   renderCotizacionHtml, renderCotizacionMarkdown, renderCuentaCobroHtml,
   cuentaDesdeCotizacion, FONT_SPECS, fontKey, type FontUrls,
 } from './doc';
-import { today, type Cotizacion } from './state';
+import { today, numeroVisible, type Cotizacion } from './state';
 import r400 from '@fontsource/roboto/files/roboto-latin-400-normal.woff2?url';
 import r500 from '@fontsource/roboto/files/roboto-latin-500-normal.woff2?url';
 import r700 from '@fontsource/roboto/files/roboto-latin-700-normal.woff2?url';
@@ -68,9 +68,15 @@ export async function exportPdf(c: Cotizacion): Promise<void> {
   await printHtml(cotizacionHtml(c), `COTIZACION_${c.numero}`, 1080);
 }
 
+/** HTML de la cuenta de cobro (vista previa e impresión). */
+export function cuentaHtml(c: Cotizacion): string {
+  return renderCuentaCobroHtml(cuentaDesdeCotizacion(c, today()), FONTS);
+}
+
+const cuentaArchivo = (c: Cotizacion) => cuentaDesdeCotizacion(c, today()).archivo ?? `CUENTA-COBRO-${c.numero}`;
+
 export async function printCuentaCobro(c: Cotizacion): Promise<void> {
-  const html = renderCuentaCobroHtml(cuentaDesdeCotizacion(c, today()), FONTS);
-  await printHtml(html, `CUENTA-COBRO-COTIZACION-${c.numero}`, 816);
+  await printHtml(cuentaHtml(c), cuentaArchivo(c), 816);
 }
 
 let inlineFontsCache: Promise<FontUrls> | null = null;
@@ -157,7 +163,7 @@ export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
 /** La cuenta de cobro como PDF directo (tamaño carta), igual que la cotización. */
 export async function pdfCuentaCobro(c: Cotizacion): Promise<File> {
   const html = renderCuentaCobroHtml(cuentaDesdeCotizacion(c, today()), await inlineFonts());
-  return pdfDeHtml(html, 816, `Cuenta de cobro ${c.numero}`, `CUENTA-COBRO-COTIZACION-${c.numero}.pdf`);
+  return pdfDeHtml(html, 816, `Cuenta de cobro ${numeroVisible(c)}`, `${cuentaArchivo(c)}.pdf`);
 }
 
 async function pdfDeHtml(html: string, ancho: number, titulo: string, nombre: string): Promise<File> {

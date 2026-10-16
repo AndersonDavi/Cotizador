@@ -27,18 +27,28 @@ import {
   validaHasta,
   ivaGeneral,
   today,
+  esCuenta,
+  numeroVisible,
+  numeroCuenta,
+  nextNumeroCuenta,
+  nuevaCuenta,
+  valorCobro,
+  valorCalculadoCobro,
+  valorDoc,
+  masUnMes,
+  clienteCobro,
 } from './state';
 import { getAllIconKeys, getIconLabel, getIconSearchText, buildIconDataUrl, ICON_CATEGORIES, type IconKey } from './icons';
 import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastReport, readableOn, type DisenoId } from './theme';
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
-  cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
+  cotizacionHtml, cuentaHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
   importJsonFromFile, printCuentaCobro, pdfCuentaCobro, sharePng, saveTextFile, pdfParaCompartir,
 } from './export';
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
 import { openColorPicker } from './colorpicker';
-import { abrirModal, cerrarModal, confirmar, animarSalida, pedirTexto } from './ui';
+import { abrirModal, cerrarModal, confirmar, animarSalida, pedirTexto, elegir } from './ui';
 import {
   driveDisponible, driveInfo, prepararDrive, conectarDrive, subirRespaldo, bajarRespaldo,
   desconectarDrive, driveTokenVigente, DriveAuthError,
@@ -62,7 +72,7 @@ const collapsedItems = new Set<string>();
 type SortField = 'precio' | 'titulo' | 'tipo';
 let sortField: SortField | null = null;
 let sortDir: 'asc' | 'desc' = 'asc';
-let savedFilter: Estado | 'todas' = 'todas';
+let savedFilter: Estado | 'todas' | 'cuentas' = 'todas';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -211,6 +221,12 @@ function applyZoom() {
   front.style.height = `${docSize.height}px`;
 }
 
+/** La vista previa muestra la cuenta de cobro en la pestaña Cobro y en las cuentas sueltas. */
+const muestraCuenta = () => esCuenta(state) || tabActual === 'cobro';
+
+/** Etiqueta del estado: en una cuenta suelta "cobrada" es "Por pagar". */
+const etiquetaEstado = (c: Cotizacion) => (esCuenta(c) && estadoDe(c) === 'cobrada' ? 'Por pagar' : ESTADO_LABELS[estadoDe(c)]);
+
 /** Renderiza en el iframe oculto y lo intercambia al terminar (sin parpadeo). */
 async function renderPreview() {
   const seq = ++renderSeq;
@@ -218,7 +234,8 @@ async function renderPreview() {
   // Skeleton solo si el render tarda (cambio de diseño, imágenes grandes); al escribir no parpadea
   const skel = window.setTimeout(() => stage.classList.add('loading'), 160);
   try {
-    const size = await loadIntoFrame(back, cotizacionHtml(state));
+    const cuentaVista = muestraCuenta();
+    const size = await loadIntoFrame(back, cuentaVista ? cuentaHtml(state) : cotizacionHtml(state));
     if (seq !== renderSeq) return;
     clearTimeout(skel);
     stage.classList.remove('loading');
@@ -227,7 +244,7 @@ async function renderPreview() {
     back.classList.replace('back', 'front');
     front.classList.replace('front', 'back');
     back.removeAttribute('aria-hidden');
-    back.title = 'Vista previa de la cotización';
+    back.title = cuentaVista ? 'Vista previa de la cuenta de cobro' : 'Vista previa de la cotización';
     front.setAttribute('aria-hidden', 'true');
     front.title = '';
     applyZoom();
@@ -246,8 +263,8 @@ function refresh() {
   if (state.costoTotalAuto) state.costoTotal = totalReal(state);
   const total = formatCOP(totalReal(state));
   $('totalBig').textContent = total;
-  $('previewTotal').textContent = `${total} COP`;
-  $('docLabel').textContent = `Cotización ${state.numero}${state.cliente?.nombre ? ' · ' + state.cliente.nombre : ''}`;
+  $('previewTotal').textContent = `${muestraCuenta() ? formatCOP(valorCobro(state)) : total} COP`;
+  $('docLabel').textContent = `${esCuenta(state) ? 'Cuenta de cobro' : 'Cotización'} ${numeroVisible(state)}${state.cliente?.nombre ? ' · ' + state.cliente.nombre : ''}`;
   $('itemsCount').textContent = String(state.items.length);
   const n = state.items.length;
   $('itemsSummary').textContent = `${n} ${n === 1 ? 'ítem' : 'ítems'}`;
@@ -257,9 +274,10 @@ function refresh() {
   ($('costoManualWrap') as HTMLElement).hidden = state.costoTotalAuto;
   const est = estadoDe(state);
   const badge = $('previewEstado');
-  badge.textContent = ESTADO_LABELS[est];
+  badge.textContent = etiquetaEstado(state);
   badge.style.setProperty('--dot', ESTADO_COLOR[est]);
   renderCobroResumen();
+  renderValorCobro();
   renderExtras();
   schedulePreview();
   scheduleAutosave();
@@ -272,9 +290,14 @@ const pilaTabs: string[] = [];
 let tabActual = '';
 let volviendoTab = false;
 
+const TABS_COTIZACION = ['cotizacion', 'items', 'diseno'];
+
 function showTab(tab: string) {
+  if (esCuenta(state) && TABS_COTIZACION.includes(tab)) tab = 'cobro'; // una cuenta suelta no tiene esas pestañas
   if (tabActual && tabActual !== tab && !volviendoTab) { pilaTabs.push(tabActual); if (pilaTabs.length > 20) pilaTabs.shift(); }
+  const cuentaAntes = muestraCuenta();
   tabActual = tab;
+  if (cuentaAntes !== muestraCuenta()) refresh(); // la vista previa pasa de la cotización a la cuenta o al revés
   document.querySelectorAll<HTMLElement>('.tab').forEach((t) => {
     const on = t.dataset.tab === tab;
     t.classList.toggle('active', on);
@@ -294,6 +317,11 @@ function showTab(tab: string) {
 function renderEstado() {
   const wrap = $('estadoGroup');
   const cur = estadoDe(state);
+  document.querySelectorAll<HTMLElement>('#cobroEstado [data-estado]').forEach((b) => {
+    const on = b.dataset.estado === cur;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
   wrap.innerHTML = ESTADOS.map((e) =>
     `<button type="button" role="radio" aria-checked="${e === cur}" class="${e === cur ? 'active' : ''}" data-estado="${e}" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</button>`
   ).join('');
@@ -751,11 +779,17 @@ function setupDrop(areaId: string, inputId: string, onFile: (f: File) => Promise
 
 function faltantesCobro(): string[] {
   const f: string[] = [];
-  if (!state.cliente?.nombre) f.push('Nombre del cliente (pestaña Cotización)');
-  if (!state.cliente?.nit) f.push('NIT del cliente (pestaña Cotización)');
-  if (!parseFecha(state.cobro?.desde ?? '') || !parseFecha(state.cobro?.hasta ?? '')) f.push('Período del trabajo (desde / hasta, dd-mm-aaaa)');
-  if (!state.branding.banco) f.push('Cuenta bancaria (pestaña Mi marca)');
-  if (!state.branding.contacto?.ciudad?.trim()) f.push('Tu ciudad (pestaña Mi marca → Contacto)');
+  const sola = esCuenta(state);
+  const donde = sola ? 'arriba' : 'pestaña Cotización';
+  const cl = clienteCobro(state);
+  if (!cl.nombre?.trim()) f.push(`Nombre del cliente (${sola ? 'arriba' : 'arriba o en la pestaña Cotización'})`);
+  if (!cl.nit?.trim()) f.push(`NIT del cliente (${sola ? 'arriba' : 'arriba o en la pestaña Cotización'})`);
+  if (sola && !(valorCobro(state) > 0)) f.push('Valor a cobrar');
+  // En una cuenta suelta el período es opcional; si se escribe, tiene que estar completo
+  const d = state.cobro?.desde?.trim() ?? '', h = state.cobro?.hasta?.trim() ?? '';
+  if ((!sola || d || h) && (!parseFecha(d) || !parseFecha(h))) f.push('Período del trabajo (desde / hasta, dd-mm-aaaa)');
+  if (!state.branding.banco && !state.cobro?.banco?.trim()) f.push('Cuenta bancaria (pestaña Mi marca o "Tus datos en esta cuenta")');
+  if (!state.branding.contacto?.ciudad?.trim() && !state.cobro?.ciudad?.trim()) f.push('Ciudad (aquí abajo o en Mi marca → Contacto)');
   if (!state.branding.representante.nombre && !state.branding.nombreLegal) f.push('Tu nombre (pestaña Mi marca)');
   return f;
 }
@@ -769,6 +803,86 @@ function renderCobroResumen() {
   $('cobroResumen').innerHTML = `<b>${escapeHtml(cc.cliente.nombre || 'Cliente')}</b> debe a <b>${escapeHtml(cc.emisor.nombre || 'ti')}</b> la suma de <b>${formatCOP(cc.valor)}</b>.<br>${escapeHtml(cc.concepto)}`;
 }
 
+let cobroMoney: { paint: () => void } | null = null;
+
+/** ¿La cuenta tiene datos cambiados respecto a la cotización? */
+const cobroCambiado = () => {
+  const k = state.cobro ?? {};
+  return !esCuenta(state) && (k.cliente != null || k.valor != null || !!k.banco?.trim() || !!k.concepto?.trim()
+    || Object.values(k.emisor ?? {}).some((v) => v?.trim()));
+};
+
+/** Valor a cobrar: el campo muestra el calculado o el escrito; si es escrito, ofrece volver al calculado. */
+function renderValorCobro() {
+  const sola = esCuenta(state);
+  const marca = state.branding;
+  $in('cobroBanco').placeholder = marca.banco || 'Cuenta de Ahorros BANCO No. …';
+  $in('cobroEmNombre').placeholder = marca.nombreLegal?.trim() || marca.representante.nombre || 'Tu nombre';
+  $in('cobroEmCedula').placeholder = marca.representante.cedula || '';
+  $in('cobroEmDir').placeholder = marca.direccion || '';
+  $in('cobroEmTel').placeholder = (marca.contacto.cel || '').replace(/^\+57\s*/, '');
+  $in('cobroCiudad').placeholder = marca.contacto.ciudad?.trim() || 'Ciudad';
+  // Desde una cotización, el concepto vacío usa el alcance: se muestra tal cual como sugerencia
+  if (!sola) ($('cobroConcepto') as HTMLTextAreaElement).placeholder = state.alcance.trim() ? `Por actividades de desarrollo correspondientes a ${state.alcance.trim()}` : 'Por actividades de desarrollo correspondientes a…';
+  if (!sola) {
+    $('cobroOrigenTxt').textContent = cobroCambiado()
+      ? `Sale de la cotización ${state.numero}, con cambios tuyos. La cotización no se modifica.`
+      : `Sale de la cotización ${state.numero}. Cambia lo que quieras: la cotización no se modifica.`;
+    ($('cobroRecargar') as HTMLElement).hidden = !cobroCambiado();
+  }
+  if (document.activeElement !== $('cobroValor')) cobroMoney?.paint();
+  const b = $('cobroValorAuto') as HTMLButtonElement;
+  const manual = !esCuenta(state) && state.cobro?.valor != null && state.cobro.valor !== valorCalculadoCobro(state);
+  b.hidden = !manual;
+  if (manual) b.textContent = `Usar el valor de la cotización (${formatCOP(valorCalculadoCobro(state))})`;
+}
+
+/** Cambia la interfaz entre cotización y cuenta de cobro suelta. */
+function aplicarModo() {
+  const sola = esCuenta(state);
+  document.body.classList.toggle('modo-cuenta', sola);
+  for (const t of TABS_COTIZACION) ($('tab-' + t) as HTMLElement).hidden = sola;
+  ($('cuentaSolaFila') as HTMLElement).hidden = !sola;
+  ($('cobroOrigen') as HTMLElement).hidden = sola;
+  ($('cobroOrigenSola') as HTMLElement).hidden = !sola;
+  ($('cobroCelWrap') as HTMLElement).hidden = !sola;
+  $('cuentaCardTitulo').textContent = sola ? 'Cuenta de cobro' : 'A quién le cobras';
+  ($('cobroMarcarWrap') as HTMLElement).hidden = sola;
+  ($('cuentaRepetir') as HTMLElement).hidden = !sola;
+  $('cobroIntro').textContent = sola
+    ? 'Cuenta de cobro sin cotización: a quién le cobras, cuánto y por qué. Se guarda en Guardadas con su número al generarla.'
+    : 'Genera la cuenta de cobro de esta cotización con el total, tus datos y los del cliente. A la derecha ves cómo queda.';
+  $('cobroValorHint').textContent = sola ? 'en pesos' : 'sale de la cotización; puedes cambiarlo';
+  $('cobroDesdeLbl').textContent = sola ? 'Período desde (opcional)' : 'Trabajo desde';
+  ($('cobroConcepto') as HTMLTextAreaElement).placeholder = sola ? 'Por servicios de asesoría contable…' : 'Por actividades de desarrollo correspondientes a…';
+  // Lo que solo tiene sentido con una cotización
+  for (const id of ['shareBtn', 'pngBtn', 'pdfPrintBtn', 'cuentaMenuBtn', 'exportMdBtn']) ($(id) as HTMLElement).hidden = sola;
+  $('pdfBtn').title = sola ? 'Descargar la cuenta de cobro en PDF' : 'Descargar PDF';
+  if (sola && TABS_COTIZACION.includes(tabActual)) showTab('cobro');
+}
+
+/** Siguiente cuenta: misma persona, valor y concepto; el período corre un mes. */
+function repetirCuenta(base: Cotizacion) {
+  if (base === state) persistSaved(state); // la actual queda guardada antes de pasar a la siguiente
+  const c = structuredClone(base);
+  c.numero = nextNumeroCuenta();
+  c.fecha = today();
+  c.estado = 'cobrada';
+  c.actualizado = undefined;
+  const cobro = c.cobro ?? {};
+  c.cobro = {
+    ...cobro,
+    fecha: undefined,
+    desde: cobro.desde ? masUnMes(cobro.desde) : cobro.desde,
+    hasta: cobro.hasta ? masUnMes(cobro.hasta) : cobro.hasta,
+  };
+  const perfil = perfilDe(c.perfilId);
+  if (perfil) { c.branding = copiaMarca(perfil.branding); c.perfilId = perfil.id; }
+  load(c, `Cuenta ${numeroVisible(c)} lista${cobro.desde ? ': el período pasó al mes siguiente' : ''}`);
+  showTab('cobro');
+  renderSavedList();
+}
+
 // ── Guardadas ────────────────────────────────────────────────────────────────
 
 function renderSavedList() {
@@ -777,14 +891,17 @@ function renderSavedList() {
   const all = loadSaved();
   const counts = new Map<string, number>();
   all.forEach((c) => counts.set(estadoDe(c), (counts.get(estadoDe(c)) ?? 0) + 1));
+  const nCuentas = all.filter(esCuenta).length;
   $('savedFilters').innerHTML = [`<button class="chip${savedFilter === 'todas' ? ' active' : ''}" data-filter="todas">Todas (${all.length})</button>`]
+    .concat(nCuentas ? [`<button class="chip${savedFilter === 'cuentas' ? ' active' : ''}" data-filter="cuentas">Cuentas de cobro (${nCuentas})</button>`] : [])
     .concat(ESTADOS.filter((e) => counts.get(e)).map((e) =>
       `<button class="chip${savedFilter === e ? ' active' : ''}" data-filter="${e}">${ESTADO_LABELS[e]} (${counts.get(e)})</button>`)).join('');
 
   const list = all
-    .filter((c) => savedFilter === 'todas' || estadoDe(c) === savedFilter)
-    .filter((c) => !q || [c.numero, c.cliente?.nombre, c.alcance].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => b.numero.localeCompare(a.numero));
+    .filter((c) => savedFilter === 'todas' || (savedFilter === 'cuentas' ? esCuenta(c) : estadoDe(c) === savedFilter))
+    .filter((c) => !q || [c.numero, c.cliente?.nombre, c.alcance, c.cobro?.concepto].join(' ').toLowerCase().includes(q))
+    // Lo último que se guardó primero (cotizaciones y cuentas tienen numeraciones distintas)
+    .sort((a, b) => (b.actualizado ?? '').localeCompare(a.actualizado ?? '') || b.numero.localeCompare(a.numero));
   const wrap = $('savedList');
   if (!list.length) {
     wrap.innerHTML = `<div class="empty">${all.length ? 'Nada coincide con la búsqueda.' : 'Aún no tienes cotizaciones guardadas.<br>Usa “Guardar” para tenerlas aquí.'}</div>`;
@@ -792,13 +909,17 @@ function renderSavedList() {
   }
   wrap.innerHTML = list.map((c) => {
     const e = estadoDe(c);
+    const cta = esCuenta(c);
+    const detalle = cta ? c.cobro?.concepto?.trim() : c.alcance;
     return `<div class="saved-row${c.numero === state.numero ? ' current' : ''}">
-      <div class="top"><span class="id">${escapeHtml(c.numero)}</span><span class="badge" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</span>
-        <span class="who">${escapeHtml(c.cliente?.nombre || c.alcance || '—')}</span>${venceBadge(c)}</div>
-      <div class="meta">${formatCOP(totalReal(c))} · ${escapeHtml(c.fecha)}${perfiles().length > 1 && perfilDe(c.perfilId) ? ' · ' + escapeHtml(perfilDe(c.perfilId)!.nombre) : ''}${c.cliente?.nombre && c.alcance ? ' · ' + escapeHtml(c.alcance) : ''}</div>
+      <div class="top"><span class="id">${escapeHtml(numeroVisible(c))}</span>${cta ? '<span class="tipo-tag">Cuenta</span>' : ''}<span class="badge" style="--dot:${ESTADO_COLOR[e]}">${etiquetaEstado(c)}</span>
+        <span class="who">${escapeHtml(c.cliente?.nombre || detalle || '—')}</span>${cta ? '' : venceBadge(c)}</div>
+      <div class="meta">${formatCOP(valorDoc(c))} · ${escapeHtml(cta ? c.cobro?.fecha || c.fecha : c.fecha)}${perfiles().length > 1 && perfilDe(c.perfilId) ? ' · ' + escapeHtml(perfilDe(c.perfilId)!.nombre) : ''}${c.cliente?.nombre && detalle ? ' · ' + escapeHtml(detalle) : ''}</div>
       <div class="acts">
         <button data-num="${escapeHtml(c.numero)}" data-act="load">Abrir</button>
-        <button data-num="${escapeHtml(c.numero)}" data-act="dup" title="Duplicar como nueva">⧉</button>
+        ${cta
+          ? `<button data-num="${escapeHtml(c.numero)}" data-act="rep" title="Repetir el próximo mes" aria-label="Repetir el próximo mes">↻</button>`
+          : `<button data-num="${escapeHtml(c.numero)}" data-act="dup" title="Duplicar como nueva">⧉</button>`}
         <button data-num="${escapeHtml(c.numero)}" data-act="del" class="del" title="Eliminar">✕</button>
       </div></div>`;
   }).join('');
@@ -836,7 +957,7 @@ function renderExtras() {
     : '';
   const hasta = validaHasta(state);
   $('validaHint').textContent = hasta ? `Hasta el ${hasta}` : 'Sin fecha de vencimiento';
-  ($('cobroParteWrap') as HTMLElement).hidden = !(t.anticipoPct > 0);
+  ($('cobroParteWrap') as HTMLElement).hidden = esCuenta(state) || !(t.anticipoPct > 0);
   const parte = state.cobro?.parte ?? 'total';
   document.querySelectorAll<HTMLElement>('#cobroParte [data-parte]').forEach((b) => b.classList.toggle('active', b.dataset.parte === parte));
 }
@@ -937,14 +1058,15 @@ function renderClientes() {
 }
 
 /** Al elegir un cliente guardado, completa NIT y celular. */
-function autocompletarCliente() {
-  const nombre = $in('clienteNombre').value.trim().toLowerCase();
+function autocompletarCliente([idNombre, idNit, idCel] = ['clienteNombre', 'clienteNit', 'clienteCel']) {
+  const nombre = $in(idNombre).value.trim().toLowerCase();
   const c = clientes().find((x) => x.nombre.trim().toLowerCase() === nombre);
   if (!c) return;
-  state.cliente = { nombre: c.nombre, nit: c.nit, cel: c.cel };
-  $in('clienteNit').value = c.nit;
-  $in('clienteCel').value = c.cel ?? '';
-  pulse($in('clienteNit'));
+  if (idNombre === 'cobroCliente') setClienteCobro({ nombre: c.nombre, nit: c.nit, cel: c.cel });
+  else state.cliente = { nombre: c.nombre, nit: c.nit, cel: c.cel };
+  $in(idNit).value = c.nit;
+  $in(idCel).value = c.cel ?? '';
+  pulse($in(idNit));
   refresh();
 }
 
@@ -969,11 +1091,12 @@ function venceBadge(c: Cotizacion): string {
 
 function renderDashboard() {
   const all = loadSaved();
-  const sum = (e: Estado) => all.filter((c) => estadoDe(c) === e).reduce((a, c) => a + totalReal(c), 0);
+  const sum = (e: Estado) => all.filter((c) => estadoDe(c) === e).reduce((a, c) => a + valorDoc(c), 0);
   const count = (e: Estado) => all.filter((c) => estadoDe(c) === e).length;
+  const [uno, varios] = all.some(esCuenta) ? ['documento', 'documentos'] : ['cotización', 'cotizaciones'];
   const card = (e: Estado, label: string, hint: string) => `
     <button type="button" class="dash-card" data-filter="${e}" style="--dot:${ESTADO_COLOR[e]}">
-      <span>${label}</span><b>${formatCOP(sum(e))}</b><small>${count(e)} ${count(e) === 1 ? 'cotización' : 'cotizaciones'} · ${hint}</small>
+      <span>${label}</span><b>${formatCOP(sum(e))}</b><small>${count(e)} ${count(e) === 1 ? uno : varios} · ${hint}</small>
     </button>`;
   $('dashboard').innerHTML = all.length ? card('enviada', 'Por aprobar', 'enviadas') + card('aprobada', 'Por cobrar', 'aprobadas') + card('cobrada', 'Esperando pago', 'cobradas') + card('pagada', 'Pagado', 'pagadas') : '';
 }
@@ -984,6 +1107,14 @@ function mensajeCliente(): string {
   const t = totales(state);
   const hasta = validaHasta(state);
   const nombre = state.cliente?.nombre?.trim();
+  if (esCuenta(state)) {
+    return [
+      `Hola${nombre ? ' ' + nombre : ''}, te comparto la cuenta de cobro N.º ${numeroVisible(state)} por ${formatCOP(valorCobro(state))}.`,
+      state.branding.banco ? `Puedes consignar en la ${state.branding.banco}.` : '',
+      '¡Muchas gracias!',
+      state.branding.empresa || state.branding.representante.nombre || '',
+    ].filter(Boolean).join('\n');
+  }
   return [
     `Hola${nombre ? ' ' + nombre : ''}, te comparto la ${(state.titulo || 'propuesta económica').toLowerCase()} N.º ${state.numero}`,
     state.alcance?.trim() ? `para: ${state.alcance.trim()}` : '',
@@ -1010,12 +1141,12 @@ async function abrirWhatsApp() {
   if (chat) chat.opener = null;
   toast('Preparando el PDF…');
   let pdf: File;
-  try { pdf = await pdfParaCompartir(state); } catch (e) { console.error(e); toast('No se pudo crear el PDF', 'err'); return; }
+  try { pdf = await (esCuenta(state) ? pdfCuentaCobro(state) : pdfParaCompartir(state)); } catch (e) { console.error(e); toast('No se pudo crear el PDF', 'err'); return; }
   if (movil && navigator.canShare({ files: [pdf] })) {
     // Por si WhatsApp no pega el texto junto al archivo
     navigator.clipboard?.writeText(texto).catch(() => { /* sin permiso */ });
     try {
-      await navigator.share({ files: [pdf], text: texto, title: `Cotización ${state.numero}` });
+      await navigator.share({ files: [pdf], text: texto, title: `${esCuenta(state) ? 'Cuenta de cobro' : 'Cotización'} ${numeroVisible(state)}` });
       toast('Listo. El mensaje también quedó copiado por si hace falta pegarlo.');
     } catch { /* canceló */ }
     return;
@@ -1169,7 +1300,7 @@ function renderDrive() {
   const n = loadSaved().length;
   const pospuesto = lsNum(NUDGE_KEY) > Date.now() - 14 * 864e5;
   $('driveNudge').hidden = info.conectado || n === 0 || pospuesto;
-  $('driveNudgeTitle').textContent = n === 1 ? 'Tu cotización solo está en este navegador' : `Tus ${n} cotizaciones solo están en este navegador`;
+  $('driveNudgeTitle').textContent = n === 1 ? 'Tu documento solo está en este navegador' : `Tus ${n} documentos solo están en este navegador`;
 }
 
 /** Una vez por sesión, al guardar sin Drive, el aviso de "guardada" ofrece conectarlo. */
@@ -1422,11 +1553,12 @@ function initExtras() {
   $('cobroParte').addEventListener('click', (ev) => {
     const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-parte]')?.dataset.parte as 'total' | 'anticipo' | 'saldo' | undefined;
     if (!p) return;
-    state.cobro = { ...state.cobro, parte: p };
+    state.cobro = { ...state.cobro, parte: p, valor: undefined }; // elegir una parte vuelve al valor calculado
     refresh();
   });
   $('fromCatalog').addEventListener('click', (ev) => { ev.stopPropagation(); openCatalog($('fromCatalog')); });
-  $in('clienteNombre').addEventListener('change', autocompletarCliente);
+  $in('clienteNombre').addEventListener('change', () => autocompletarCliente());
+  $in('cobroCliente').addEventListener('change', () => autocompletarCliente(['cobroCliente', 'cobroNit', 'cobroCel']));
   $('dashboard').addEventListener('click', (ev) => {
     const f = (ev.target as HTMLElement).closest<HTMLElement>('[data-filter]')?.dataset.filter;
     if (!f) return;
@@ -1526,6 +1658,16 @@ function initSincronizacion() {
 
 // ── Formulario ───────────────────────────────────────────────────────────────
 
+/** En una cuenta suelta el cliente es el del documento; desde una cotización se cambia solo en la cuenta. */
+function setClienteCobro(p: Partial<Cliente>) {
+  const nuevo = { ...clienteCobro(state), ...p };
+  if (esCuenta(state)) state.cliente = nuevo;
+  else state.cobro = { ...state.cobro, cliente: nuevo };
+}
+function setEmisor(p: NonNullable<NonNullable<Cotizacion['cobro']>['emisor']>) {
+  state.cobro = { ...state.cobro, emisor: { ...state.cobro?.emisor, ...p } };
+}
+
 const FIELDS: [string, () => string, (v: string) => void][] = [
   ['numero', () => state.numero, (v) => { state.numero = v; }],
   ['fecha', () => state.fecha, (v) => { state.fecha = v; }],
@@ -1554,6 +1696,18 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['cobroHasta', () => state.cobro?.hasta ?? '', (v) => { state.cobro = { ...state.cobro, hasta: v }; }],
   ['cobroFecha', () => state.cobro?.fecha || today(), (v) => { state.cobro = { ...state.cobro, fecha: v }; }],
   ['cobroConcepto', () => state.cobro?.concepto ?? '', (v) => { state.cobro = { ...state.cobro, concepto: v }; }],
+  ['cobroCiudad', () => state.cobro?.ciudad ?? '', (v) => { state.cobro = { ...state.cobro, ciudad: v }; }],
+  ['cobroNota', () => state.cobro?.nota ?? '', (v) => { state.cobro = { ...state.cobro, nota: v }; }],
+  // Cuenta de cobro suelta: número y cliente en la misma pestaña
+  ['cobroNumero', () => numeroVisible(state), (v) => { if (esCuenta(state) && v.trim()) state.numero = numeroCuenta(v); }],
+  ['cobroCliente', () => clienteCobro(state).nombre ?? '', (v) => { setClienteCobro({ nombre: v }); }],
+  ['cobroNit', () => clienteCobro(state).nit ?? '', (v) => { setClienteCobro({ nit: v }); }],
+  ['cobroCel', () => clienteCobro(state).cel ?? '', (v) => { setClienteCobro({ cel: v }); }],
+  ['cobroBanco', () => state.cobro?.banco ?? '', (v) => { state.cobro = { ...state.cobro, banco: v }; }],
+  ['cobroEmNombre', () => state.cobro?.emisor?.nombre ?? '', (v) => { setEmisor({ nombre: v }); }],
+  ['cobroEmCedula', () => state.cobro?.emisor?.cedula ?? '', (v) => { setEmisor({ cedula: v }); }],
+  ['cobroEmDir', () => state.cobro?.emisor?.direccion ?? '', (v) => { setEmisor({ direccion: v }); }],
+  ['cobroEmTel', () => state.cobro?.emisor?.telefono ?? '', (v) => { setEmisor({ telefono: v }); }],
 ];
 
 /** Breve animación para señalar que un valor cambió. */
@@ -1592,6 +1746,8 @@ function hydrateForm() {
   $in('iconosItems').checked = state.iconosItems !== false;
   renderPerfiles();
   costoMoney?.paint();
+  cobroMoney?.paint();
+  aplicarModo();
   renderEstado();
   renderTerminos();
   paintImages();
@@ -1800,6 +1956,53 @@ export function initEditor() {
   }
   costoMoney = moneyField($in('costoTotal'), () => state.costoTotal, (v) => { state.costoTotal = v; refresh(); }, 50000);
   $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; refresh(); costoMoney?.paint(); });
+  cobroMoney = moneyField($in('cobroValor'), () => valorCobro(state), (v) => { state.cobro = { ...state.cobro, valor: v }; refresh(); }, 50000);
+  $('cobroValorAuto').addEventListener('click', () => { state.cobro = { ...state.cobro, valor: undefined }; refresh(); cobroMoney?.paint(); pulse($in('cobroValor')); });
+  $('cobroEstado').addEventListener('click', (ev) => {
+    const e = (ev.target as HTMLElement).closest<HTMLElement>('[data-estado]')?.dataset.estado as Estado | undefined;
+    if (!e) return;
+    state.estado = e;
+    renderEstado();
+    refresh();
+    if (loadSaved().some((x) => x.numero === state.numero)) { persistSaved(state); renderSavedList(); driveAuto(false); }
+  });
+  $('cuentaRepetir').addEventListener('click', () => repetirCuenta(state));
+  $('cobroRecargar').addEventListener('click', async () => {
+    if (!(await confirmar({ titulo: '¿Cargar los valores de la cotización?', mensaje: 'Se quitan los cambios de esta cuenta (cliente, valor, concepto y tus datos) y vuelven los de la cotización. Las fechas y la nota se quedan.', aceptar: 'Cargar valores', icono: 'restore' }))) return;
+    const { fecha, desde, hasta, nota, parte, ciudad } = state.cobro ?? {};
+    state.cobro = { fecha, desde, hasta, nota, parte, ciudad };
+    hydrateForm();
+    refresh();
+    toast('La cuenta tiene otra vez los valores de la cotización');
+  });
+  $('cobroDesdeCero').addEventListener('click', async () => {
+    if (!(await confirmar({ titulo: '¿Nueva cuenta de cobro desde cero?', mensaje: 'Empieza una cuenta sin cotización, con su propio número. Lo que no hayas guardado de la cotización se pierde: si quieres conservarla, toca Guardar primero.', aceptar: 'Empezar desde cero', icono: 'doc' }))) return;
+    nuevoDocumento('cuenta');
+  });
+  $('cobroDesdeCotizacion').addEventListener('click', async () => {
+    const cots = loadSaved().filter((x) => !esCuenta(x))
+      .sort((a, b) => (b.actualizado ?? '').localeCompare(a.actualizado ?? '') || b.numero.localeCompare(a.numero)).slice(0, 12);
+    if (!cots.length) { toast('Aún no tienes cotizaciones guardadas', 'err'); return; }
+    const num = await elegir({
+      titulo: 'Cargar valores de una cotización',
+      mensaje: 'Copia el cliente, el valor y el concepto. Después puedes cambiar lo que quieras.',
+      opciones: cots.map((q) => ({ id: q.numero, titulo: `${q.numero} · ${q.cliente?.nombre || 'Sin cliente'}`, detalle: `${formatCOP(valorCalculadoCobro(q))}${q.alcance ? ' · ' + q.alcance : ''}` })),
+    });
+    const q = cots.find((x) => x.numero === num);
+    if (!q) return;
+    state.cliente = { nombre: '', nit: '', ...structuredClone(q.cliente) };
+    const cc = cuentaDesdeCotizacion({ ...q, cobro: { ...q.cobro, desde: undefined, hasta: undefined } }, today());
+    state.cobro = {
+      ...state.cobro,
+      valor: valorCalculadoCobro(q),
+      concepto: q.cobro?.concepto?.trim() || cc.concepto.replace(/\.$/, ''),
+      desde: q.cobro?.desde ?? state.cobro?.desde,
+      hasta: q.cobro?.hasta ?? state.cobro?.hasta,
+    };
+    hydrateForm();
+    refresh();
+    toast(`Valores de la cotización ${q.numero} cargados`);
+  });
 
   // Textareas que crecen con el contenido
   document.addEventListener('input', (ev) => {
@@ -1846,6 +2049,8 @@ export function initEditor() {
   const tabUrl = new URLSearchParams(location.search).get('tab');
   if (tabUrl) { lastTab = tabUrl; history.replaceState(history.state, '', location.pathname); }
   if (!document.querySelector(`.tab[data-tab="${lastTab}"]`)) lastTab = 'cotizacion';
+  const nuevaUrl = new URLSearchParams(location.search).get('nueva');
+  if (nuevaUrl) history.replaceState(history.state, '', location.pathname);
 
   // Estado
   $('estadoGroup').addEventListener('click', (ev) => {
@@ -1990,12 +2195,21 @@ export function initEditor() {
 
   // Cuenta de cobro: PDF directo; la versión para imprimir queda en un enlace aparte
   const cuenta = async () => {
+    if (esCuenta(state) && tabActual !== 'cobro') showTab('cobro');
     const falt = faltantesCobro();
     if (falt.length) { showTab('cobro'); toast('Completa los datos que faltan para la cuenta de cobro', 'err'); return; }
     toast('Preparando la cuenta de cobro…');
     try {
       descargar(await pdfCuentaCobro(state));
-      if ($in('cobroMarcar').checked && estadoDe(state) !== 'pagada') {
+      if (esCuenta(state)) {
+        // La cuenta suelta se guarda sola al generarla, con su número
+        if (estadoDe(state) === 'borrador') state.estado = 'cobrada';
+        persistSaved(state);
+        recordarCliente(state.cliente);
+        renderEstado();
+        renderSavedList();
+        driveAuto(false);
+      } else if ($in('cobroMarcar').checked && estadoDe(state) !== 'pagada') {
         state.estado = 'cobrada';
         renderEstado();
         refresh();
@@ -2014,7 +2228,7 @@ export function initEditor() {
     try {
       persistSaved(state);
       recordarCliente(state.cliente);
-      const msg = `Cotización ${state.numero} guardada`;
+      const msg = `${esCuenta(state) ? 'Cuenta de cobro' : 'Cotización'} ${numeroVisible(state)} guardada`;
       if (driveSugerir()) toast(msg, 'ok', { label: 'Respaldar en Drive', run: abrirDrive }); else toast(msg);
       renderSavedList();
     }
@@ -2022,15 +2236,15 @@ export function initEditor() {
     driveAuto(true);
   });
   $('newBtn').addEventListener('click', async () => {
-    if (!(await confirmar({ titulo: '¿Empezar una cotización nueva?', mensaje: 'Lo que no hayas guardado de la actual se perderá. Si quieres conservarla, toca Guardar primero.', aceptar: 'Empezar nueva', icono: 'doc' }))) return;
-    const keep = { diseno: state.diseno, colores: coloresDe(state), terminos: state.terminos, tiempoEntrega: state.tiempoEntrega };
-    const c = nuevaCotizacion(nextNumero());
-    const perfil = perfilDe(state.perfilId);
-    c.branding = perfil ? copiaMarca(perfil.branding) : (loadBranding() ?? state.branding);
-    c.perfilId = perfil?.id;
-    Object.assign(c, keep);
-    load(c, `Cotización ${c.numero} lista`);
-    showTab('cotizacion');
+    const tipo = await elegir({
+      titulo: '¿Qué vas a hacer?',
+      mensaje: 'Lo que no hayas guardado del documento actual se perderá. Si quieres conservarlo, toca Guardar primero.',
+      opciones: [
+        { id: 'cotizacion', titulo: 'Cotización', detalle: 'Propuesta con ítems, IVA, diseño y totales' },
+        { id: 'cuenta', titulo: 'Cuenta de cobro', detalle: 'Cobro directo sin cotización, con su propio número' },
+      ],
+    });
+    if (tipo) nuevoDocumento(tipo as 'cotizacion' | 'cuenta');
   });
   // PDF: se descarga directo (imagen + capa de texto seleccionable, ver pdfParaCompartir).
   // El de imprimir (vectorial) queda en Más: en Android y en algunos navegadores abre la impresora.
@@ -2039,6 +2253,7 @@ export function initEditor() {
     catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
   };
   $('pdfBtn').addEventListener('click', async () => {
+    if (esCuenta(state)) { cuenta(); return; }
     toast('Preparando el PDF…');
     try {
       descargar(await pdfParaCompartir(state));
@@ -2076,7 +2291,7 @@ export function initEditor() {
   $('savedFilters').addEventListener('click', (ev) => {
     const f = (ev.target as HTMLElement).closest<HTMLElement>('[data-filter]')?.dataset.filter;
     if (!f) return;
-    savedFilter = f as Estado | 'todas';
+    savedFilter = f as Estado | 'todas' | 'cuentas';
     renderSavedList();
   });
   $('savedList').addEventListener('click', async (ev) => {
@@ -2084,7 +2299,10 @@ export function initEditor() {
     if (!btn) return;
     const num = btn.dataset.num!;
     const found = loadSaved().find((x) => x.numero === num);
-    if (btn.dataset.act === 'load' && found) { load(found, `Cotización ${num} abierta`); showTab('cotizacion'); }
+    if (btn.dataset.act === 'load' && found) {
+      load(found, `${esCuenta(found) ? 'Cuenta de cobro' : 'Cotización'} ${numeroVisible(found)} abierta`);
+      showTab(esCuenta(found) ? 'cobro' : 'cotizacion');
+    } else if (btn.dataset.act === 'rep' && found) repetirCuenta(found);
     else if (btn.dataset.act === 'dup' && found) {
       const c = structuredClone(found);
       c.numero = nextNumero();
@@ -2097,7 +2315,8 @@ export function initEditor() {
       showTab('cotizacion');
     } else if (btn.dataset.act === 'del') {
       const quien = found?.cliente?.nombre || found?.alcance || '';
-      if (!(await confirmar({ titulo: `¿Eliminar la cotización ${num}?`, mensaje: `${quien ? quien + ' · ' : ''}Total ${found ? formatCOP(totalReal(found)) : '$0'}. Se borra de este navegador${driveInfo().conectado ? ' y del respaldo en Drive' : ''}; no se puede deshacer.`, aceptar: 'Eliminar', peligro: true }))) return;
+      const que = found && esCuenta(found) ? `la cuenta de cobro ${numeroVisible(found)}` : `la cotización ${num}`;
+      if (!(await confirmar({ titulo: `¿Eliminar ${que}?`, mensaje: `${quien ? quien + ' · ' : ''}Total ${found ? formatCOP(valorDoc(found)) : '$0'}. Se borra de este navegador${driveInfo().conectado ? ' y del respaldo en Drive' : ''}; no se puede deshacer.`, aceptar: 'Eliminar', peligro: true }))) return;
       await animarSalida(btn.closest('.saved-row'));
       deleteSaved(num);
       anotarBorrada(num);
@@ -2153,8 +2372,37 @@ export function initEditor() {
   updateSortButtons();
   showTab(lastTab);
   refresh();
+  if (nuevaUrl === 'cuenta' && !esCuenta(state)) {
+    // Si lo abierto está vacío se reemplaza sin preguntar; si no, se pregunta
+    const vacio = !loadSaved().some((x) => x.numero === state.numero) && !state.cliente?.nombre && state.items.every((it) => !it.titulo?.trim());
+    if (vacio) nuevoDocumento('cuenta');
+    else confirmar({ titulo: '¿Empezar una cuenta de cobro?', mensaje: 'Tienes una cotización abierta sin guardar. Si empiezas la cuenta, lo que no hayas guardado se pierde.', aceptar: 'Empezar cuenta', cancelar: 'Seguir con la cotización', icono: 'doc' })
+      .then((si) => { if (si) nuevoDocumento('cuenta'); });
+  }
   showWelcomeIfNeeded();
   avisarVersion();
+}
+
+/** Cotización o cuenta de cobro nueva, con la marca del perfil activo. */
+function nuevoDocumento(tipo: 'cotizacion' | 'cuenta') {
+  const perfil = perfilDe(state.perfilId);
+  const marca = perfil ? copiaMarca(perfil.branding) : (loadBranding() ?? state.branding);
+  if (tipo === 'cuenta') {
+    const c = nuevaCuenta();
+    c.branding = marca;
+    c.perfilId = perfil?.id;
+    load(c, `Cuenta de cobro ${numeroVisible(c)} lista`);
+    showTab('cobro');
+    return;
+  }
+  // Una cotización nueva conserva el diseño y los términos de la anterior
+  const keep = esCuenta(state) ? {} : { diseno: state.diseno, colores: coloresDe(state), terminos: state.terminos, tiempoEntrega: state.tiempoEntrega };
+  const c = nuevaCotizacion(nextNumero());
+  c.branding = marca;
+  c.perfilId = perfil?.id;
+  Object.assign(c, keep);
+  load(c, `Cotización ${c.numero} lista`);
+  showTab('cotizacion');
 }
 
 function setView(view: 'edit' | 'preview') {

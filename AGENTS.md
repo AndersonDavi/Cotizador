@@ -68,7 +68,9 @@ npx tsc --noEmit   # typecheck
 
 ## Modelo de datos
 
-`Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`. Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.
+`Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`, `tipo`.
+
+**Cuenta de cobro**: `cobro` también guarda cambios solo para la cuenta (`valor`, `ciudad`, `nota`, `cliente`, `banco`, `emisor`); lo vacío sale de la cotización o de Mi marca (`cuentaDesdeCotizacion` en doc.ts, `valorCobro`/`clienteCobro` en state.ts). `tipo: 'cuenta'` es una cuenta suelta: sin ítems ni diseño, número `COB-0001` (`numeroVisible` muestra "0001", `nextNumeroCuenta`), cliente en `cliente`, estado `cobrada` ("Por pagar") o `pagada`; la interfaz oculta Cotización, Ítems y Diseño (`aplicarModo` en editor.ts). En la pestaña Cobro la vista previa muestra la cuenta. `/?nueva=cuenta` abre una cuenta nueva (lo usa la guía /cuenta-de-cobro). Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.
 
 Compatibilidad: sin `colores` se usan `plantilla` + `coloresOverride` (formato anterior); sin `diseno` es la Clásica; sin `estado` es borrador.
 
