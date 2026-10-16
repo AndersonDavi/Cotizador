@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, type Cotizacion, type Totales } from './state';
+import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
@@ -159,8 +159,9 @@ const ENHANCE_JS = `
       var r = logo.naturalWidth / logo.naturalHeight, lw = 72, lh = 72 / r;
       if (lh > 72) { lh = 72; lw = 72 * r; }
       logo.style.width = px(lw); logo.style.height = px(lh);
-      place(logo, W - PX - lw, 38);
-      reserve = lw + 20;
+      var pad = parseFloat(getComputedStyle(logo).paddingLeft) || 0; // logo con fondo
+      place(logo, W - PX - lw - pad * 2, 38 - pad);
+      reserve = lw + pad * 2 + 20;
     }
     var right = W - PX - reserve;
     var title = q('.hdr .title'), num = q('.hdr .num'), sep = q('.hdr .tsep');
@@ -258,6 +259,7 @@ const COT_CSS = `
 .hdr .num{color:var(--acc)}
 .hdr .tsep{position:absolute;width:3px;background:var(--acc)}
 .hdr .logo{position:absolute}
+${LOGO_CSS}
 .hdr .fecha{font-weight:700;font-size:20px}
 .hdr .hr{position:absolute;width:${DOC_W - 112}px;height:1px;background:rgba(255,255,255,.15)}
 .hdr .alc-h{font-weight:900;font-size:42px}
@@ -339,7 +341,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
   const body = `
 <div class="doc cot" style="${vars}">
   <header class="hdr">
-    ${b.logoDataUrl ? `<img class="logo" src="${escapeHtml(b.logoDataUrl)}" alt="">` : ''}
+    ${b.logoDataUrl ? `<img class="logo${logoClase(b)}" src="${escapeHtml(b.logoDataUrl)}" alt="">` : ''}
     <h1 class="ab title" data-cv>${escapeHtml((c.titulo || 'Propuesta económica').toUpperCase())}</h1>
     <div class="tsep"></div>
     <span class="ab num" data-cv>${escapeHtml(c.numero)}</span>

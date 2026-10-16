@@ -6,6 +6,17 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.3.0',
+    fecha: '15-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'La firma de aceptación del cliente (Diagonal y Estudio) ahora es opcional y viene apagada. Se activa en Diseño.',
+      'En Mi marca eliges cómo se ve tu logo: original, con fondo blanco, todo blanco o todo negro.',
+      'Las paletas que guardas o quitas se animan como burbujas, y al quitar una puedes deshacer.',
+      'Los botones de texto (quitar logo, quitar firma, intercambiar colores…) se leen mejor.',
+    ],
+  },
+  {
     version: '1.2.2',
     fecha: '15-10-2026',
     tipo: 'arreglo',

@@ -82,8 +82,10 @@ button { cursor: pointer; }
 .primary, .act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .primary:hover, .act.primary:hover { background: #ffe14a; border-color: #ffe14a; }
 .wide { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 10px; border: 0; }
-.link-btn { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; text-align: left; width: fit-content; }
-.link-btn:hover { color: var(--text); text-decoration: underline; }
+/* Botones de texto: más claros y subrayados para que se note que se tocan (antes gris de 12 px, casi invisibles) */
+.link-btn { background: none; border: 0; padding: 2px 0; color: #c9ced8; font-size: 13px; font-weight: 500; text-align: left; width: fit-content; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
+.link-btn:hover { color: var(--text); text-decoration-color: currentColor; }
+.link-btn.danger { color: #f29a9a; }
 .link-btn.danger:hover { color: var(--danger); }
 .chip { padding: 5px 10px; border-radius: 999px; font-size: 12px; }
 .chip.active, .chip.sort-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
@@ -482,7 +484,7 @@ textarea.auto { resize: none; overflow: hidden; }
 .term-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 18px; flex: none; }
 .term-row textarea { min-height: 40px; }
 .term-row .icon-btn { margin-top: 5px; }
-.add-term { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; margin-top: 2px; }
+.add-term { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; margin-top: 2px; text-decoration: none; }
 .add-term svg { width: 14px; height: 14px; }
 
 /* Campos: tacto y foco más claros */
@@ -637,7 +639,7 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .nudge p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .nudge-actions { display: flex; align-items: center; gap: 12px; }
 .nudge-actions .primary { padding: 9px 14px; border-radius: 10px; border: 0; }
-.nudge-actions .link-btn { background: none; border: 0; color: var(--muted); padding: 0; }
+.nudge-actions .link-btn { background: none; border: 0; padding: 0; }
 
 /* ── Instalar en iPhone y versión nueva ─────────────────────────────────── */
 .ios-share { vertical-align: -3px; color: #3b8bff; }
@@ -728,3 +730,11 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .m-foot #driveDisconnect:hover { color: var(--danger); }
 .m-links { display: flex; gap: 14px; }
 .modal-note + .m-actions, .modal-steps + .m-actions { margin-top: 4px; }
+
+/* Estilo del logo (mismas reglas que el documento, para la vista previa de Mi marca) */
+#logoPreview.logo-fondo { background: #fff; padding: 6px; border-radius: 10px; box-sizing: border-box; }
+#logoPreview.logo-blanco { filter: brightness(0) invert(1); }
+#logoPreview.logo-negro { filter: brightness(0); }
+#logoEstilo button { --dot: var(--accent); }
+.opt-row { margin-top: 14px; color: var(--text); font-size: 13.5px; }
+.opt-row + .hint { display: block; margin: 4px 0 0 44px; }

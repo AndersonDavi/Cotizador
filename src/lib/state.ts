@@ -29,6 +29,8 @@ export type Contacto = {
 
 export type Branding = {
   logoDataUrl?: string;
+  /** Cómo se pinta el logo: tal cual, sobre un fondo blanco, o todo blanco / todo negro (logos de un color). */
+  logoEstilo?: 'original' | 'fondo' | 'blanco' | 'negro';
   representante: Representante;
   banco: string;          // "Cuenta de Ahorros BANCOLOMBIA No. ..." (cuenta de cobro)
   empresa?: string;       // nombre de la marca que muestran las plantillas
@@ -36,6 +38,13 @@ export type Branding = {
   direccion?: string;
   contacto: Contacto;
 };
+
+/** Clases del <img> del logo según logoEstilo (ver LOGO_CSS). */
+export function logoClase(b: Pick<Branding, 'logoEstilo'>): string {
+  return b.logoEstilo && b.logoEstilo !== 'original' ? ` logo-${b.logoEstilo}` : '';
+}
+/** Un solo estilo a la vez: el filtro que pinta el logo también pintaría su fondo. */
+export const LOGO_CSS = '.logo-fondo{background:#fff;padding:8px;border-radius:12px;box-sizing:content-box}.logo-blanco{filter:brightness(0) invert(1)}.logo-negro{filter:brightness(0)}';
 
 export const ESTADOS = ['borrador', 'enviada', 'aprobada', 'cobrada', 'pagada', 'descartada'] as const;
 export type Estado = typeof ESTADOS[number];
@@ -98,6 +107,7 @@ export type Cotizacion = {
   cobro?: DatosCobro;
   impuestos?: Impuestos;
   vigenciaDias?: number;  // días de validez de la oferta (desde la fecha)
+  aceptacionCliente?: boolean; // espacio para que el cliente firme (diseños que lo tienen); por defecto no
 };
 
 export function estadoDe(c: Cotizacion): Estado {

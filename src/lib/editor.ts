@@ -22,6 +22,7 @@ import {
   valorItem,
   cantidadDe,
   unidadDe,
+  logoClase,
   filasDesglose,
   validaHasta,
   ivaGeneral,
@@ -648,6 +649,16 @@ function renderContrast(primary: string, secondary: string) {
 }
 
 // Paletas propias en localStorage
+/** Animación tipo burbuja: la paleta entra con rebote o se encoge y desaparece. */
+function burbuja(el: Element | null, entra: boolean): Promise<void> {
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+  const kf = entra
+    ? [{ transform: 'scale(0)', opacity: 0 }, { transform: 'scale(1.22)', opacity: 1, offset: 0.55 }, { transform: 'scale(.92)', offset: 0.78 }, { transform: 'scale(1)', opacity: 1 }]
+    : [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.18)', opacity: 1, offset: 0.35 }, { transform: 'scale(0)', opacity: 0 }];
+  return el.animate(kf, { duration: entra ? 520 : 320, easing: entra ? 'cubic-bezier(.2,.8,.2,1)' : 'ease-in', fill: entra ? 'none' : 'forwards' })
+    .finished.then(() => undefined, () => undefined);
+}
+
 const PALETAS_KEY = 'cotizador:paletas';
 function misPaletas(): { primary: string; secondary: string }[] {
   try { return JSON.parse(localStorage.getItem(PALETAS_KEY) || '[]'); } catch { return []; }
@@ -670,6 +681,15 @@ function paintImages() {
   ($('logoPreview') as HTMLImageElement).src = logo || '';
   $('logoArea').classList.toggle('has-img', !!logo);
   ($('logoClear') as HTMLElement).hidden = !logo;
+  // Estilo del logo: solo tiene sentido con logo; la vista previa de Mi marca lo refleja
+  const estilo = state.branding.logoEstilo ?? 'original';
+  ($('logoEstiloWrap') as HTMLElement).hidden = !logo;
+  $('logoPreview').className = logoClase(state.branding).trim();
+  document.querySelectorAll<HTMLElement>('#logoEstilo [data-logo]').forEach((b) => {
+    const on = b.dataset.logo === estilo;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
   const firma = state.branding.representante.firmaDataUrl;
   ($('firmaPreview') as HTMLImageElement).src = firma || '';
   $('firmaArea').classList.toggle('has-img', !!firma);
@@ -1449,6 +1469,7 @@ function renderTerminos(focusIdx?: number) {
 function hydrateForm() {
   for (const [id, get] of FIELDS) $in(id).value = get();
   $in('costoAuto').checked = state.costoTotalAuto;
+  $in('aceptacionCliente').checked = !!state.aceptacionCliente;
   costoMoney?.paint();
   renderEstado();
   renderTerminos();
@@ -1611,14 +1632,26 @@ export function initEditor() {
     const p = PALETAS[Number(i)];
     setColores(p.primary, p.secondary);
   });
-  $('myPalettes').addEventListener('click', (ev) => {
+  $('myPalettes').addEventListener('click', async (ev) => {
     const t = ev.target as HTMLElement;
     const del = t.closest<HTMLElement>('[data-del]')?.dataset.del;
     if (del != null) {
+      const idx = Number(del);
+      await burbuja(t.closest('.palette-wrap'), false);
       const list = misPaletas();
-      list.splice(Number(del), 1);
+      const [quitada] = list.splice(idx, 1);
       guardarPaletas(list);
       renderDesign();
+      toast('Paleta quitada', 'ok', {
+        label: 'Deshacer',
+        run: () => {
+          const l = misPaletas();
+          l.splice(idx, 0, quitada);
+          guardarPaletas(l);
+          renderDesign();
+          burbuja($('myPalettes').children[idx] ?? null, true);
+        },
+      });
       return;
     }
     const i = t.closest<HTMLElement>('[data-mia]')?.dataset.mia;
@@ -1630,6 +1663,7 @@ export function initEditor() {
     const c = coloresDe(state);
     guardarPaletas([{ primary: c.primary.toUpperCase(), secondary: c.secondary.toUpperCase() }, ...misPaletas()]);
     renderDesign();
+    burbuja($('myPalettes').querySelector('.palette-wrap'), true);
     toast('Paleta guardada en este navegador');
   });
   $('swapColors').addEventListener('click', () => { const c = coloresDe(state); setColores(c.secondary, c.primary); });
@@ -1642,6 +1676,14 @@ export function initEditor() {
   setupDrop('logoArea', 'logoFile', async (f) => { state.branding.logoDataUrl = await imageToDataUrl(f, 700); paintImages(); refresh(); });
   setupDrop('firmaArea', 'firmaFile', async (f) => { state.branding.representante.firmaDataUrl = await imageToDataUrl(f, 900); paintImages(); refresh(); });
   $('logoClear').addEventListener('click', () => { state.branding.logoDataUrl = undefined; paintImages(); refresh(); });
+  $('logoEstilo').addEventListener('click', (ev) => {
+    const v = (ev.target as HTMLElement).closest<HTMLElement>('[data-logo]')?.dataset.logo as Cotizacion['branding']['logoEstilo'];
+    if (!v) return;
+    state.branding.logoEstilo = v === 'original' ? undefined : v;
+    paintImages();
+    refresh();
+  });
+  $in('aceptacionCliente').addEventListener('change', () => { state.aceptacionCliente = $in('aceptacionCliente').checked || undefined; refresh(); });
   $('firmaClear').addEventListener('click', () => { state.branding.representante.firmaDataUrl = undefined; paintImages(); refresh(); });
 
   // Cuenta de cobro

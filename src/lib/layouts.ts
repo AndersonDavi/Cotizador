@@ -3,7 +3,7 @@
 // así cualquier marca se ve bien en cualquier diseño.
 
 import { buildIconSvg } from './icons';
-import { formatCOP, totales, valorItem, qtyLabel, ivaTag, filasDesglose, validaHasta, type Cotizacion, type Totales } from './state';
+import { formatCOP, totales, valorItem, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
 import { buildTheme, coloresDe, disenoDe, isDark, themeVars, type DisenoId, type Theme } from './theme';
 import { escapeHtml as e, normalizeWebUrl } from './esc';
 
@@ -38,6 +38,8 @@ type Data = {
   rep: { nombre: string; cedula: string };
   firmaUrl: string;
   logoUrl: string;
+  logoCls: string;
+  aceptacion: boolean;
   k: { web: string; webUrl: string; email: string; cel: string; ciudad: string; pais: string };
 };
 
@@ -70,6 +72,8 @@ function data(c: Cotizacion): Data {
     rep: { nombre: e(b.representante.nombre), cedula: e(b.representante.cedula) },
     firmaUrl: b.representante.firmaDataUrl ? e(b.representante.firmaDataUrl) : '',
     logoUrl: b.logoDataUrl ? e(b.logoDataUrl) : '',
+    logoCls: logoClase(b),
+    aceptacion: !!c.aceptacionCliente,
     k: {
       web: e((k.web || '').trim()), webUrl: e(normalizeWebUrl(k.web || '')),
       email: e(k.email || ''), cel: e(k.cel || ''), ciudad: e(k.ciudad || ''), pais: e(k.pais || ''),
@@ -77,7 +81,7 @@ function data(c: Cotizacion): Data {
   };
 }
 
-const logo = (d: Data, cls = 'logo') => (d.logoUrl ? `<img class="${cls}" src="${d.logoUrl}" alt="">` : '');
+const logo = (d: Data, cls = 'logo') => (d.logoUrl ? `<img class="${cls}${d.logoCls}" src="${d.logoUrl}" alt="">` : '');
 
 /** Firma recortada; sobre fondo oscuro se invierte para que el trazo quede claro. */
 const firma = (d: Data, bg = '#FFFFFF') =>
@@ -120,6 +124,7 @@ const BASE_CSS = `
 .pre{white-space:pre-line}
 [data-fit]{white-space:nowrap;overflow:hidden}
 img.firma{display:block;max-width:240px;max-height:72px;object-fit:contain}
+${LOGO_CSS}
 .ic{display:inline-flex;width:18px;height:18px;flex:none}
 .ic svg{width:100%;height:100%}
 table{border-collapse:collapse;width:100%}
@@ -326,6 +331,7 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 .ft .a{background:var(--p);color:var(--onP);padding:44px 40px 44px 64px}
 .ft .a .emp{font-weight:700;font-size:19px;margin-bottom:18px}
 .ft .b{background:var(--s);color:var(--onS);padding:44px 56px;display:grid;grid-template-columns:1fr 1fr;gap:34px;text-align:center}
+.ft .b.uno{grid-template-columns:minmax(0,320px);justify-content:center;align-content:center}
 .ft .b h4{font-weight:700;font-size:18px;margin-bottom:8px}
 .ft .b .slot{height:74px;display:flex;align-items:flex-end;justify-content:center}
 .ft .b .ln{border-top:1.5px solid currentColor;padding-top:8px;font-size:16px}
@@ -354,8 +360,8 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 </div>
 <div class="ft">
   <div class="a"><div class="emp">${d.empresa}</div>${contactList(d)}</div>
-  <div class="b">
-    <div><h4>Aceptación del cliente</h4><div class="slot"></div><div class="ln">${d.cliente?.nombre ?? 'Nombre y fecha'}</div></div>
+  <div class="b${d.aceptacion ? '' : ' uno'}">
+    ${d.aceptacion ? `<div><h4>Aceptación del cliente</h4><div class="slot"></div><div class="ln">${d.cliente?.nombre ?? 'Nombre y fecha'}</div></div>` : ''}
     <div><h4>Firma</h4><div class="slot">${firma(d, d.t.s)}</div><div class="ln">${d.rep.nombre}</div></div>
   </div>
 </div>`,
@@ -491,7 +497,7 @@ ${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>
     <i>Si tienes preguntas sobre esta cotización, contacta a <b>${d.rep.nombre}</b>${d.k.email ? ` en ${mailA(d)}` : ''}${d.k.cel ? ` o al ${d.k.cel}` : ''}.</i>
     <div class="firm">${firma(d)}<b>¡Gracias por tu confianza!</b></div>
   </div>
-  <div class="r"><div>Por favor confirma tu aceptación de esta cotización:</div><div class="slot"></div><div class="ln">Firma, nombre y fecha</div></div>
+  ${d.aceptacion ? '<div class="r"><div>Por favor confirma tu aceptación de esta cotización:</div><div class="slot"></div><div class="ln">Firma, nombre y fecha</div></div>' : ''}
 </div>`,
 };
 
