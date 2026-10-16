@@ -1723,15 +1723,13 @@ export function initEditor() {
     load(c, `Cotización ${c.numero} lista`);
     showTab('cotizacion');
   });
-  // Celular: el diálogo de imprimir de Android pide elegir "Guardar como PDF" y reduce la hoja a
-  // Carta. Ahí se descarga directo el PDF de imagen; el de texto seleccionable queda en Más.
-  const esMovil = () => matchMedia('(pointer: coarse)').matches;
+  // PDF: se descarga directo (imagen + capa de texto seleccionable, ver pdfParaCompartir).
+  // El de imprimir (vectorial) queda en Más: en Android y en algunos navegadores abre la impresora.
   const pdfImprimir = async () => {
     try { await exportPdf(state); }
     catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
   };
   $('pdfBtn').addEventListener('click', async () => {
-    if (!esMovil()) return pdfImprimir();
     toast('Preparando el PDF…');
     try {
       const pdf = await pdfParaCompartir(state);
@@ -1741,7 +1739,6 @@ export function initEditor() {
       toast(`${pdf.name} descargado`);
     } catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
   });
-  ($('pdfPrintBtn') as HTMLElement).hidden = !esMovil();
   $('pdfPrintBtn').addEventListener('click', pdfImprimir);
 
   const menu = $('moreMenu');

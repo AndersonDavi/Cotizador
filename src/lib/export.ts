@@ -146,51 +146,150 @@ export async function sharePng(c: Cotizacion, text: string): Promise<boolean> {
 }
 
 /**
- * PDF para compartir (WhatsApp, correo): una página con la imagen del documento.
- * El PDF con texto seleccionable solo sale del diálogo de impresión, que no entrega un
- * archivo; este se arma aquí mismo, con la imagen en JPEG, y se ve igual.
+ * PDF directo (sin diálogo de imprimir): la imagen del documento y encima una capa de texto
+ * invisible en la posición de cada palabra, como un PDF escaneado. Se ve igual al documento,
+ * el texto se selecciona, se copia y se busca, y los enlaces (correo, web) funcionan.
  */
 export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
-  const img = new Image();
-  img.src = await pngDataUrl(c);
-  await img.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0);
-  const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear la imagen'))), 'image/jpeg', 0.9));
-  const jpeg = new Uint8Array(await blob.arrayBuffer());
-  // El PNG sale a escala 2 y 1 px CSS = 0,75 pt: misma medida que el PDF del CLI
-  const pdf = pdfConImagen(jpeg, canvas.width, canvas.height, (canvas.width / 2) * 0.75, (canvas.height / 2) * 0.75, `Cotización ${c.numero}`);
-  return new File([pdf], `COTIZACION_${c.numero}.pdf`, { type: 'application/pdf' });
+  const frame = offscreenFrame(1080);
+  try {
+    const size = await loadIntoFrame(frame, renderCotizacionHtml(c, await inlineFonts()));
+    frame.style.height = `${size.height}px`;
+    const doc = frame.contentDocument!;
+    const root = doc.querySelector('.doc') as HTMLElement;
+    const capa = capaDeTexto(doc, root);
+    let png: string;
+    try { png = await rasterize(doc, size, 2); }
+    catch {
+      const { default: html2canvas } = await import('html2canvas');
+      png = (await html2canvas(root, { scale: 2, backgroundColor: '#ffffff', logging: false })).toDataURL('image/png');
+    }
+    const img = new Image();
+    img.src = png;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear la imagen'))), 'image/jpeg', 0.9));
+    const jpeg = new Uint8Array(await blob.arrayBuffer());
+    const pdf = armarPdf({ jpeg, w: canvas.width, h: canvas.height, docW: size.width, docH: size.height, titulo: `Cotización ${c.numero}`, ...capa });
+    return new File([pdf], `COTIZACION_${c.numero}.pdf`, { type: 'application/pdf' });
+  } finally {
+    frame.remove();
+  }
+}
+
+type Trozo = { t: string; x: number; y: number; w: number; h: number; fs: number };
+type Enlace = { url: string; x: number; y: number; w: number; h: number };
+
+/** Palabras visibles del documento agrupadas por renglón, con su caja en px CSS, y los enlaces. */
+function capaDeTexto(doc: Document, root: HTMLElement): { trozos: Trozo[]; enlaces: Enlace[] } {
+  const win = doc.defaultView!;
+  const base = root.getBoundingClientRect();
+  const range = doc.createRange();
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const trozos: Trozo[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const txt = n.nodeValue ?? '';
+    if (!txt.trim()) continue;
+    const el = n.parentElement;
+    if (!el || el.closest('script,style')) continue;
+    const cs = win.getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue;
+    const fs = parseFloat(cs.fontSize) || 14;
+    const tt = cs.textTransform;
+    let cur: Trozo | null = null;
+    for (const m of txt.matchAll(/\S+/g)) {
+      range.setStart(n, m.index!);
+      range.setEnd(n, m.index! + m[0].length);
+      const r = range.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      const palabra = tt === 'uppercase' ? m[0].toUpperCase() : tt === 'lowercase' ? m[0].toLowerCase() : m[0];
+      const x = r.left - base.left, y = r.top - base.top;
+      if (cur && Math.abs(cur.y - y) < fs * 0.5 && x >= cur.x + cur.w - 1) {
+        cur.t += ' ' + palabra;
+        cur.w = x + r.width - cur.x;
+        cur.h = Math.max(cur.h, r.height);
+      } else {
+        if (cur) trozos.push(cur);
+        cur = { t: palabra, x, y, w: r.width, h: r.height, fs };
+      }
+    }
+    if (cur) trozos.push(cur);
+  }
+  const enlaces: Enlace[] = [];
+  root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
+    const url = a.getAttribute('href') ?? '';
+    if (!/^(https?:|mailto:|tel:)/i.test(url)) return;
+    const r = a.getBoundingClientRect();
+    if (r.width && r.height) enlaces.push({ url, x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height });
+  });
+  return { trozos, enlaces };
 }
 
 /** Texto para el diccionario /Info en UTF-16BE (admite tildes y ñ). */
 const pdfTexto = (s: string) => '<FEFF' + [...s].map((ch) => ch.charCodeAt(0).toString(16).padStart(4, '0')).join('').toUpperCase() + '>';
 
-/** PDF mínimo de una página con una imagen JPEG que la llena. */
-function pdfConImagen(jpeg: Uint8Array, w: number, h: number, wPt: number, hPt: number, titulo: string): Blob {
+/** Texto en WinAnsi (lo que entiende Helvetica sin incrustar fuentes) como cadena hex. */
+const WIN: Record<string, number> = { '€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '™': 0x99 };
+function winAnsiHex(s: string): string {
+  let out = '';
+  for (const ch of s.replace(/→/g, '->').replace(/[✓✔]/g, 'v')) {
+    const c = ch.codePointAt(0)!;
+    const b = WIN[ch] ?? (c === 0xa0 ? 0x20 : (c >= 0x20 && c <= 0x7e) || (c >= 0xa1 && c <= 0xff) ? c : 0x3f);
+    out += b.toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+/** PDF de una página: imagen JPEG que la llena + texto invisible (modo 3) + enlaces. */
+function armarPdf(p: { jpeg: Uint8Array; w: number; h: number; docW: number; docH: number; titulo: string; trozos: Trozo[]; enlaces: Enlace[] }): Blob {
+  const PT = 0.75; // 1 px CSS = 0,75 pt (misma medida que el PDF del CLI)
+  const W = p.docW * PT, H = p.docH * PT;
+  const f = (n: number) => String(+n.toFixed(2));
+  const medir = document.createElement('canvas').getContext('2d')!; // Arial mide igual que Helvetica
+
+  let texto = '';
+  for (const t of p.trozos) {
+    medir.font = `${t.fs}px Arial`;
+    const ancho = medir.measureText(t.t).width || 1;
+    const tz = Math.max(20, Math.min(400, (t.w / ancho) * 100)); // estira el texto a la caja real
+    const linea = t.y + (t.h - t.fs) / 2 + t.fs * 0.8; // línea base aproximada
+    texto += `BT 3 Tr /F1 ${f(t.fs * PT)} Tf ${f(tz)} Tz 1 0 0 1 ${f(t.x * PT)} ${f(H - linea * PT)} Tm <${winAnsiHex(t.t)}> Tj ET\n`;
+  }
+  const contenido = `q ${f(W)} 0 0 ${f(H)} 0 0 cm /Im0 Do Q\n${texto}`;
+
   const enc = new TextEncoder();
   const partes: Uint8Array[] = [];
   const xref: number[] = [];
   let pos = 0;
   const add = (x: string | Uint8Array) => { const b = typeof x === 'string' ? enc.encode(x) : x; partes.push(b); pos += b.length; };
   const obj = (n: number, ...cuerpo: (string | Uint8Array)[]) => { xref[n] = pos; add(`${n} 0 obj\n`); cuerpo.forEach(add); add('\nendobj\n'); };
-  const f = (n: number) => String(+n.toFixed(2));
-  const contenido = `q ${f(wPt)} 0 0 ${f(hPt)} 0 0 cm /Im0 Do Q`;
+  const lit = (s: string) => `(${s.replace(/[\\()]/g, (m) => '\\' + m).replace(/[^\x20-\x7e]/g, (m) => encodeURI(m))})`;
+
+  const annots = p.enlaces.map((_, i) => 8 + i);
+  const contenidoBytes = enc.encode(contenido);
   add('%PDF-1.4\n%âãÏÓ\n');
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
   obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(wPt)} ${f(hPt)}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
-  obj(4, `<< /Length ${contenido.length} >>\nstream\n${contenido}\nendstream`);
-  obj(5, `<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`, jpeg, '\nendstream');
-  obj(6, `<< /Title ${pdfTexto(titulo)} /Producer (Cotizador) >>`);
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(W)} ${f(H)}] /Resources << /XObject << /Im0 5 0 R >> /Font << /F1 7 0 R >> >> /Contents 4 0 R${annots.length ? ` /Annots [${annots.map((n) => `${n} 0 R`).join(' ')}]` : ''} >>`);
+  obj(4, `<< /Length ${contenidoBytes.length} >>\nstream\n`, contenidoBytes, '\nendstream');
+  obj(5, `<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`, p.jpeg, '\nendstream');
+  obj(6, `<< /Title ${pdfTexto(p.titulo)} /Producer (Cotizador) >>`);
+  obj(7, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  p.enlaces.forEach((e, i) => {
+    const x1 = e.x * PT, y1 = H - (e.y + e.h) * PT, x2 = (e.x + e.w) * PT, y2 = H - e.y * PT;
+    obj(8 + i, `<< /Type /Annot /Subtype /Link /Rect [${f(x1)} ${f(y1)} ${f(x2)} ${f(y2)}] /Border [0 0 0] /A << /S /URI /URI ${lit(e.url)} >> >>`);
+  });
+  const total = 8 + p.enlaces.length;
   const inicio = pos;
-  add(`xref\n0 7\n0000000000 65535 f \n${[1, 2, 3, 4, 5, 6].map((n) => `${String(xref[n]).padStart(10, '0')} 00000 n \n`).join('')}`);
-  add(`trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n${inicio}\n%%EOF\n`);
+  add(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for (let n = 1; n < total; n++) add(`${String(xref[n]).padStart(10, '0')} 00000 n \n`);
+  add(`trailer\n<< /Size ${total} /Root 1 0 R /Info 6 0 R >>\nstartxref\n${inicio}\n%%EOF\n`);
   return new Blob(partes as BlobPart[], { type: 'application/pdf' });
 }
 

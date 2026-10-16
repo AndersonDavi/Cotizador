@@ -6,6 +6,16 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.4.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'El botón PDF descarga el archivo al instante también en el computador, sin la ventana de imprimir.',
+      'Ese PDF trae el texto seleccionable: se copia, se busca, y el correo y la web se pueden tocar. También el que se envía por WhatsApp.',
+      'El PDF vectorial (para imprimir con letras nítidas) sigue en Más.',
+    ],
+  },
+  {
     version: '1.3.1',
     fecha: '15-10-2026',
     tipo: 'arreglo',

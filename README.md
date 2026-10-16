@@ -85,7 +85,7 @@ Sin ese valor, la opción solo aparece en el dominio oficial (y en localhost), c
 
 El documento es HTML/CSS (`src/lib/doc.ts` y `src/lib/layouts.ts`), no canvas:
 
-- **Web**: la vista previa es ese HTML dentro de un `iframe`. El botón PDF llama a `print()` del iframe con `@page` del tamaño exacto del documento, así "Guardar como PDF" da una sola página vectorial. El PNG se dibuja con el motor del navegador (SVG `foreignObject`), con html2canvas como plan B.
+- **Web**: la vista previa es ese HTML dentro de un `iframe`. El botón PDF descarga directo un PDF con la imagen del documento y una capa de texto invisible encima (como un PDF escaneado): se selecciona, se copia y los enlaces funcionan. "Más → PDF vectorial" llama a `print()` del iframe con `@page` del tamaño exacto del documento. El PNG se dibuja con el motor del navegador (SVG `foreignObject`), con html2canvas como plan B.
 - **CLI**: Playwright abre el mismo HTML en Edge/Chrome y usa `page.pdf()` / `screenshot()`.
 
 ## Video tutorial

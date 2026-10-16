@@ -69,7 +69,7 @@ function stepsFor(id: TourId, ctx: TourCtx): DriveStep[] {
     exportar: [
       preview,
       s(null, '#saveBtn', 'Guardar', `Guarda la cotización en este navegador para abrirla después desde “Guardadas”.${tip('Atajo: Ctrl + S')}`, 'top'),
-      s(null, '#pdfBtn', 'Descargar PDF', `Se abre el diálogo de impresión: elige <b>Guardar como PDF</b>. Sale en una sola página, con texto seleccionable y enlaces activos.${tip('Si ves márgenes o encabezados, desmárcalos en “Más opciones”.')}`, 'top'),
+      s(null, '#pdfBtn', 'Descargar PDF', `Se descarga al instante, en una sola página, con texto seleccionable y enlaces activos.${tip('Para imprimir con letras nítidas usa Más → PDF vectorial (imprimir).')}`, 'top'),
       s(null, '#moreBtn', 'Más opciones', 'PNG para WhatsApp o redes, cuenta de cobro, y exportar o importar JSON para tener respaldo o pasar tus cotizaciones a otro equipo.', 'top'),
     ],
     cobro: [
