@@ -333,6 +333,8 @@ table{border:1.5px solid var(--ink)}
 th{background:var(--pDeep);color:#fff;font-weight:600;font-size:17px;padding:14px;border:1px solid var(--ink)}
 td{border:1px solid var(--ink);padding:14px;vertical-align:middle;font-size:16px}
 td.n{width:70px;background:var(--p);color:var(--onP);text-align:center;font-weight:700}
+td.n{border-top-color:color-mix(in srgb,var(--onP) 28%,var(--p));border-bottom-color:color-mix(in srgb,var(--onP) 28%,var(--p))}
+tr.dz td:first-child,tr.t td:first-child{background:var(--p);border-top-color:color-mix(in srgb,var(--onP) 28%,var(--p))}
 td.v{width:200px;text-align:center;font-weight:600;white-space:nowrap;vertical-align:middle}
 td b{display:block;font-weight:600}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
@@ -422,6 +424,9 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 .bt p{font-size:16px;line-height:1.7}
 .bt b{font-weight:600}
 .bt h2{margin-top:26px}
+.bt .cuenta{font-size:18px;font-weight:600}
+.bt > div > h2:first-child{margin-top:0}
+.mid .tiempo{font-size:16px;line-height:1.6;margin-bottom:20px}
 .sig{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center}
 .sig .ln{border-top:1.5px solid #9AA0A8;width:100%;padding-top:8px;margin-top:6px;font-size:16px}
 .foot{height:34px;background:var(--p);position:relative}
@@ -441,16 +446,14 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
     <tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
   </div>
   <div class="mid">
-    <div>${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
+    <div>${d.tiempo ? `<h2>Tiempo de entrega:</h2><p class="pre tiempo">${d.tiempo}</p>` : ''}${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
     <div>${pre(d)}<div class="sum"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div>
   </div>
 </div>
-<div class="pay">Información de pago:</div>
+<div class="pay">${d.banco ? 'Información de pago:' : 'Contacto:'}</div>
 <div class="bt">
   <div>
-    ${d.banco ? `<p><b>Pago:</b> ${d.banco}</p>` : ''}
-    ${d.tiempo ? `<p class="pre"><b>Tiempo de entrega:</b> ${d.tiempo}</p>` : ''}
-    <h2>¿Preguntas?</h2>
+    ${d.banco ? `<p class="cuenta">${d.banco}</p><h2>¿Preguntas?</h2>` : ''}
     ${d.k.email ? `<p><b>Email:</b> ${mailA(d)}</p>` : ''}
     ${d.k.cel ? `<p><b>Celular:</b> ${d.k.cel}</p>` : ''}
     ${d.k.web ? `<p><b>Web:</b> ${webA(d)}</p>` : ''}
@@ -506,7 +509,7 @@ ${d.tiempo ? `<div class="scope" style="margin-top:20px"><b>Tiempo de entrega</b
 <table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
 <tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
 ${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}
-${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>Términos</b><div>${d.terminos.map((x) => `<div>${x}</div>`).join('')}${d.banco ? `<div>${d.banco}</div>` : ''}</div></div>` : ''}
+${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>Términos</b><div>${d.terminos.map((x) => `<div>${x}</div>`).join('')}${d.banco ? `<div><b>Pago:</b> ${d.banco}</div>` : ''}</div></div>` : ''}
 <div class="thin"></div>
 <div class="ft">
   <div>
@@ -630,7 +633,228 @@ const lateral: Layout = {
 </main>`,
 };
 
-const LAYOUTS: Record<Exclude<DisenoId, 'clasica'>, Layout> = { bloque, noche, diagonal, estudio, editorial, redonda, lateral };
+// ── Panel ────────────────────────────────────────────────────────────────────
+// Encabezado en bloque de color, tarjetas Para/De montadas encima y cada ítem como fila redondeada.
+const panel: Layout = {
+  css: `
+.hd{background:var(--p);color:var(--onP);padding:56px 64px 120px}
+.hd .top{display:flex;justify-content:space-between;align-items:flex-start;gap:40px}
+.hd h1{font-weight:800;font-size:56px;line-height:1.05;max-width:620px}
+.hd .brand{display:flex;align-items:center;gap:14px;flex:none}
+.hd .brand .logo{max-width:100px;max-height:80px;object-fit:contain}
+.hd .brand .emp{font-weight:700;font-size:22px;line-height:1.15;max-width:240px}
+.pills{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.pills span{background:var(--s);color:var(--onS);border-radius:999px;padding:6px 16px;font-weight:600;font-size:15px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:-84px 64px 0;position:relative}
+.card{background:#fff;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:26px 28px}
+.card h3{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--pOnW);margin-bottom:10px}
+.card .big{font-weight:700;font-size:20px;line-height:1.25;margin-bottom:6px}
+.card p{font-size:15px;color:var(--muted)}
+.body{padding:44px 64px 0}
+h2{font-weight:800;font-size:26px;margin-bottom:16px}
+.items{display:flex;flex-direction:column;gap:12px}
+.it{display:grid;grid-template-columns:56px 1fr 200px;align-items:center;gap:20px;background:var(--pSofter);border-radius:16px;padding:16px 22px}
+.it .n{width:52px;height:52px;border-radius:14px;background:var(--p);color:var(--onP);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+.it b{display:block;font-weight:700;font-size:17px}
+.it p{font-size:14px;color:var(--muted);margin-top:3px}
+.it .v{text-align:right;font-weight:800;font-size:18px;white-space:nowrap}
+.tot{display:flex;justify-content:flex-end;margin-top:20px}
+.tot div{background:var(--p);color:var(--onP);border-radius:18px;padding:18px 26px;display:flex;align-items:center;justify-content:space-between;gap:40px;min-width:440px}
+.tot span{font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:15px}
+.tot strong{font-weight:800;font-size:30px;color:var(--sOnP)}
+.info{display:grid;grid-template-columns:1fr 340px;gap:48px;margin-top:44px}
+h4{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;color:var(--pOnW)}
+.info p,.info li{font-size:15px}
+.info ul{padding-left:18px}
+.info .blk + .blk{margin-top:18px}
+.sig{display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.sig .ln{border-top:1.5px solid var(--ink);width:100%;text-align:center;padding-top:8px;font-weight:600;font-size:15px}
+.ft{background:var(--p);color:var(--onP);padding:24px 64px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-size:14px;margin-top:48px}
+.ft span{display:flex;align-items:center;gap:10px}
+.ft .ic{color:var(--sOnP)}
+`,
+  body: (d) => `
+<div class="hd">
+  <div class="top"><h1 data-fit data-min="34">${d.titulo}</h1><div class="brand">${logo(d)}<div class="emp">${d.empresa}</div></div></div>
+  <div class="pills"><span>N.º ${d.numero}</span><span>${d.fecha}</span>${d.valida ? `<span>Válida hasta ${d.valida}</span>` : ''}</div>
+</div>
+<div class="cards">
+  <div class="card"><h3>Para</h3>${d.cliente ? `<div class="big">${d.cliente.nombre}</div>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<div class="big">—</div>'}${d.alcance ? `<p class="pre" style="margin-top:8px">${d.alcance}</p>` : ''}</div>
+  <div class="card"><h3>De</h3><div class="big">${d.rep.nombre}</div>${d.rep.cedula ? `<p>CC / NIT ${d.rep.cedula}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}</div>
+</div>
+<div class="body">
+  <h2>Detalle de la propuesta</h2>
+  <div class="items">${d.items.map((it) => `<div class="it"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
+  ${side(pre(d), 440)}<div class="tot"><div><span>Total</span><strong>${d.total}</strong></div></div>${side(post(d), 440)}
+  <div class="info">
+    <div>
+      ${d.tiempo ? `<div class="blk"><h4>Tiempo de entrega</h4><p class="pre">${d.tiempo}</p></div>` : ''}
+      ${d.terminos.length ? `<div class="blk"><h4>Términos y condiciones</h4><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
+      ${d.banco ? `<div class="blk"><h4>Información de pago</h4><p>${d.banco}</p></div>` : ''}
+    </div>
+    <div class="sig">${firma(d)}<div class="ln">${d.rep.nombre}</div></div>
+  </div>
+</div>
+<div class="ft">
+  ${d.k.cel ? `<span>${ico('phone')}${d.k.cel}</span>` : ''}
+  ${d.k.email ? `<span>${ico('mail')}${mailA(d)}</span>` : ''}
+  ${d.k.web ? `<span>${ico('web')}${webA(d)}</span>` : ''}
+  ${lugar(d) ? `<span>${ico('pin')}${lugar(d)}</span>` : ''}
+</div>`,
+};
+
+// ── Corporativa ──────────────────────────────────────────────────────────────
+// Sobria para empresas: franja fina, cliente y proveedor en un recuadro, tabla a rayas.
+const corporativa: Layout = {
+  css: `
+.bar{height:10px;background:var(--p)}
+.bar2{height:4px;background:var(--s)}
+.hd{display:flex;justify-content:space-between;align-items:flex-start;padding:48px 72px 0;gap:40px}
+.brand{display:flex;align-items:center;gap:16px;flex:1;min-width:0}
+.brand .logo{max-width:120px;max-height:80px;object-fit:contain}
+.brand .emp{font-weight:700;font-size:22px;line-height:1.2;color:var(--pOnW)}
+.brand .lugar{font-size:13px;color:var(--muted);margin-top:4px}
+.doc-id{text-align:right;flex:none}
+.doc-id h1{font-weight:300;font-size:38px;letter-spacing:.03em;text-transform:uppercase;color:var(--pOnW);line-height:1.1;max-width:440px}
+.doc-id table{margin-top:14px;width:auto;margin-left:auto;font-size:15px}
+.doc-id td{padding:3px 0 3px 20px}
+.doc-id td:first-child{color:var(--muted);text-align:right}
+.doc-id td:last-child{font-weight:600}
+.lbl{display:block;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.parties{display:grid;grid-template-columns:1fr 1fr;margin:40px 72px 0;border:1px solid var(--line);border-radius:6px}
+.parties > div{padding:20px 24px}
+.parties > div + div{border-left:1px solid var(--line)}
+.parties b{display:block;font-size:17px;font-weight:600}
+.parties p{font-size:14.5px;color:var(--muted)}
+.scope{margin:22px 72px 0;font-size:15px}
+.items{margin:30px 72px 0;width:calc(100% - 144px)}
+.items th{background:var(--p);color:var(--onP);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;text-align:left}
+.items th.v{text-align:right}
+.items td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top;font-size:15.5px}
+.items tbody tr:nth-child(even) td{background:var(--pSofter)}
+.items td.n{width:56px;color:var(--pOnW);text-align:center;font-weight:700}
+.items td.v{text-align:right;font-weight:600;white-space:nowrap;width:190px;vertical-align:middle}
+.items td b{font-weight:600}
+.items td p{font-size:13.5px;color:var(--muted);margin-top:3px}
+.sumwrap{display:flex;justify-content:flex-end;margin:16px 72px 0}
+.sum{width:420px}
+.sum .totl{display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--p);margin-top:6px;padding-top:12px}
+.sum .totl span{font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:14px}
+.sum .totl strong{font-size:26px;font-weight:800;color:var(--pOnW)}
+.cond{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin:40px 72px 0;font-size:14.5px}
+.cond ul{padding-left:18px}
+.cond .blk + .blk{margin-top:18px}
+.firmas{display:grid;grid-template-columns:320px;justify-content:end;gap:60px;margin:50px 72px 0}
+.firmas.dos{grid-template-columns:1fr 1fr;justify-content:stretch}
+.firmas > div{text-align:center}
+.firmas .slot{height:76px;display:flex;align-items:flex-end;justify-content:center}
+.firmas .ln{border-top:1px solid var(--ink);padding-top:8px;font-size:14px;font-weight:600}
+.firmas .ln small{display:block;color:var(--muted);font-weight:400}
+.ft{margin-top:48px;border-top:1px solid var(--line);padding:18px 72px 26px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
+.ft span{display:flex;align-items:center;gap:8px}
+.ft .ic{color:var(--pOnW);width:16px;height:16px}
+`,
+  body: (d) => `
+<div class="bar"></div><div class="bar2"></div>
+<div class="hd">
+  <div class="brand">${logo(d)}<div><div class="emp">${d.empresa}</div>${lugar(d) ? `<div class="lugar">${lugar(d)}</div>` : ''}</div></div>
+  <div class="doc-id"><h1>${d.titulo}</h1><table><tr><td>N.º</td><td>${d.numero}</td></tr><tr><td>Fecha</td><td>${d.fecha}</td></tr>${d.valida ? `<tr><td>Válida hasta</td><td>${d.valida}</td></tr>` : ''}</table></div>
+</div>
+<div class="parties">
+  <div><span class="lbl">Cliente</span>${d.cliente ? `<b>${d.cliente.nombre}</b>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<b>—</b>'}</div>
+  <div><span class="lbl">Proveedor</span><b>${d.rep.nombre}</b>${d.rep.cedula ? `<p>CC / NIT ${d.rep.cedula}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}</div>
+</div>
+${d.alcance ? `<div class="scope"><span class="lbl">Alcance</span><div class="pre">${d.alcance}</div></div>` : ''}
+<table class="items"><thead><tr><th>${colN(d, '#')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
+<tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+<div class="sumwrap"><div class="sum">${pre(d)}<div class="totl"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div></div>
+<div class="cond">
+  <div>
+    ${d.tiempo ? `<div class="blk"><span class="lbl">Tiempo de entrega</span><p class="pre">${d.tiempo}</p></div>` : ''}
+    ${d.terminos.length ? `<div class="blk"><span class="lbl">Términos y condiciones</span><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
+  </div>
+  <div>${d.banco ? `<div class="blk"><span class="lbl">Información de pago</span><p>${d.banco}</p></div>` : ''}</div>
+</div>
+<div class="firmas${d.aceptacion ? ' dos' : ''}">
+  <div><div class="slot">${firma(d)}</div><div class="ln">${d.rep.nombre}${d.rep.cedula ? `<small>CC ${d.rep.cedula}</small>` : ''}</div></div>
+  ${d.aceptacion ? `<div><div class="slot"></div><div class="ln">Aceptación del cliente<small>${d.cliente?.nombre ?? 'Nombre, firma y fecha'}</small></div></div>` : ''}
+</div>
+<div class="ft">
+  ${d.k.cel ? `<span>${ico('phone')}${d.k.cel}</span>` : ''}
+  ${d.k.email ? `<span>${ico('mail')}${mailA(d)}</span>` : ''}
+  ${d.k.web ? `<span>${ico('web')}${webA(d)}</span>` : ''}
+</div>`,
+};
+
+// ── Mosaico ──────────────────────────────────────────────────────────────────
+// Los ítems como baldosas en dos columnas; el total es la última baldosa, en color.
+const mosaico: Layout = {
+  css: `
+.doc{background:var(--pSofter)}
+.hd{display:grid;grid-template-columns:1fr 340px;min-height:290px}
+.hd .l{padding:60px 64px 40px}
+.hd h1{font-weight:800;font-size:56px;line-height:1.04;color:var(--pOnW)}
+.hd .sub{margin-top:16px;font-size:16px;color:var(--muted)}
+.hd .r{background:var(--p);color:var(--onP);padding:44px 40px;display:flex;flex-direction:column;justify-content:space-between;gap:20px}
+.hd .r .logo{max-width:120px;max-height:80px;object-fit:contain}
+.hd .r .emp{font-weight:700;font-size:22px;line-height:1.2}
+.hd .r .meta{font-size:14px;line-height:1.7;opacity:.9}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--pOnW);margin-bottom:6px}
+.who{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 64px}
+.tile{background:#fff;border-radius:16px;padding:22px 24px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.tile b{font-size:17px;font-weight:700}
+.tile p{font-size:14.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:28px 64px 0}
+.it{background:#fff;border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 18px rgba(0,0,0,.06);border-top:5px solid var(--s)}
+.it .ico{width:52px;height:52px;border-radius:50%;background:var(--s);color:var(--onS);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+.it .ico .ic-it{width:26px;height:26px}
+.it b{font-weight:700;font-size:17px;line-height:1.3}
+.it p{font-size:14px;color:var(--muted);flex:1}
+.it .v{font-weight:800;font-size:22px;color:var(--pOnW)}
+.it .v .qty{display:inline;margin-left:8px;color:var(--muted)}
+.it.tot{background:var(--p);color:var(--onP);justify-content:center;border-top-color:var(--s)}
+.it.tot.ancho{grid-column:span 2}
+.it.tot .lbl{color:var(--sOnP)}
+.it.tot strong{font-size:38px;font-weight:800;line-height:1.1}
+.bottom{display:grid;grid-template-columns:1fr 340px;gap:16px;padding:16px 64px 0}
+.bottom .blk + .blk{margin-top:16px}
+.bottom ul{padding-left:18px;font-size:14.5px}
+.bottom .sig{display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.bottom .sig .ln{border-top:1.5px solid var(--ink);width:100%;text-align:center;padding-top:8px;font-weight:600;font-size:15px}
+.ft{background:var(--p);color:var(--onP);padding:22px 64px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-size:14px;margin-top:40px}
+.ft span{display:flex;align-items:center;gap:10px}
+.ft .ic{color:var(--sOnP)}
+`,
+  body: (d) => `
+<div class="hd">
+  <div class="l"><h1 data-fit data-min="34">${d.titulo}</h1><div class="sub">N.º ${d.numero} · ${d.fecha}${d.valida ? ` · válida hasta ${d.valida}` : ''}</div></div>
+  <div class="r">${logo(d)}<div><div class="emp">${d.empresa}</div><div class="meta">${d.rep.nombre}${d.rep.cedula ? `<br>CC / NIT ${d.rep.cedula}` : ''}</div></div></div>
+</div>
+<div class="who">
+  <div class="tile"><div class="lbl">Para</div>${d.cliente ? `<b>${d.cliente.nombre}</b>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<b>—</b>'}</div>
+  <div class="tile"><div class="lbl">Alcance</div><p class="pre" style="color:var(--ink)">${d.alcance || '—'}</p></div>
+</div>
+<div class="grid">
+  ${d.items.map((it) => `<div class="it"><div class="ico">${marca(d, it)}</div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : '<p></p>'}<div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
+  <div class="it tot${d.items.length % 2 === 0 ? ' ancho' : ''}">${pre(d)}<div class="lbl">Total</div><strong>${d.total}</strong>${post(d)}</div>
+</div>
+<div class="bottom">
+  <div class="tile">
+    ${d.tiempo ? `<div class="blk"><div class="lbl">Tiempo de entrega</div><p class="pre" style="color:var(--ink)">${d.tiempo}</p></div>` : ''}
+    ${d.terminos.length ? `<div class="blk"><div class="lbl">Términos y condiciones</div><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
+    ${d.banco ? `<div class="blk"><div class="lbl">Información de pago</div><p style="color:var(--ink)">${d.banco}</p></div>` : ''}
+  </div>
+  <div class="tile sig">${firma(d)}<div class="ln">${d.rep.nombre}</div></div>
+</div>
+<div class="ft">
+  ${d.k.cel ? `<span>${ico('phone')}${d.k.cel}</span>` : ''}
+  ${d.k.email ? `<span>${ico('mail')}${mailA(d)}</span>` : ''}
+  ${d.k.web ? `<span>${ico('web')}${webA(d)}</span>` : ''}
+  ${lugar(d) ? `<span>${ico('pin')}${lugar(d)}</span>` : ''}
+</div>`,
+};
+
+const LAYOUTS: Record<Exclude<DisenoId, 'clasica'>, Layout> = { bloque, noche, diagonal, estudio, panel, corporativa, mosaico, editorial, redonda, lateral };
 
 /** CSS y body del documento para los diseños nuevos (la clásica la arma doc.ts). */
 export function renderLayout(c: Cotizacion): { css: string; body: string } {

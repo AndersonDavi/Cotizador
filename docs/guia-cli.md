@@ -136,6 +136,9 @@ Si la lista cambia, la fuente de verdad es `cotizador iconos --json`.
 | `noche` | Noche | Fondo oscuro con curvas de acento |
 | `diagonal` | Diagonal | Franjas en diagonal y pie a dos colores |
 | `estudio` | Estudio | Bandas, esquinas y tabla a rayas |
+| `panel` | Panel | Encabezado en bloque, tarjetas y filas redondeadas |
+| `corporativa` | Corporativa | Sobria para empresas, con tabla a rayas |
+| `mosaico` | Mosaico | Ítems en baldosas y el total en color |
 | `editorial` | Editorial | Tipografía serif, blanco y negro |
 | `redonda` | Redonda | Banda de color con esquinas redondeadas |
 | `lateral` | Lateral | Columna lateral con la marca y el total |

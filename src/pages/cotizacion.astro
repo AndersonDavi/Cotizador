@@ -3,7 +3,7 @@ import Contenido from '../layouts/Contenido.astro';
 
 const SITE = 'https://cotizador.andersonrueda.com';
 const TITLE = 'Cotización gratis en PDF con tu logo e IVA: generador online | Cotizador';
-const DESC = 'Crea cotizaciones en PDF gratis con tu logo, firma e IVA del 19 %. Descuentos, anticipos, 8 plantillas y envío por WhatsApp. Ilimitado y sin anuncios.';
+const DESC = 'Crea cotizaciones en PDF gratis con tu logo, firma e IVA del 19 %. Descuentos, anticipos, 11 plantillas y envío por WhatsApp. Ilimitado y sin anuncios.';
 
 const FAQ = [
   ['¿El cotizador es gratis de verdad?', 'Sí. Es gratis, ilimitado y sin anuncios. No pide registro, no tiene plan de pago y el PDF sale sin marca de agua.'],
@@ -27,7 +27,7 @@ const jsonLd = [
       { '@type': 'HowToStep', name: 'Tu marca', text: 'Sube tu logo y tu firma y escribe tus datos de contacto una sola vez.' },
       { '@type': 'HowToStep', name: 'El cliente', text: 'Escribe el nombre, el NIT y el alcance del trabajo.' },
       { '@type': 'HowToStep', name: 'Los ítems', text: 'Agrega cada servicio o producto con cantidad, precio unitario e IVA.' },
-      { '@type': 'HowToStep', name: 'Diseño y envío', text: 'Elige una de las 8 plantillas y tus colores, y descarga el PDF o envíalo por WhatsApp.' },
+      { '@type': 'HowToStep', name: 'Diseño y envío', text: 'Elige una de las 11 plantillas y tus colores, y descarga el PDF o envíalo por WhatsApp.' },
     ],
   },
   {
@@ -52,7 +52,7 @@ const jsonLd = [
       <a class="btn primary" href="/?tab=cotizacion">Crear mi cotización</a>
       <a class="btn ghost" href="#que-debe-llevar">Qué debe llevar</a>
     </div>
-    <ul class="badges"><li>Gratis e ilimitado</li><li>Sin anuncios</li><li>Sin registro</li><li>Sin marca de agua</li><li>8 plantillas</li></ul>
+    <ul class="badges"><li>Gratis e ilimitado</li><li>Sin anuncios</li><li>Sin registro</li><li>Sin marca de agua</li><li>11 plantillas</li></ul>
   </section>
 
   <figure>
@@ -96,11 +96,11 @@ const jsonLd = [
     <li><strong>Tu marca, una sola vez.</strong> Sube tu logo y tu firma y escribe tus datos de contacto.</li>
     <li><strong>El cliente.</strong> Nombre, NIT y una frase con el alcance del trabajo.</li>
     <li><strong>Los ítems.</strong> Agrega cada servicio con cantidad, precio e IVA; guarda los que repites en tu catálogo.</li>
-    <li><strong>Diseño y envío.</strong> Elige una de las 8 plantillas y tus dos colores, y descarga el PDF o envíalo por WhatsApp.</li>
+    <li><strong>Diseño y envío.</strong> Elige una de las 11 plantillas y tus dos colores, y descarga el PDF o envíalo por WhatsApp.</li>
   </ol>
 
-  <h2>8 plantillas con tus colores</h2>
-  <p>Clásica, Bloque, Noche, Diagonal, Estudio, Editorial, Redonda y Lateral. Todas se pintan con dos colores, así tu marca se ve bien en cualquiera, y la app te avisa si el contraste no se lee bien.</p>
+  <h2>11 plantillas con tus colores</h2>
+  <p>Clásica, Bloque, Noche, Diagonal, Estudio, Panel, Corporativa, Mosaico, Editorial, Redonda y Lateral. Todas se pintan con dos colores, así tu marca se ve bien en cualquiera, y la app te avisa si el contraste no se lee bien.</p>
 
   <h2>Preguntas frecuentes</h2>
   {FAQ.map(([q, a]) => <details><summary>{q}</summary><p>{a}</p></details>)}

@@ -6,7 +6,7 @@ Generador de cotizaciones y cuentas de cobro para freelancers y agencias. Crea c
 
 ## ¿Qué hace?
 
-- **8 plantillas** (Clásica, Bloque, Noche, Diagonal, Estudio, Editorial, Redonda, Lateral). Todas se pintan con solo dos colores, principal y secundario, así cualquier marca se ve bien en cualquier diseño.
+- **11 plantillas** (Clásica, Bloque, Noche, Diagonal, Estudio, Panel, Corporativa, Mosaico, Editorial, Redonda, Lateral). Todas se pintan con solo dos colores, principal y secundario, así cualquier marca se ve bien en cualquier diseño.
 - **PDF vectorial**: el texto se puede seleccionar y copiar, los enlaces funcionan y el PDF pesa poco.
 - **Tu marca una sola vez**: logo, firma (el fondo blanco se recorta solo), contacto y datos bancarios.
 - **Estados**: borrador, enviada, aprobada, cobrada, pagada o descartada, con filtro en "Guardadas".

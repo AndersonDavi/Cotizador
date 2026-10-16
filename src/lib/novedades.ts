@@ -6,6 +6,16 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.8.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Tres plantillas nuevas: Panel (encabezado en bloque y filas redondeadas), Corporativa (sobria, con tabla a rayas) y Mosaico (ítems en baldosas).',
+      '"Información de pago" ahora solo muestra cómo pagarte: el tiempo de entrega va aparte (Estudio) y la cuenta lleva su etiqueta (Editorial).',
+      'En Diagonal la franja de los íconos muestra la división entre ítems y llega hasta el total.',
+    ],
+  },
+  {
     version: '1.7.0',
     fecha: '16-10-2026',
     tipo: 'nueva',

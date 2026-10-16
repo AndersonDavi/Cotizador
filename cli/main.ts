@@ -437,7 +437,7 @@ async function main() {
       const l = listaDisenos();
       if (o.json) { console.log(JSON.stringify(l, null, 2)); break; }
       console.log('Plantillas (--diseno):');
-      for (const d of l.disenos) console.log(`  ${d.id.padEnd(10)} ${d.nombre.padEnd(10)} ${d.descripcion}`);
+      for (const d of l.disenos) console.log(`  ${d.id.padEnd(12)} ${d.nombre.padEnd(12)} ${d.descripcion}`);
       console.log('\nPaletas (--paleta):');
       for (const p of l.paletas) console.log(`  ${p.nombre.padEnd(10)} ${p.primary} ${p.secondary}`);
       break;

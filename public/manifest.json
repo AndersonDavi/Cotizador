@@ -1,7 +1,7 @@
 {
   "name": "Cotizador — Cotizaciones y cuentas de cobro",
   "short_name": "Cotizador",
-  "description": "Cotizaciones y cuentas de cobro en PDF con tu logo y firma. IVA, anticipos, 8 plantillas y envío por WhatsApp. Gratis, ilimitado, sin anuncios ni registro.",
+  "description": "Cotizaciones y cuentas de cobro en PDF con tu logo y firma. IVA, anticipos, 11 plantillas y envío por WhatsApp. Gratis, ilimitado, sin anuncios ni registro.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d0f13",

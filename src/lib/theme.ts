@@ -5,7 +5,7 @@
 import { TEMPLATES } from './templates';
 import type { Cotizacion } from './state';
 
-export type DisenoId = 'clasica' | 'bloque' | 'noche' | 'diagonal' | 'estudio' | 'editorial' | 'redonda' | 'lateral';
+export type DisenoId = 'clasica' | 'bloque' | 'noche' | 'diagonal' | 'estudio' | 'panel' | 'corporativa' | 'mosaico' | 'editorial' | 'redonda' | 'lateral';
 
 export type Colores = { primary: string; secondary: string };
 
@@ -22,6 +22,9 @@ export const DISENOS: DisenoInfo[] = [
   { id: 'noche',     nombre: 'Noche',     descripcion: 'Fondo oscuro con curvas de acento',          colores: { primary: '#232323', secondary: '#F2D21B' } },
   { id: 'diagonal',  nombre: 'Diagonal',  descripcion: 'Franjas en diagonal y pie a dos colores',    colores: { primary: '#356B22', secondary: '#D4EC7A' } },
   { id: 'estudio',   nombre: 'Estudio',   descripcion: 'Bandas, esquinas y tabla a rayas',           colores: { primary: '#0E2240', secondary: '#F6C443' } },
+  { id: 'panel',       nombre: 'Panel',       descripcion: 'Encabezado en bloque, tarjetas y filas redondeadas', colores: { primary: '#2F2E33', secondary: '#F2D22B' } },
+  { id: 'corporativa', nombre: 'Corporativa', descripcion: 'Sobria para empresas, con tabla a rayas',          colores: { primary: '#0E2240', secondary: '#F6C443' } },
+  { id: 'mosaico',     nombre: 'Mosaico',     descripcion: 'Ítems en baldosas y el total en color',            colores: { primary: '#1F3B57', secondary: '#4FD1C5' } },
   { id: 'editorial', nombre: 'Editorial', descripcion: 'Tipografía serif, blanco y negro',           colores: { primary: '#16181C', secondary: '#A8ADB5' } },
   { id: 'redonda',   nombre: 'Redonda',   descripcion: 'Banda de color con esquinas redondeadas',    colores: { primary: '#232428', secondary: '#E8623A' } },
   { id: 'lateral',   nombre: 'Lateral',   descripcion: 'Columna lateral con tu marca y el total',    colores: { primary: '#1F3B57', secondary: '#4FD1C5' } },
