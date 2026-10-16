@@ -6,6 +6,18 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.7.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Respaldo automático en Drive: cuando cambias algo (cotización, marca, catálogo, paletas) sube solo, como máximo cada 2 minutos y al salir de la app.',
+      'Varios equipos sin pisarse: antes de subir se combina con lo que subió el otro equipo. Gana lo guardado más recientemente y lo que eliminas no vuelve.',
+      'Al traer de Drive en otro equipo puedes seguir con la cotización que dejaste abierta, y tu marca queda en su versión más reciente.',
+      'El indicador muestra "Reanudar" cuando vence el permiso de Google (dura 1 hora); al tocarlo sigue respaldando.',
+      'El precio de cada ítem queda centrado a la altura del ícono en Bloque, Noche, Diagonal y Estudio.',
+    ],
+  },
+  {
     version: '1.6.2',
     fecha: '16-10-2026',
     tipo: 'arreglo',

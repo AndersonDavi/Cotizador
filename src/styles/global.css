@@ -614,7 +614,7 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .drive-chip[data-state="ok"] { color: var(--ok); }
 .drive-chip[data-state="ok"] .drive-label { color: var(--text); }
 .drive-chip[data-state="subiendo"] .drive-ic { animation: drive-pulse 1s ease-in-out infinite; }
-.drive-chip[data-state="pendiente"] { border-color: #e3a94f; color: #e3a94f; }
+.drive-chip[data-state="pendiente"], .drive-chip[data-state="pausado"] { border-color: #e3a94f; color: #e3a94f; }
 @keyframes drive-pulse { 50% { opacity: .35; transform: translateY(-1px); } }
 .install-chip { border-color: var(--border-2); }
 /* "Ayuda" siempre con texto: el ícono solo no se entiende sin contexto */

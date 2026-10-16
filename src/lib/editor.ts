@@ -143,12 +143,18 @@ function normalize(c: Cotizacion): Cotizacion {
 
 // ── Guardado y vista previa ──────────────────────────────────────────────────
 
+let marcaVista: string | null = null; // la marca tal como se cargó o se guardó por última vez
+
 function scheduleAutosave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     try {
+      const marca = JSON.stringify({ ...state.branding, actualizado: undefined });
+      if (marcaVista !== null && marca !== marcaVista) state.branding.actualizado = new Date().toISOString();
+      marcaVista = marca;
       saveDraft(state);
       saveBranding(state.branding);
+      programarRespaldo();
     } catch {
       toast('El navegador no tiene espacio para guardar. Usa imágenes más livianas.', 'err');
     }
@@ -678,7 +684,7 @@ function misPaletas(): { primary: string; secondary: string }[] {
   try { return JSON.parse(localStorage.getItem(PALETAS_KEY) || '[]'); } catch { return []; }
 }
 function guardarPaletas(list: { primary: string; secondary: string }[]) {
-  try { localStorage.setItem(PALETAS_KEY, JSON.stringify(list.slice(0, 24))); } catch { toast('No se pudo guardar la paleta', 'err'); }
+  try { localStorage.setItem(PALETAS_KEY, JSON.stringify(list.slice(0, 24))); programarRespaldo(); } catch { toast('No se pudo guardar la paleta', 'err'); }
 }
 
 function setColores(primary: string, secondary: string) {
@@ -831,7 +837,7 @@ function renderExtras() {
 type CatItem = Omit<Item, 'id'>;
 const CAT_KEY = 'cotizador:catalogo';
 const loadJson = <T,>(k: string, def: T): T => { try { return JSON.parse(localStorage.getItem(k) || '') as T; } catch { return def; } };
-const saveJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast('El navegador no tiene espacio para guardar', 'err'); } };
+const saveJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); programarRespaldo(); } catch { toast('El navegador no tiene espacio para guardar', 'err'); } };
 const catalogo = () => loadJson<CatItem[]>(CAT_KEY, []);
 
 function guardarEnCatalogo(it: Item) {
@@ -1015,17 +1021,28 @@ async function abrirWhatsApp() {
 
 // ── Respaldo completo ────────────────────────────────────────────────────────
 
+type Borrada = { numero: string; fecha: string };
 type Respaldo = {
   app: 'cotizador'; version: 1; fecha: string;
   guardadas: Cotizacion[]; borrador: Cotizacion; marca: Cotizacion['branding'];
   catalogo: CatItem[]; clientes: Cliente[]; paletas: unknown[];
+  /** Cotizaciones eliminadas (para que otro equipo no las reviva al combinar). */
+  borradas?: Borrada[];
 };
+
+const BORRADAS_KEY = 'cotizador:borradas';
+const borradas = (): Borrada[] => loadJson<Borrada[]>(BORRADAS_KEY, []);
+function anotarBorrada(numero: string) {
+  const hace90 = new Date(Date.now() - 90 * 864e5).toISOString();
+  saveJson(BORRADAS_KEY, [...borradas().filter((b) => b.numero !== numero && b.fecha > hace90), { numero, fecha: new Date().toISOString() }]);
+}
 
 function armarRespaldo(): Respaldo {
   return {
     app: 'cotizador', version: 1, fecha: new Date().toISOString(),
     guardadas: loadSaved(), borrador: state, marca: state.branding,
     catalogo: catalogo(), clientes: clientes(), paletas: loadJson<unknown[]>('cotizador:paletas', []),
+    borradas: borradas(),
   };
 }
 
@@ -1046,23 +1063,39 @@ function restaurar(file: File) {
     let data: Respaldo;
     try { data = JSON.parse(String(r.result)); } catch { toast('El archivo no es un respaldo válido', 'err'); return; }
     if (!esRespaldo(data)) { toast('El archivo no es un respaldo del Cotizador', 'err'); return; }
-    if (!(await confirmar({ titulo: 'Restaurar respaldo', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`, aceptar: 'Restaurar', icono: 'restore' }))) return;
+    if (!(await confirmar({ titulo: 'Restaurar respaldo', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si una cotización está en los dos, queda la que se guardó más recientemente.`, aceptar: 'Restaurar', icono: 'restore' }))) return;
     aplicarRespaldo(data);
     toast('Respaldo restaurado');
+    await ofrecerBorrador(data);
   };
   r.readAsText(file);
 }
 
-/** Combina un respaldo con lo que hay en el navegador (si un número se repite, gana el respaldo). */
+/**
+ * Combina un respaldo con lo que hay en el navegador. Cotizaciones: gana la guardada más
+ * recientemente; las eliminadas en cualquier equipo no vuelven. Marca: gana la más reciente.
+ */
 function aplicarRespaldo(data: Respaldo) {
   const byNum = new Map(loadSaved().map((c) => [c.numero, c]));
-  data.guardadas.forEach((c) => byNum.set(c.numero, c));
+  data.guardadas.forEach((r) => {
+    const l = byNum.get(r.numero);
+    if (!l || (r.actualizado ?? '') >= (l.actualizado ?? '')) byNum.set(r.numero, r);
+  });
+  const tumbas = new Map<string, string>();
+  [...borradas(), ...(data.borradas ?? [])].forEach((b) => { if ((tumbas.get(b.numero) ?? '') < b.fecha) tumbas.set(b.numero, b.fecha); });
+  tumbas.forEach((fecha, num) => { const c = byNum.get(num); if (c && (c.actualizado ?? '') <= fecha) byNum.delete(num); });
+  saveJson(BORRADAS_KEY, [...tumbas].map(([numero, fecha]) => ({ numero, fecha })));
   saveJson('cotizador:saved', [...byNum.values()]);
   const mergeBy = <T,>(a: T[], b: T[], key: (x: T) => string) => { const m = new Map(a.map((x) => [key(x), x])); b.forEach((x) => m.set(key(x), x)); return [...m.values()]; };
   saveJson(CAT_KEY, mergeBy(catalogo(), data.catalogo ?? [], (x) => x.titulo.toLowerCase()));
   saveJson(CLI_KEY, mergeBy(clientes(), data.clientes ?? [], (x) => x.nombre.toLowerCase()));
   if (Array.isArray(data.paletas)) saveJson('cotizador:paletas', mergeBy(loadJson<{ primary: string; secondary: string }[]>('cotizador:paletas', []), data.paletas as { primary: string; secondary: string }[], (x) => x.primary + x.secondary));
-  if (data.marca && !state.branding.representante.nombre) { state.branding = data.marca; saveBranding(data.marca); hydrateForm(); }
+  if (data.marca && (!state.branding.representante.nombre || (data.marca.actualizado ?? '') > (state.branding.actualizado ?? ''))) {
+    state.branding = data.marca;
+    saveBranding(data.marca);
+    marcaVista = JSON.stringify({ ...data.marca, actualizado: undefined });
+    hydrateForm();
+  }
   renderClientes();
   renderSavedList();
   refresh();
@@ -1086,9 +1119,10 @@ const DRIVE_ICON = {
   ok: cloud('<path d="m9.5 14 2 2 3.5-3.5"/>'),
   subiendo: cloud('<path d="M12 17v-5"/><path d="m9.5 14 2.5-2.5 2.5 2.5"/>'),
   pendiente: cloud('<path d="M12 11.5v2.5"/><path d="M12 17h.01"/>'),
+  pausado: cloud('<path d="M10.5 11.5v5"/><path d="M13.5 11.5v5"/>'),
 };
 
-/** off: sin conectar · ok: al día · subiendo · pendiente: hay cambios sin respaldar o falló. */
+/** off: sin conectar · ok: al día · subiendo · pendiente: falló · pausado: venció el permiso de Google (1 hora). */
 type DriveEstado = keyof typeof DRIVE_ICON;
 let driveEstado: DriveEstado = 'off';
 let driveSugerido = false;
@@ -1108,16 +1142,17 @@ function renderDrive() {
   chip.dataset.state = driveEstado;
   chip.querySelector('.drive-ic')!.innerHTML = DRIVE_ICON[driveEstado];
   chip.querySelector('.drive-label')!.textContent =
-    { off: 'Respaldar', ok: 'En Drive', subiendo: 'Subiendo…', pendiente: 'Sin respaldar' }[driveEstado];
+    { off: 'Respaldar', ok: 'En Drive', subiendo: 'Subiendo…', pendiente: 'Sin respaldar', pausado: 'Reanudar' }[driveEstado];
   chip.title = {
     off: 'Respalda tus cotizaciones en Google Drive',
     ok: `Respaldado en Google Drive ${hace(info.ultimo)}`,
     subiendo: 'Subiendo el respaldo a Google Drive…',
     pendiente: 'Hay cambios sin respaldar. Toca para respaldar ahora.',
+    pausado: 'El permiso de Google dura 1 hora y venció. Toca para seguir respaldando solo.',
   }[driveEstado];
 
   $('driveStatus').innerHTML = info.conectado
-    ? `<b>Conectado.</b> ${info.ultimo ? `Último respaldo ${hace(info.ultimo)}.` : 'Todavía no hay respaldo.'}${driveEstado === 'pendiente' ? ' Hay cambios sin respaldar.' : ''}`
+    ? `<b>Conectado.</b> ${info.ultimo ? `Último respaldo ${hace(info.ultimo)}.` : 'Todavía no hay respaldo.'}${driveEstado === 'pendiente' ? ' Hay cambios sin respaldar.' : driveEstado === 'pausado' ? ' El respaldo automático está en pausa: el permiso de Google venció.' : ''}`
     : 'No conectado. Tus cotizaciones solo están en este navegador.';
   $('driveStatus').classList.toggle('on', info.conectado);
   ($('driveConnect') as HTMLElement).hidden = info.conectado;
@@ -1151,14 +1186,37 @@ function driveError(e: unknown) {
   renderDrive();
 }
 
-/** Respaldo automático después de guardar o borrar. `interactivo`: dentro de un clic puede renovar el permiso. */
+// Respaldo automático: cuando algo cambia, como máximo una subida cada 2 minutos, y al salir
+// de la app. Cada subida gasta ~55 unidades de cuota de Drive (límite: 325.000 por minuto).
+const ENTRE_SUBIDAS = 2 * 60_000;
+let ultimaSubida = 0;
+let ultimoEnviado = '';
+let timerRespaldo = 0;
+
+/** El respaldo sin la fecha: si no cambió desde la última subida, no hay nada que subir. */
+const cuerpoRespaldo = () => JSON.stringify({ ...armarRespaldo(), fecha: '' });
+
+function programarRespaldo() {
+  if (!driveDisponible() || !driveInfo().conectado || timerRespaldo) return;
+  const espera = Math.max(10_000, ultimaSubida + ENTRE_SUBIDAS - Date.now());
+  timerRespaldo = window.setTimeout(() => {
+    timerRespaldo = 0;
+    if (cuerpoRespaldo() !== ultimoEnviado) driveAuto(false);
+  }, espera);
+}
+
+/** Lo que subió el otro equipo se combina aquí antes de subir. */
+const fusionarRemoto = (remoto: unknown) => { if (esRespaldo(remoto)) aplicarRespaldo(remoto); };
+
+/** Sube el respaldo. `interactivo`: dentro de un clic puede renovar el permiso de Google. */
 function driveAuto(interactivo: boolean) {
   if (!driveDisponible()) return;
   if (!driveInfo().conectado) { renderDrive(); return; }
-  if (!interactivo && !driveTokenVigente()) { setDriveEstado('pendiente'); return; }
+  if (!interactivo && !driveTokenVigente()) { setDriveEstado('pausado'); return; }
   setDriveEstado('subiendo');
-  subirRespaldo(() => JSON.stringify(armarRespaldo()), interactivo)
-    .then(() => setDriveEstado('ok'))
+  let enviado = '';
+  subirRespaldo(() => { const r = armarRespaldo(); enviado = JSON.stringify({ ...r, fecha: '' }); return JSON.stringify(r); }, interactivo, fusionarRemoto)
+    .then(() => { ultimoEnviado = enviado; ultimaSubida = Date.now(); setDriveEstado('ok'); })
     .catch((e) => {
       setDriveEstado('pendiente');
       if (e instanceof DriveAuthError) toast(`No se respaldó en Drive: ${e.message}`, 'err', { label: 'Reintentar', run: () => driveAuto(true) });
@@ -1177,7 +1235,7 @@ function initDrive() {
   };
   $('driveBtn').addEventListener('click', abrirDrive);
   // El indicador: con cambios pendientes respalda de una vez; si no, abre la ventana
-  $('driveChip').addEventListener('click', () => { if (driveEstado === 'pendiente') driveAuto(true); else abrirDrive(); });
+  $('driveChip').addEventListener('click', () => { if (driveEstado === 'pendiente' || driveEstado === 'pausado') driveAuto(true); else abrirDrive(); });
   $('driveNudgeBtn').addEventListener('click', abrirDrive);
   $('driveNudgeLater').addEventListener('click', () => {
     try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch { /* sin storage */ }
@@ -1190,26 +1248,34 @@ function initDrive() {
     const r = await conectarDrive();
     if (r.existe) {
       const data = await bajarRespaldo(false);
-      if (esRespaldo(data) && await confirmar({ titulo: 'Ya tienes un respaldo en Drive', mensaje: `Es de ${hace(r.fecha)} y trae ${resumenRespaldo(data)}. ¿Lo traes a este navegador? Se combina con lo que ya tienes.`, aceptar: 'Traerlo', cancelar: 'No, gracias', icono: 'cloud' })) aplicarRespaldo(data);
+      if (esRespaldo(data) && await confirmar({ titulo: 'Ya tienes un respaldo en Drive', mensaje: `Es de ${hace(r.fecha)} y trae ${resumenRespaldo(data)}. ¿Lo traes a este navegador? Se combina con lo que ya tienes.`, aceptar: 'Traerlo', cancelar: 'No, gracias', icono: 'cloud' })) {
+        aplicarRespaldo(data);
+        await ofrecerBorrador(data);
+      }
     }
     setDriveEstado('subiendo');
-    await subirRespaldo(() => JSON.stringify(armarRespaldo()), false);
+    await subirRespaldo(() => JSON.stringify(armarRespaldo()), false, fusionarRemoto);
+    ultimoEnviado = cuerpoRespaldo();
+    ultimaSubida = Date.now();
     driveEstado = 'ok';
     toast('Drive conectado: cada vez que guardes se respalda solo');
     void close();
   }));
   $('driveSync').addEventListener('click', () => busy($('driveSync'), async () => {
     setDriveEstado('subiendo');
-    await subirRespaldo(() => JSON.stringify(armarRespaldo()), true);
+    await subirRespaldo(() => JSON.stringify(armarRespaldo()), true, fusionarRemoto);
+    ultimoEnviado = cuerpoRespaldo();
+    ultimaSubida = Date.now();
     driveEstado = 'ok';
     toast('Respaldado en Google Drive');
   }));
   $('driveRestore').addEventListener('click', () => busy($('driveRestore'), async () => {
     const data = await bajarRespaldo(true);
     if (!esRespaldo(data)) { toast('No hay un respaldo en tu Drive todavía', 'err'); return; }
-    if (!(await confirmar({ titulo: 'Traer desde Drive', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si un número se repite, gana el de Drive.`, aceptar: 'Traer', icono: 'cloud' }))) return;
+    if (!(await confirmar({ titulo: 'Traer desde Drive', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si una cotización está en los dos, queda la que se guardó más recientemente.`, aceptar: 'Traer', icono: 'cloud' }))) return;
     aplicarRespaldo(data);
     toast('Respaldo de Drive restaurado');
+    await ofrecerBorrador(data);
   }));
   $('driveDisconnect').addEventListener('click', async () => {
     if (!(await confirmar({ titulo: '¿Desconectar Google Drive?', mensaje: 'El respaldo sigue en tu Drive, pero ya no se actualizará cuando guardes.', aceptar: 'Desconectar', peligro: true, icono: 'unplug' }))) return;
@@ -1217,12 +1283,41 @@ function initDrive() {
     renderDrive();
     toast('Drive desconectado');
   });
-  // Al salir de la pestaña, sube lo pendiente si el permiso sigue vigente
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && driveEstado === 'pendiente') driveAuto(false); });
+  // Al salir de la app, sube lo que cambió si el permiso sigue vigente
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' || !driveInfo().conectado || !driveTokenVigente()) return;
+    if (cuerpoRespaldo() !== ultimoEnviado) driveAuto(false);
+  });
+  // El indicador avisa cuando vence el permiso de Google (dura 1 hora)
+  window.setInterval(() => { if (driveInfo().conectado && driveEstado === 'ok' && !driveTokenVigente()) setDriveEstado('pausado'); }, 30_000);
   // El texto "hace X min" se mantiene al día
   window.setInterval(() => { if (driveEstado === 'ok') renderDrive(); }, 60_000);
   if (driveInfo().conectado) prepararDrive().catch(() => { /* sin conexión */ });
   renderDrive();
+  // Al abrir la app no hay permiso todavía (vive solo en memoria): el indicador lo muestra
+  if (driveInfo().conectado && !driveTokenVigente()) setDriveEstado('pausado');
+}
+
+/** ¿La cotización abierta está vacía? (nada que perder si se reemplaza) */
+const borradorVacio = (c: Cotizacion) => !c.cliente?.nombre?.trim() && !c.alcance?.trim() && c.items.every((it) => !it.titulo?.trim() && !it.valor);
+
+/** Después de traer un respaldo: seguir con la cotización que quedó abierta en el otro equipo. */
+async function ofrecerBorrador(data: Respaldo) {
+  const b = data.borrador;
+  if (!b?.numero || JSON.stringify(b) === JSON.stringify(state)) return;
+  if (borradorVacio(b)) return;
+  // La marca ya quedó combinada (gana la más reciente): el borrador la usa en vez de la suya
+  const seguir = () => load({ ...b, branding: state.branding }, `Seguiste con la cotización ${b.numero}`);
+  if (borradorVacio(state)) { seguir(); return; }
+  const quien = b.cliente?.nombre?.trim();
+  if (!(await confirmar({
+    titulo: `¿Seguir con la cotización ${b.numero}?`,
+    mensaje: `Es la que dejaste abierta en el otro equipo${quien ? ` (${quien})` : ''}. La que tienes ahora (${state.numero}) se guarda primero en Guardadas.`,
+    aceptar: 'Seguir con ella', cancelar: 'Quedarme con esta', icono: 'doc',
+  }))) return;
+  persistSaved(state);
+  seguir();
+  renderSavedList();
 }
 
 // ── App instalable (PWA) y actualizaciones ───────────────────────────────────
@@ -1824,6 +1919,7 @@ export function initEditor() {
       if (!(await confirmar({ titulo: `¿Eliminar la cotización ${num}?`, mensaje: `${quien ? quien + ' · ' : ''}Total ${found ? formatCOP(totalReal(found)) : '$0'}. Se borra de este navegador${driveInfo().conectado ? ' y del respaldo en Drive' : ''}; no se puede deshacer.`, aceptar: 'Eliminar', peligro: true }))) return;
       await animarSalida(btn.closest('.saved-row'));
       deleteSaved(num);
+      anotarBorrada(num);
       renderSavedList();
       driveAuto(false);
     }

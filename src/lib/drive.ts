@@ -148,13 +148,22 @@ export async function conectarDrive(): Promise<{ existe: boolean; fecha?: string
 let subiendo: Promise<void> | null = null;
 let otraVez: (() => string) | null = null;
 
-/** Sube el respaldo. Si ya hay una subida en curso, sube una vez más al terminar con lo último. */
-export function subirRespaldo(datos: () => string, interactivo: boolean): Promise<void> {
+/**
+ * Sube el respaldo. Si ya hay una subida en curso, sube una vez más al terminar con lo último.
+ * Si el archivo de Drive cambió desde la última vez que este equipo lo vio (otro equipo
+ * subió algo), primero lo baja y llama `fusionar` para combinarlo; después sube.
+ */
+export function subirRespaldo(datos: () => string, interactivo: boolean, fusionar?: (remoto: unknown) => void | Promise<void>): Promise<void> {
   if (subiendo) { otraVez = datos; return subiendo; }
   const run = async (d: () => string) => {
     const t = await pedirToken(interactivo);
-    const body = d();
     const f = await archivo(t);
+    const visto = driveInfo().ultimo;
+    if (f && fusionar && (!visto || Date.parse(f.modifiedTime) > Date.parse(visto) + 1000)) {
+      const rem = await api(t, `${API}/files/${f.id}?alt=media`);
+      if (rem.ok) await fusionar(await rem.json());
+    }
+    const body = d();
     let res: Response;
     if (f) {
       res = await api(t, `${UPLOAD}/files/${f.id}?uploadType=media&fields=id,modifiedTime`, {
@@ -187,7 +196,9 @@ export async function bajarRespaldo(interactivo: boolean): Promise<unknown | nul
   if (!f) return null;
   const res = await api(t, `${API}/files/${f.id}?alt=media`);
   if (!res.ok) throw new Error(`Drive respondió ${res.status}`);
-  return res.json();
+  const json = await res.json();
+  setInfo({ ultimo: f.modifiedTime }); // este equipo ya vio esa versión
+  return json;
 }
 
 /** Quita el permiso en Google y olvida el archivo (el respaldo sigue en Drive). */

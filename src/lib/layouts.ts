@@ -178,7 +178,7 @@ table th.s{background:var(--s);color:var(--onS)}
 table th.p{background:var(--p);color:var(--onP);text-align:right}
 table td{background:#fff;border:1px solid var(--line);padding:14px 16px;vertical-align:top}
 td.n{width:64px;font-weight:700;color:var(--muted)}
-td.v{width:200px;text-align:right;font-weight:700;white-space:nowrap}
+td.v{width:200px;text-align:right;font-weight:700;white-space:nowrap;vertical-align:middle}
 td b{display:block;font-weight:600;font-size:16px}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
 .totals{display:flex;justify-content:flex-end;margin-top:18px}
@@ -259,6 +259,7 @@ const noche: Layout = {
 .row.h>div{font-weight:700;font-size:16px;text-transform:uppercase;text-align:center;letter-spacing:.04em}
 .row .n{text-align:center;font-weight:700}
 .row .v{text-align:right;font-weight:700;white-space:nowrap}
+.row:not(.h) .v{display:flex;flex-direction:column;justify-content:center;align-items:flex-end}
 .row b{display:block;font-weight:600;font-size:16px}
 .row p{font-size:14px;opacity:.78;margin-top:4px}
 .tot{display:flex;justify-content:flex-end;gap:12px;margin-top:22px}
@@ -332,7 +333,7 @@ table{border:1.5px solid var(--ink)}
 th{background:var(--pDeep);color:#fff;font-weight:600;font-size:17px;padding:14px;border:1px solid var(--ink)}
 td{border:1px solid var(--ink);padding:14px;vertical-align:middle;font-size:16px}
 td.n{width:70px;background:var(--p);color:var(--onP);text-align:center;font-weight:700}
-td.v{width:200px;text-align:center;font-weight:600;white-space:nowrap}
+td.v{width:200px;text-align:center;font-weight:600;white-space:nowrap;vertical-align:middle}
 td b{display:block;font-weight:600}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
 tr.t td{font-weight:700;font-size:18px}
@@ -407,7 +408,7 @@ th.v,td.v{text-align:right}
 td{padding:14px 18px;font-size:16px;vertical-align:top}
 tbody tr:nth-child(odd) td{background:#EEF0F3}
 td.n{width:60px;font-weight:600;text-align:center}
-td.v{width:200px;white-space:nowrap;font-weight:600}
+td.v{width:200px;white-space:nowrap;font-weight:600;vertical-align:middle}
 td b{font-weight:600;display:block}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
 .mid{display:grid;grid-template-columns:1fr 360px;gap:50px;margin-top:40px}

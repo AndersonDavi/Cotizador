@@ -31,6 +31,8 @@ export type Branding = {
   logoDataUrl?: string;
   /** Cómo se pinta el logo: tal cual, sobre un fondo blanco, o todo blanco / todo negro (logos de un color). */
   logoEstilo?: 'original' | 'fondo' | 'blanco' | 'negro' | 'primario' | 'secundario';
+  /** Último cambio de la marca (ISO): al combinar respaldos de dos equipos gana la más reciente. */
+  actualizado?: string;
   representante: Representante;
   banco: string;          // "Cuenta de Ahorros BANCOLOMBIA No. ..." (cuenta de cobro)
   empresa?: string;       // nombre de la marca que muestran las plantillas
@@ -107,6 +109,7 @@ export type Cotizacion = {
   cobro?: DatosCobro;
   impuestos?: Impuestos;
   vigenciaDias?: number;  // días de validez de la oferta (desde la fecha)
+  actualizado?: string;   // último guardado (ISO): al combinar respaldos gana la más reciente
   aceptacionCliente?: boolean;
   iconosItems?: boolean;   // ícono de cada ítem en la primera columna y el número en el título (por defecto sí) // espacio para que el cliente firme (diseños que lo tienen); por defecto no
 };
@@ -350,6 +353,7 @@ export function loadSaved(): Cotizacion[] {
 }
 
 export function persistSaved(c: Cotizacion): Cotizacion[] {
+  c.actualizado = new Date().toISOString();
   const list = loadSaved();
   const idx = list.findIndex(x => x.numero === c.numero);
   if (idx >= 0) list[idx] = c; else list.push(c);
