@@ -6,6 +6,17 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.0.2',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'Unidad ya no acepta números (un "-1" ahí salía en el catálogo); si escribes uno, se marca en rojo y te dice que la cantidad va en Cantidad.',
+      'Descuento, anticipo, tasa de IVA y vigencia no aceptan negativos; los porcentajes llegan hasta 100.',
+      'En la app instalada, el teclado ya no deja la pantalla corrida (se escondía la barra de arriba o la de abajo).',
+      'Con el teclado abierto se esconden las barras de abajo para dejar espacio a lo que escribes.',
+    ],
+  },
+  {
     version: '1.0.1',
     fecha: '15-10-2026',
     tipo: 'arreglo',

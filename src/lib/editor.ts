@@ -21,6 +21,7 @@ import {
   totales,
   valorItem,
   cantidadDe,
+  unidadDe,
   filasDesglose,
   validaHasta,
   ivaGeneral,
@@ -422,6 +423,7 @@ function renderItems() {
   $('toggleAllItems').textContent = allCollapsed ? 'Expandir todo' : 'Colapsar todo';
 
   state.items.forEach((it, idx) => {
+    if (it.unidad && !unidadDe(it)) it.unidad = undefined; // un número en Unidad (p. ej. "-1") era un error de digitación
     const collapsed = collapsedItems.has(it.id);
     const card = document.createElement('div');
     card.className = 'item-card' + (collapsed ? ' item-collapsed' : '');
@@ -475,7 +477,13 @@ function renderItems() {
         const q = parseFloat(t.value.replace(',', '.'));
         it.cantidad = Number.isFinite(q) && q > 0 ? q : 1;
         updSub();
-      } else if (t.dataset.action === 'unidad') it.unidad = t.value.trim() || undefined;
+      } else if (t.dataset.action === 'unidad') {
+        const u = t.value.trim();
+        const numero = /^[-+\d.,\s]+$/.test(u) && u !== '';
+        t.classList.toggle('invalid', numero);
+        t.title = numero ? 'La unidad es un texto (und, m, hora…). La cantidad va en el campo Cantidad.' : '';
+        it.unidad = u && !numero ? u : undefined;
+      }
       else if (t.dataset.action === 'iva') it.ivaTasa = t.value === '' ? undefined : Number(t.value);
       else return;
       refresh();
@@ -802,7 +810,7 @@ function openCatalog(anchor: HTMLElement) {
       : rows.map(({ x, i }) => `<div class="cat-row">
           <button type="button" class="cat-add" data-add="${i}"><img src="${buildIconDataUrl(x.iconKey, '#e8eaee')}" alt="" />
             <span><b>${escapeHtml(x.titulo || 'Sin título')}</b><small>${escapeHtml(x.descripcion || '')}</small></span>
-            <em>${formatCOP(x.valor)}${x.unidad ? ' / ' + escapeHtml(x.unidad) : ''}</em></button>
+            <em>${formatCOP(x.valor)}${unidadDe(x) ? ' / ' + escapeHtml(unidadDe(x)) : ''}</em></button>
           <button type="button" class="icon-btn danger" data-del="${i}" title="Quitar del catálogo" aria-label="Quitar del catálogo">${ICONS.trash}</button>
         </div>`).join('');
   };
@@ -1293,6 +1301,32 @@ function initExtras() {
   initPwa();
   initDrive();
   initSincronizacion();
+  initTeclado();
+}
+
+/**
+ * Teclado del celular: la app se encoge (interactive-widget=resizes-content) y aquí se marca
+ * html.teclado para esconder las barras de abajo. Si el navegador dejó la página corrida
+ * (pasa en la app instalada al cerrar el teclado), se devuelve a su lugar.
+ */
+function initTeclado() {
+  const vv = window.visualViewport;
+  let alto = vv?.height ?? innerHeight;
+  const ajustar = () => {
+    const h = vv?.height ?? innerHeight;
+    const enCampo = !!(document.activeElement as HTMLElement | null)?.matches?.('input, textarea, [contenteditable]');
+    // Sin un campo activo no hay teclado: esa es la altura completa de referencia
+    if (!enCampo || h > alto) alto = h;
+    document.documentElement.classList.toggle('teclado', enCampo && h < alto - 120);
+    const se = document.scrollingElement;
+    if (se && se.scrollTop !== 0) se.scrollTop = 0;
+  };
+  vv?.addEventListener('resize', ajustar);
+  window.addEventListener('resize', ajustar);
+  vv?.addEventListener('scroll', () => { if (!document.documentElement.classList.contains('teclado')) ajustar(); });
+  document.addEventListener('focusout', () => setTimeout(ajustar, 250));
+  window.addEventListener('orientationchange', () => { alto = 0; setTimeout(ajustar, 400); });
+  document.addEventListener('focusin', () => setTimeout(ajustar, 300));
 }
 
 /**
@@ -1400,9 +1434,23 @@ export function initEditor() {
 
   // Fechas dd-mm-aaaa con máscara y calendario (antes de FIELDS, para que lean el valor ya formateado)
   document.querySelectorAll<HTMLInputElement>('input[data-date]').forEach((el) => dateField(el, () => el.dispatchEvent(new Event('change'))));
+  // Campos numéricos: solo dígitos y una coma; nada de negativos. Porcentajes hasta 100.
+  const NUMERICOS: Record<string, number | undefined> = { vigencia: undefined, ivaTasa: 100, descuento: undefined, anticipo: 100 };
   for (const [id, , set] of FIELDS) {
     const el = $in(id);
-    const h = () => { set(el.value); refresh(); };
+    const tope = NUMERICOS[id];
+    const h = () => {
+      if (id in NUMERICOS) {
+        const limpio = el.value.replace(/[^\d.,]/g, '').replace(/,(?=.*,)/g, '');
+        if (limpio !== el.value) el.value = limpio;
+        const n = parseFloat(limpio.replace(/\./g, '').replace(',', '.'));
+        const esPct = id !== 'descuento' || state.impuestos?.descuentoTipo !== 'valor';
+        if (tope != null && n > tope) el.value = String(tope);
+        else if (id === 'descuento' && esPct && n > 100) el.value = '100';
+      }
+      set(el.value);
+      refresh();
+    };
     el.addEventListener('input', h);
     el.addEventListener('change', h);
   }

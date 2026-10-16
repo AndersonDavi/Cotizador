@@ -134,7 +134,9 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
     if (!s.titulo?.trim()) throw new SpecError(`ítem ${i + 1}: falta el título`);
     const precio = parseMoney(s.precio ?? s.valor);
     if (precio == null || precio < 0) throw new SpecError(`ítem ${i + 1} ("${s.titulo}"): falta el precio o no es un número`);
+    if (s.unidad && /^[-+\d.,\s]+$/.test(String(s.unidad).trim())) throw new SpecError(`ítem ${i + 1} ("${s.titulo}"): la unidad es un texto (und, m, hora); la cantidad va en "cantidad"`);
     const cant = num(s.cantidad);
+    if (cant != null && cant <= 0) throw new SpecError(`ítem ${i + 1} ("${s.titulo}"): la cantidad debe ser mayor que 0`);
     const iva = s.iva == null || s.iva === '' ? undefined : String(s.iva).toLowerCase() === 'exento' ? 0 : num(s.iva);
     return {
       id: makeId(),
@@ -176,10 +178,19 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
     const pct = String(spec.descuento).trim().endsWith('%');
     imp.descuentoTipo = pct ? 'porcentaje' : 'valor';
     imp.descuento = pct ? num(spec.descuento) : parseMoney(spec.descuento);
+    if (imp.descuento == null || imp.descuento < 0 || (pct && imp.descuento > 100)) throw new SpecError('descuento: usa un valor positivo ("10%" o pesos)');
   }
-  if (spec.anticipo != null) imp.anticipo = num(spec.anticipo);
+  if (spec.anticipo != null) {
+    const a = num(spec.anticipo);
+    if (a == null || a < 0 || a > 100) throw new SpecError('anticipo: usa un porcentaje entre 0 y 100');
+    imp.anticipo = a;
+  }
   c.impuestos = Object.keys(imp).length ? imp : undefined;
-  if (spec.vigencia != null) c.vigenciaDias = num(spec.vigencia);
+  if (spec.vigencia != null) {
+    const v = num(spec.vigencia);
+    if (v == null || v <= 0) throw new SpecError('vigencia: usa un número de días mayor que 0');
+    c.vigenciaDias = Math.round(v);
+  }
   if (spec.tiempoEntrega != null) c.tiempoEntrega = spec.tiempoEntrega;
   if (spec.terminos) c.terminos = spec.terminos;
   return c;

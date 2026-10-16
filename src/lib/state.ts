@@ -251,11 +251,18 @@ export function totalReal(c: Cotizacion): number {
 }
 
 /** "8 und × $350.000" cuando hay cantidad o unidad; vacío si es un ítem simple. */
+/** La unidad es un texto (und, m, hora…); un número suelto ahí es un error de digitación y se ignora. */
+export function unidadDe(it: Pick<Item, 'unidad'>): string {
+  const u = (it.unidad ?? '').trim();
+  return u && !/^[-+\d.,\s]+$/.test(u) ? u : '';
+}
+
 export function qtyLabel(it: Item): string {
   const q = cantidadDe(it);
-  if (q === 1 && !it.unidad) return '';
+  const u = unidadDe(it);
+  if (q === 1 && !u) return '';
   const n = Number.isInteger(q) ? String(q) : String(q).replace('.', ',');
-  return `${n}${it.unidad ? ' ' + it.unidad : ''} × ${formatCOP(it.valor)}`;
+  return `${n}${u ? ' ' + u : ''} × ${formatCOP(it.valor)}`;
 }
 
 /** Filas del desglose (subtotal, descuento, IVA, total, anticipo, saldo). */
