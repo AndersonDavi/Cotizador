@@ -1266,6 +1266,21 @@ function initExtras() {
   renderClientes();
   initPwa();
   initDrive();
+  initSincronizacion();
+}
+
+/**
+ * La app instalada y las pestañas del navegador comparten localStorage, pero cada ventana
+ * dibuja su lista al abrir. Si otra ventana guarda, borra o restaura, aquí se refresca sola.
+ */
+function initSincronizacion() {
+  window.addEventListener('storage', (ev) => {
+    if (ev.key === null || ev.key === 'cotizador:saved') { renderSavedList(); renderDrive(); }
+    if (ev.key === null || ev.key === CLI_KEY) renderClientes();
+    if (ev.key === 'cotizador:drive') renderDrive();
+  });
+  // Al volver a la app (otra pestaña, segundo plano en el celular) la lista se pone al día
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') renderSavedList(); });
 }
 
 // ── Formulario ───────────────────────────────────────────────────────────────
