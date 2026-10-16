@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.8.1',
+    fecha: '16-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'El ícono de la pestaña ya no tiene fondo y se ve más grande; tiene un contorno para que se distinga en pestañas claras y oscuras.',
+    ],
+  },
+  {
     version: '1.8.0',
     fecha: '16-10-2026',
     tipo: 'nueva',
