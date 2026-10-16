@@ -153,7 +153,7 @@ export function nuevaCotizacion(numero = '00001'): Cotizacion {
     coloresOverride: {},
     branding: defaultBranding(),
     diseno: 'clasica',
-    colores: { primary: '#6B6300', secondary: '#F2DA23' },
+    colores: { primary: '#5E5700', secondary: '#F2DA23' },
     titulo: 'Propuesta económica',
     estado: 'borrador',
     cliente: { nombre: '', nit: '' },

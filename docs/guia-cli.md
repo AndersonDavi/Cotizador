@@ -144,15 +144,15 @@ Todas las plantillas se pintan con dos colores: principal y secundario. Usa una 
 
 | `paleta` | Principal | Secundario |
 |---|---|---|
-| Chigüiro | `#6B6300` | `#F2DA23` |
+| Chigüiro | `#5E5700` | `#F2DA23` |
 | Carbón | `#2F2E33` | `#E3A94F` |
 | Marino | `#0E2240` | `#F6C443` |
 | Océano | `#1F3B57` | `#4FD1C5` |
-| Bosque | `#2E6B3A` | `#BCDB4E` |
+| Bosque | `#245A2F` | `#C5E063` |
 | Coral | `#E8623A` | `#232428` |
 | Uva | `#4B2A7B` | `#F08BB4` |
 | Vino | `#7A1F2B` | `#E9C46A` |
-| Grafito | `#111111` | `#7A7A7A` |
+| Grafito | `#16181C` | `#A8ADB5` |
 | Cielo | `#1D4ED8` | `#BFDBFE` |
 
 Si no se indica, se usan el diseño y los colores de la base.

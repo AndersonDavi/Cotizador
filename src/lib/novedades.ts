@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.2.2',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'Todas las paletas rápidas y los colores sugeridos tienen buen contraste: Chigüiro, Bosque y Grafito se ajustaron.',
+      'El botón para guardar tus colores se ve mejor y te dice si esa paleta ya está guardada.',
+    ],
+  },
+  {
     version: '1.2.1',
     fecha: '15-10-2026',
     tipo: 'arreglo',

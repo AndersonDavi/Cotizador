@@ -17,27 +17,27 @@ export type DisenoInfo = {
 };
 
 export const DISENOS: DisenoInfo[] = [
-  { id: 'clasica',   nombre: 'Clásica',   descripcion: 'Encabezado en degradado y tarjetas por ítem', colores: { primary: '#6B6300', secondary: '#F2DA23' } },
+  { id: 'clasica',   nombre: 'Clásica',   descripcion: 'Encabezado en degradado y tarjetas por ítem', colores: { primary: '#5E5700', secondary: '#F2DA23' } },
   { id: 'bloque',    nombre: 'Bloque',    descripcion: 'Bloques de color y tabla con totales',       colores: { primary: '#2F2E33', secondary: '#E3A94F' } },
   { id: 'noche',     nombre: 'Noche',     descripcion: 'Fondo oscuro con curvas de acento',          colores: { primary: '#232323', secondary: '#F2D21B' } },
   { id: 'diagonal',  nombre: 'Diagonal',  descripcion: 'Franjas en diagonal y pie a dos colores',    colores: { primary: '#356B22', secondary: '#D4EC7A' } },
   { id: 'estudio',   nombre: 'Estudio',   descripcion: 'Bandas, esquinas y tabla a rayas',           colores: { primary: '#0E2240', secondary: '#F6C443' } },
-  { id: 'editorial', nombre: 'Editorial', descripcion: 'Tipografía serif, blanco y negro',           colores: { primary: '#111111', secondary: '#7A7A7A' } },
+  { id: 'editorial', nombre: 'Editorial', descripcion: 'Tipografía serif, blanco y negro',           colores: { primary: '#16181C', secondary: '#A8ADB5' } },
   { id: 'redonda',   nombre: 'Redonda',   descripcion: 'Banda de color con esquinas redondeadas',    colores: { primary: '#E8623A', secondary: '#232428' } },
   { id: 'lateral',   nombre: 'Lateral',   descripcion: 'Columna lateral con tu marca y el total',    colores: { primary: '#1F3B57', secondary: '#4FD1C5' } },
 ];
 
 /** Combinaciones rápidas de la paleta. */
 export const PALETAS: (Colores & { nombre: string })[] = [
-  { nombre: 'Chigüiro',  primary: '#6B6300', secondary: '#F2DA23' },
+  { nombre: 'Chigüiro',  primary: '#5E5700', secondary: '#F2DA23' },
   { nombre: 'Carbón',    primary: '#2F2E33', secondary: '#E3A94F' },
   { nombre: 'Marino',    primary: '#0E2240', secondary: '#F6C443' },
   { nombre: 'Océano',    primary: '#1F3B57', secondary: '#4FD1C5' },
-  { nombre: 'Bosque',    primary: '#2E6B3A', secondary: '#BCDB4E' },
+  { nombre: 'Bosque',    primary: '#245A2F', secondary: '#C5E063' },
   { nombre: 'Coral',     primary: '#E8623A', secondary: '#232428' },
   { nombre: 'Uva',       primary: '#4B2A7B', secondary: '#F08BB4' },
   { nombre: 'Vino',      primary: '#7A1F2B', secondary: '#E9C46A' },
-  { nombre: 'Grafito',   primary: '#111111', secondary: '#7A7A7A' },
+  { nombre: 'Grafito',   primary: '#16181C', secondary: '#A8ADB5' },
   { nombre: 'Cielo',     primary: '#1D4ED8', secondary: '#BFDBFE' },
 ];
 

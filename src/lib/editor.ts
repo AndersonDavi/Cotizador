@@ -619,7 +619,11 @@ function renderDesign() {
   $('myPalettes').innerHTML = mine.length
     ? mine.map((p, i) => chip(p, `data-mia="${i}"`, `<button type="button" class="palette-del" data-del="${i}" title="Quitar paleta" aria-label="Quitar paleta">×</button>`)).join('')
     : '<span class="hint">Guarda aquí los colores de tu marca o de tus clientes.</span>';
-  ($('savePalette') as HTMLButtonElement).disabled = mine.some(same) || PALETAS.some(same);
+  const save = $('savePalette') as HTMLButtonElement;
+  const yaMia = mine.some(same), rapida = PALETAS.some(same);
+  save.disabled = yaMia || rapida;
+  save.textContent = yaMia ? '✓ Guardada en tus paletas' : rapida ? '✓ Es una paleta rápida' : '＋ Guardar mis colores';
+  save.title = save.disabled ? '' : 'Guarda el principal y el secundario actuales para usarlos en otras cotizaciones';
 }
 
 /** Medidor de contraste entre principal y secundario, con arreglos de un clic. */

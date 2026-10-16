@@ -356,7 +356,12 @@ button.color-field:hover { border-color: var(--border-2); }
 .palette-wrap:hover .palette-del, .palette-del:focus { display: block; }
 .palette-del:hover { color: var(--danger); }
 @media (hover: none) { .palette-del { display: block; } }
-#savePalette[disabled] { opacity: .4; cursor: default; text-decoration: none; }
+/* Guardar paleta: botón visible (antes era un enlace gris casi invisible) */
+.pill-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border)); transition: background .15s, transform .12s; }
+.pill-btn:hover:not([disabled]) { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.pill-btn:active:not([disabled]) { transform: scale(.96); }
+.pill-btn[disabled] { color: var(--muted); background: none; border-color: var(--border); cursor: default; }
 
 .cp { position: fixed; z-index: 300; width: 268px; background: var(--card-2); border: 1px solid var(--border-2); border-radius: 14px; padding: 12px; box-shadow: 0 20px 50px rgba(0,0,0,.55); display: flex; flex-direction: column; gap: 10px; }
 .cp-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
