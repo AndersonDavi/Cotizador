@@ -207,7 +207,8 @@ button { cursor: pointer; }
 .preview-total { font-weight: 700; font-size: 15px; }
 .zoom { margin-left: auto; display: flex; gap: 6px; }
 .preview-scroll { flex: 1; min-height: 0; overflow: auto; padding: 24px; }
-.preview-stage { position: relative; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,.55); background: #fff; transition: height .2s ease; }
+/* overflow: hidden: el iframe oculto guarda el alto del render anterior y, sin recorte, dejaba espacio vacío bajo un documento más corto */
+.preview-stage { position: relative; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,.55); background: #fff; transition: height .2s ease; overflow: hidden; }
 .pv-frame { position: absolute; left: 0; top: 0; border: 0; width: 1080px; transform-origin: 0 0; background: #fff; }
 .pv-frame.back { visibility: hidden; }
 

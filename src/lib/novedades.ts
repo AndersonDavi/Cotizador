@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.2.1',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'La vista previa ya no deja espacio vacío debajo del documento al pasar a un diseño más corto o quitar ítems.',
+    ],
+  },
+  {
     version: '1.2.0',
     fecha: '15-10-2026',
     tipo: 'nueva',
