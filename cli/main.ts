@@ -298,6 +298,7 @@ async function main() {
       if (!c.cliente?.nombre) faltan.push('cliente (--cliente)');
       if (!c.cliente?.nit) faltan.push('NIT (--nit)');
       if (!c.cobro.desde || !c.cobro.hasta) faltan.push('período (--desde y --hasta)');
+      if (!c.branding.contacto?.ciudad?.trim()) faltan.push('ciudad del emisor (Mi marca → Contacto en la cotización)');
       if (!c.branding.banco) faltan.push(`cuenta bancaria (emisor.banco en ${CONFIG_PATH})`);
       if (!c.branding.direccion) faltan.push(`dirección (emisor.direccion en ${CONFIG_PATH})`);
       if (faltan.length) fail(`faltan datos para la cuenta de cobro:\n  - ${faltan.join('\n  - ')}`);

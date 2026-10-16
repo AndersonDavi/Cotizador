@@ -684,6 +684,7 @@ function faltantesCobro(): string[] {
   if (!state.cliente?.nit) f.push('NIT del cliente (pestaña Cotización)');
   if (!parseFecha(state.cobro?.desde ?? '') || !parseFecha(state.cobro?.hasta ?? '')) f.push('Período del trabajo (desde / hasta, dd-mm-aaaa)');
   if (!state.branding.banco) f.push('Cuenta bancaria (pestaña Mi marca)');
+  if (!state.branding.contacto?.ciudad?.trim()) f.push('Tu ciudad (pestaña Mi marca → Contacto)');
   if (!state.branding.representante.nombre && !state.branding.nombreLegal) f.push('Tu nombre (pestaña Mi marca)');
   return f;
 }

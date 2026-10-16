@@ -521,7 +521,7 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   const e = cc.emisor;
   const body = `
 <div class="doc" data-fixed-page="1">
-  <p>${escapeHtml(cc.ciudad)}, ${escapeHtml(fechaLarga(cc.fecha))}</p>
+  <p>${cc.ciudad ? `${escapeHtml(cc.ciudad)}, ` : ''}${escapeHtml(fechaLarga(cc.fecha))}</p>
   <div class="c blk"><p>${escapeHtml(cc.cliente.nombre)}</p><p>NIT ${escapeHtml(cc.cliente.nit)}</p></div>
   <div class="c blk"><p>DEBE A:</p><p>${escapeHtml(e.nombre)}</p><p>C.C. ${escapeHtml(e.cedula)}</p></div>
   <div class="c blk"><p>LA SUMA DE ${formatCOP(cc.valor)}</p><p>${escapeHtml(numeroALetras(cc.valor))}</p></div>
@@ -552,7 +552,7 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
   const tel = (b.contacto.cel || '').replace(/^\+57\s*/, '');
   return {
     numero: c.numero,
-    ciudad: b.contacto.ciudad || 'Barranquilla',
+    ciudad: b.contacto.ciudad?.trim() || '',
     fecha: cobro.fecha || hoy,
     cliente: { nombre: c.cliente?.nombre ?? '', nit: c.cliente?.nit ?? '' },
     emisor: {
