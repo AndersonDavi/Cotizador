@@ -3,7 +3,7 @@
 // que la persona toca "Actualizar" (ver initActualizaciones en editor.ts).
 import type { APIRoute } from 'astro';
 
-const VERSION = (process.env.GITHUB_SHA ?? '').slice(0, 8) || Date.now().toString(36);
+const VERSION = __BUILD__.id;
 
 const SW = `// Cotizador · versión ${VERSION}
 const CACHE = 'cotizador-${VERSION}';

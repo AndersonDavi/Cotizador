@@ -43,7 +43,7 @@ type Config = {
 
 const AYUDA = `Cotizador CLI
 
-Uso: cotizador <comando> <cotizacion.json> [opciones]
+Uso: cotizador <comando> <cotizacion.json> [opciones]   (cotizador --version: versión instalada)
 
 Comandos:
   nueva   Crea una cotización desde cero (COTIZACION_<n>.json) y opcionalmente su PDF/PNG
@@ -239,9 +239,15 @@ async function main() {
       json: { type: 'boolean' },
       buscar: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
+      version: { type: 'boolean', short: 'v' },
     },
   });
   const [cmd, arg, arg2] = positionals;
+  if (o.version || cmd === 'version') {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    console.log(`Cotizador ${pkg.version}`);
+    return;
+  }
   if (!cmd || o.help || cmd === 'ayuda' || cmd === 'help') { console.log(AYUDA); return; }
 
   const cfg = loadConfig();

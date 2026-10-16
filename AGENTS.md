@@ -53,6 +53,12 @@ npx tsc --noEmit   # typecheck
 - El indicador de Drive (`#driveChip`) muestra el estado: Respaldar / En Drive / Subiendo / Sin respaldar. En Guardadas hay un aviso para conectar (se pospone 14 días con "Ahora no").
 - El panel de navegador integrado no registra service workers: para probar, build + servidor estático + Edge con playwright-core.
 
+## Versiones
+
+- Cada publicación a main sube `version` en `package.json`: arreglo → parche (1.0.1), función nueva → menor (1.1.0), cambio que rompe datos guardados → mayor.
+- Agregar la entrada arriba de todo en `src/lib/novedades.ts` (fecha dd-mm-aaaa, `tipo` 'arreglo' o 'nueva', cambios en lenguaje de usuario). El centro de ayuda muestra la versión cargada, el commit y ese historial; tras actualizar sale el aviso "Actualizado a la versión X".
+- `build-info.mjs` calcula versión, commit y fecha; `astro.config.mjs` los expone como `__BUILD__` (también el nombre de la caché del service worker). El CLI: `cotizador --version`.
+
 ## Modelo de datos
 
 `Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`. Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.

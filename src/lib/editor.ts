@@ -1699,6 +1699,7 @@ export function initEditor() {
   showTab(lastTab);
   refresh();
   showWelcomeIfNeeded();
+  avisarVersion();
 }
 
 function setView(view: 'edit' | 'preview') {
@@ -1718,6 +1719,19 @@ function openHelp() {
 function closeHelp() {
   void cerrarModal($('helpModal'));
   ($('helpVideo') as HTMLVideoElement).pause();
+}
+
+/** Después de actualizar, avisa a qué versión quedó y ofrece ver las novedades. */
+function avisarVersion() {
+  const KEY = 'cotizador:version';
+  const v = __BUILD__.version;
+  let antes: string | null = null;
+  try { antes = localStorage.getItem(KEY); localStorage.setItem(KEY, v); } catch { return; }
+  if (!antes || antes === v) return;
+  window.setTimeout(() => toast(`Actualizado a la versión ${v}`, 'ok', {
+    label: 'Novedades',
+    run: () => { openHelp(); window.setTimeout(() => document.getElementById('novedades')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); },
+  }), 800);
 }
 
 function showWelcomeIfNeeded() {

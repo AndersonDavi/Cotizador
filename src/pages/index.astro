@@ -4,6 +4,9 @@ import 'driver.js/dist/driver.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
+import { NOVEDADES } from '../lib/novedades';
+
+const B = __BUILD__;
 
 const SITE = 'https://cotizador.andersonrueda.com';
 const TITLE = 'Cotizador — Propuestas económicas para freelancers';
@@ -372,6 +375,7 @@ const I = {
               <button id="exportJsonBtn">Exportar JSON</button>
               <button id="importJsonBtn">Importar JSON…</button>
               <button id="exportMdBtn">Exportar Markdown</button>
+              <div class="menu-ver">Cotizador v{B.version}</div>
             </div>
           </div>
           <input id="importJsonFile" type="file" accept=".json,application/json" hidden />
@@ -413,7 +417,7 @@ const I = {
     <div id="helpModal" class="modal-overlay help-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
       <div class="help-box">
         <header class="help-head">
-          <div class="brandmark"><img src="/logo.svg" alt="" width="32" height="32" /><h2 id="helpTitle">Centro de ayuda</h2></div>
+          <div class="brandmark"><img src="/logo.svg" alt="" width="32" height="32" /><h2 id="helpTitle">Centro de ayuda</h2><a href="#novedades" class="help-ver" title="Ver novedades de esta versión">v{B.version}</a></div>
           <button id="helpClose" class="icon-only" type="button" aria-label="Cerrar ayuda">✕</button>
         </header>
         <div class="help-body">
@@ -512,6 +516,17 @@ const I = {
             <details><summary>Mi firma sale con un recuadro</summary><p>Usa una foto con buena luz sobre papel blanco, o un PNG con fondo transparente. El blanco se elimina solo; los fondos grises o con sombra no.</p></details>
             <details><summary>¿Puedo agregar IVA o descuentos?</summary><p>Sí. En la pestaña Cotización eliges si el IVA se suma o ya viene incluido, la tarifa general, un descuento (porcentaje o valor) y el anticipo. Cada ítem puede tener su propia tarifa (5 %, exento…).</p></details>
             <details><summary>¿Puedo imprimirlo en hoja carta?</summary><p>El PDF es una sola página larga pensada para enviar por correo o chat. Para imprimir, en el diálogo elige el tamaño Carta y la opción “Ajustar al área de impresión”.</p></details>
+          </section>
+
+          <section id="novedades">
+            <h3 class="help-h">Novedades</h3>
+            <p class="hint">Tienes la versión <b>{B.version}</b>, publicada el {B.fecha} (<a href={`https://github.com/AndersonDavi/Cotizador/commit/${B.commit}`} target="_blank" rel="noopener noreferrer">{B.commit}</a>). Cuando salga una nueva, arriba aparece el aviso para actualizar.</p>
+            {NOVEDADES.slice(0, 8).map((n, i) => (
+              <details class="nov" open={i === 0}>
+                <summary><span class="nov-head"><b>v{n.version}</b><span class={`nov-tipo ${n.tipo}`}>{n.tipo === 'nueva' ? 'Novedades' : 'Arreglos'}</span><span class="nov-fecha">{n.fecha}</span></span></summary>
+                <ul>{n.cambios.map((c) => <li>{c}</li>)}</ul>
+              </details>
+            ))}
           </section>
         </div>
       </div>
