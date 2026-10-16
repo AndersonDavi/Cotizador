@@ -998,33 +998,91 @@ function hace(iso?: string): string {
   return `el ${new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 }
 
+const cloud = (extra = '') => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>${extra}</svg>`;
+const DRIVE_ICON = {
+  off: cloud('<path d="M12 11v5"/><path d="M9.5 13.5h5"/>'),
+  ok: cloud('<path d="m9.5 14 2 2 3.5-3.5"/>'),
+  subiendo: cloud('<path d="M12 17v-5"/><path d="m9.5 14 2.5-2.5 2.5 2.5"/>'),
+  pendiente: cloud('<path d="M12 11.5v2.5"/><path d="M12 17h.01"/>'),
+};
+
+/** off: sin conectar · ok: al día · subiendo · pendiente: hay cambios sin respaldar o falló. */
+type DriveEstado = keyof typeof DRIVE_ICON;
+let driveEstado: DriveEstado = 'off';
+let driveSugerido = false;
+const lsNum = (k: string) => { try { return Number(localStorage.getItem(k) || 0); } catch { return 0; } };
+const NUDGE_KEY = 'cotizador:driveNudge';
+
+function setDriveEstado(e: DriveEstado) { driveEstado = e; renderDrive(); }
+
 function renderDrive() {
   if (!driveDisponible()) return;
   const info = driveInfo();
+  if (!info.conectado) driveEstado = 'off';
+  else if (driveEstado === 'off') driveEstado = 'ok';
+
+  const chip = $('driveChip');
+  chip.hidden = false;
+  chip.dataset.state = driveEstado;
+  chip.querySelector('.drive-ic')!.innerHTML = DRIVE_ICON[driveEstado];
+  chip.querySelector('.drive-label')!.textContent =
+    { off: 'Respaldar', ok: 'En Drive', subiendo: 'Subiendo…', pendiente: 'Sin respaldar' }[driveEstado];
+  chip.title = {
+    off: 'Respalda tus cotizaciones en Google Drive',
+    ok: `Respaldado en Google Drive ${hace(info.ultimo)}`,
+    subiendo: 'Subiendo el respaldo a Google Drive…',
+    pendiente: 'Hay cambios sin respaldar. Toca para respaldar ahora.',
+  }[driveEstado];
+
   $('driveStatus').innerHTML = info.conectado
-    ? `<b>Conectado.</b> ${info.ultimo ? `Último respaldo ${hace(info.ultimo)}.` : 'Todavía no hay respaldo.'}`
+    ? `<b>Conectado.</b> ${info.ultimo ? `Último respaldo ${hace(info.ultimo)}.` : 'Todavía no hay respaldo.'}${driveEstado === 'pendiente' ? ' Hay cambios sin respaldar.' : ''}`
     : 'No conectado. Tus cotizaciones solo están en este navegador.';
   $('driveStatus').classList.toggle('on', info.conectado);
   ($('driveConnect') as HTMLElement).hidden = info.conectado;
   for (const id of ['driveSync', 'driveRestore', 'driveDisconnect']) ($(id) as HTMLElement).hidden = !info.conectado;
   $('driveBtn').textContent = info.conectado ? 'Google Drive: conectado' : 'Respaldo en Google Drive…';
+
+  // Aviso en Guardadas: solo si hay algo que perder y no lo pospuso hace poco
+  const n = loadSaved().length;
+  const pospuesto = lsNum(NUDGE_KEY) > Date.now() - 14 * 864e5;
+  $('driveNudge').hidden = info.conectado || n === 0 || pospuesto;
+  $('driveNudgeTitle').textContent = n === 1 ? 'Tu cotización solo está en este navegador' : `Tus ${n} cotizaciones solo están en este navegador`;
+}
+
+/** Una vez por sesión, al guardar sin Drive, el aviso de "guardada" ofrece conectarlo. */
+function driveSugerir(): boolean {
+  if (!driveDisponible() || driveInfo().conectado || driveSugerido) return false;
+  driveSugerido = true;
+  return true;
+}
+
+function abrirDrive() {
+  prepararDrive().catch(() => toast('No se pudo cargar Google. Revisa la conexión.', 'err'));
+  renderDrive();
+  $('driveModal').hidden = false;
 }
 
 function driveError(e: unknown) {
   console.error(e);
   toast(e instanceof Error ? e.message : 'Algo falló con Google Drive', 'err');
+  if (driveInfo().conectado) driveEstado = 'pendiente';
   renderDrive();
 }
 
 /** Respaldo automático después de guardar o borrar. `interactivo`: dentro de un clic puede renovar el permiso. */
 function driveAuto(interactivo: boolean) {
-  if (!driveDisponible() || !driveInfo().conectado) return;
-  if (!interactivo && !driveTokenVigente()) { driveSucio = true; return; }
+  if (!driveDisponible()) return;
+  if (!driveInfo().conectado) { renderDrive(); return; }
+  if (!interactivo && !driveTokenVigente()) { setDriveEstado('pendiente'); return; }
+  setDriveEstado('subiendo');
   subirRespaldo(() => JSON.stringify(armarRespaldo()), interactivo)
-    .then(() => { driveSucio = false; toast('Respaldado en Google Drive'); renderDrive(); })
-    .catch((e) => { driveSucio = true; if (e instanceof DriveAuthError) toast(`No se respaldó en Drive: ${e.message}`, 'err'); else driveError(e); });
+    .then(() => setDriveEstado('ok'))
+    .catch((e) => {
+      setDriveEstado('pendiente');
+      if (e instanceof DriveAuthError) toast(`No se respaldó en Drive: ${e.message}`, 'err', { label: 'Reintentar', run: () => driveAuto(true) });
+      else driveError(e);
+    });
 }
-let driveSucio = false;
 
 function initDrive() {
   if (!driveDisponible()) return;
@@ -1035,10 +1093,13 @@ function initDrive() {
     btn.setAttribute('aria-busy', 'true');
     try { await fn(); } catch (e) { driveError(e); } finally { btn.removeAttribute('aria-busy'); renderDrive(); }
   };
-  $('driveBtn').addEventListener('click', () => {
-    prepararDrive().catch(() => toast('No se pudo cargar Google. Revisa la conexión.', 'err'));
+  $('driveBtn').addEventListener('click', abrirDrive);
+  // El indicador: con cambios pendientes respalda de una vez; si no, abre la ventana
+  $('driveChip').addEventListener('click', () => { if (driveEstado === 'pendiente') driveAuto(true); else abrirDrive(); });
+  $('driveNudgeBtn').addEventListener('click', abrirDrive);
+  $('driveNudgeLater').addEventListener('click', () => {
+    try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch { /* sin storage */ }
     renderDrive();
-    overlay.hidden = false;
   });
   overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
   $('driveClose').addEventListener('click', close);
@@ -1049,12 +1110,16 @@ function initDrive() {
       const data = await bajarRespaldo(false);
       if (esRespaldo(data) && confirm(`Ya tienes un respaldo en Drive (${hace(r.fecha)}) con ${resumenRespaldo(data)}. ¿Traerlo a este navegador? Se combina con lo que ya tienes.`)) aplicarRespaldo(data);
     }
+    setDriveEstado('subiendo');
     await subirRespaldo(() => JSON.stringify(armarRespaldo()), false);
+    driveEstado = 'ok';
     toast('Drive conectado: cada vez que guardes se respalda solo');
+    close();
   }));
   $('driveSync').addEventListener('click', () => busy($('driveSync'), async () => {
+    setDriveEstado('subiendo');
     await subirRespaldo(() => JSON.stringify(armarRespaldo()), true);
-    driveSucio = false;
+    driveEstado = 'ok';
     toast('Respaldado en Google Drive');
   }));
   $('driveRestore').addEventListener('click', () => busy($('driveRestore'), async () => {
@@ -1071,30 +1136,91 @@ function initDrive() {
     toast('Drive desconectado');
   });
   // Al salir de la pestaña, sube lo pendiente si el permiso sigue vigente
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && driveSucio) driveAuto(false); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && driveEstado === 'pendiente') driveAuto(false); });
+  // El texto "hace X min" se mantiene al día
+  window.setInterval(() => { if (driveEstado === 'ok') renderDrive(); }, 60_000);
   if (driveInfo().conectado) prepararDrive().catch(() => { /* sin conexión */ });
   renderDrive();
 }
 
-// ── App instalable (PWA) ─────────────────────────────────────────────────────
+// ── App instalable (PWA) y actualizaciones ───────────────────────────────────
 
+const INSTALL_KEY = 'cotizador:installNudge';
 let installEvent: any = null;
-function initPwa() {
-  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => { /* sin modo offline */ });
+
+const esStandalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+const esIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function renderInstall() {
+  const puede = !esStandalone() && (!!installEvent || esIos());
+  const pospuesto = lsNum(INSTALL_KEY) > Date.now() - 30 * 864e5;
+  ($('installBtn') as HTMLElement).hidden = !puede;
+  ($('installChip') as HTMLElement).hidden = !puede || pospuesto;
+}
+
+async function instalar() {
+  if (installEvent) {
+    installEvent.prompt();
+    const r = await installEvent.userChoice.catch(() => null);
+    installEvent = null;
+    // Si dijo que no, el botón de arriba descansa un mes (sigue en Más)
+    if (r?.outcome !== 'accepted') { try { localStorage.setItem(INSTALL_KEY, String(Date.now())); } catch { /* */ } }
+  } else if (esIos()) {
+    $('iosModal').hidden = false;
+    try { localStorage.setItem(INSTALL_KEY, String(Date.now())); } catch { /* */ }
   }
+  renderInstall();
+}
+
+/**
+ * Cada build genera un sw.js distinto (src/pages/sw.js.ts). El navegador lo revisa al abrir
+ * la app y aquí también al volver a la pestaña y cada 30 min. La versión nueva queda en
+ * espera hasta que la persona toca "Actualizar": así no cambia nada mientras edita.
+ */
+function initActualizaciones() {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  let actualizando = false;
+  const avisar = (w: ServiceWorker | null) => {
+    if (!w || !navigator.serviceWorker.controller) return; // primera visita: no es una actualización
+    $('updateBar').hidden = false;
+    $('updateBtn').onclick = () => {
+      actualizando = true;
+      try { saveDraft(state); } catch { /* sin storage */ }
+      w.postMessage('activar');
+      window.setTimeout(() => location.reload(), 3000); // por si el evento no llega
+    };
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (actualizando) location.reload(); });
+  navigator.serviceWorker.register('/sw.js').then((reg) => {
+    avisar(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed') avisar(w); });
+    });
+    const revisar = () => { reg.update().catch(() => { /* sin conexión */ }); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revisar(); });
+    window.setInterval(revisar, 30 * 60_000);
+  }).catch(() => { /* sin modo offline */ });
+}
+
+function initPwa() {
+  initActualizaciones();
   window.addEventListener('beforeinstallprompt', (ev) => {
     ev.preventDefault();
     installEvent = ev;
-    ($('installBtn') as HTMLElement).hidden = false;
+    renderInstall();
   });
-  $('installBtn').addEventListener('click', async () => {
-    if (!installEvent) return;
-    installEvent.prompt();
-    await installEvent.userChoice.catch(() => null);
+  window.addEventListener('appinstalled', () => {
     installEvent = null;
-    ($('installBtn') as HTMLElement).hidden = true;
+    renderInstall();
+    toast('Listo: el Cotizador quedó instalado como app');
   });
+  $('installBtn').addEventListener('click', instalar);
+  $('installChip').addEventListener('click', instalar);
+  const ios = $('iosModal');
+  $('iosClose').addEventListener('click', () => { ios.hidden = true; });
+  ios.addEventListener('click', (ev) => { if (ev.target === ios) ios.hidden = true; });
+  renderInstall();
 }
 
 function initExtras() {
@@ -1402,7 +1528,13 @@ export function initEditor() {
 
   // Acciones
   $('saveBtn').addEventListener('click', () => {
-    try { persistSaved(state); recordarCliente(state.cliente); toast(`Cotización ${state.numero} guardada`); renderSavedList(); }
+    try {
+      persistSaved(state);
+      recordarCliente(state.cliente);
+      const msg = `Cotización ${state.numero} guardada`;
+      if (driveSugerir()) toast(msg, 'ok', { label: 'Respaldar en Drive', run: abrirDrive }); else toast(msg);
+      renderSavedList();
+    }
     catch { toast('No hay espacio en el navegador para guardar', 'err'); return; }
     driveAuto(true);
   });

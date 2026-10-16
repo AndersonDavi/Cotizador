@@ -593,3 +593,43 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .ic-price .ic-x { display: none; }
 .ic-price .ic-unitprice { grid-column: 1 / -1; order: 5; }
 .ic-price:not(:has(.ic-iva)) { grid-template-columns: 1fr 1fr; }
+
+/* ── Barra superior: instalar, Drive y ayuda ────────────────────────────── */
+.top-actions { display: flex; align-items: center; gap: 6px; }
+.top-chip { white-space: nowrap; }
+.top-chip[hidden] { display: none; }
+.drive-ic { display: inline-flex; }
+.drive-chip[data-state="off"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); color: var(--accent); }
+.drive-chip[data-state="ok"] { color: var(--ok); }
+.drive-chip[data-state="ok"] .drive-label { color: var(--text); }
+.drive-chip[data-state="subiendo"] .drive-ic { animation: drive-pulse 1s ease-in-out infinite; }
+.drive-chip[data-state="pendiente"] { border-color: #e3a94f; color: #e3a94f; }
+@keyframes drive-pulse { 50% { opacity: .35; transform: translateY(-1px); } }
+.install-chip { border-color: var(--border-2); }
+@media (max-width: 480px) {
+  .topbar { padding-inline: 12px; }
+  .top-chip { padding: 6px 8px; }
+  #helpBtn span, .install-chip span { display: none; }
+}
+@media (max-width: 360px) { .drive-label { display: none; } }
+
+/* ── Aviso para conectar Drive (Guardadas) ──────────────────────────────── */
+.nudge { display: flex; flex-direction: column; gap: 10px; padding: 14px; margin-bottom: 10px; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.nudge[hidden] { display: none; }
+.nudge b { font-size: 14px; }
+.nudge p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.nudge-actions { display: flex; align-items: center; gap: 12px; }
+.nudge-actions .primary { padding: 9px 14px; border-radius: 10px; border: 0; }
+.nudge-actions .link-btn { background: none; border: 0; color: var(--muted); padding: 0; }
+
+/* ── Instalar en iPhone y versión nueva ─────────────────────────────────── */
+.ios-share { vertical-align: -3px; color: #3b8bff; }
+.update-bar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 400; display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px 10px 16px; border-radius: 12px; background: #222833; border: 1px solid var(--accent); color: var(--text);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5); font-size: 14px; max-width: calc(100vw - 32px); }
+.update-bar[hidden] { display: none; }
+.update-bar button { border: 0; border-radius: 8px; padding: 7px 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; white-space: nowrap; }
+/* El toast está centrado con left: 50%; sin esto se encoge a la mitad del ancho en el celular */
+.toast { width: max-content; max-width: min(92vw, 460px); }
+.toast-action { white-space: nowrap; flex: none; }

@@ -26,6 +26,7 @@ const I = {
   help: ic('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
   eye: ic('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
   edit: ic('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/>'),
+  install: ic('<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/><path d="M10 18h4"/>'),
   cal: ic('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'),
 };
 ---
@@ -106,7 +107,11 @@ const I = {
               <span id="docLabel" class="doc-label">Cotización 00001</span>
             </div>
           </div>
-          <button id="helpBtn" class="ghost-btn" title="Video, guías y preguntas frecuentes"><Fragment set:html={I.help} /> Ayuda</button>
+          <div class="top-actions">
+            <button id="installChip" class="ghost-btn top-chip install-chip" type="button" hidden title="Instalar el Cotizador como app (funciona sin conexión)"><Fragment set:html={I.install} /><span>Instalar</span></button>
+            <button id="driveChip" class="ghost-btn top-chip drive-chip" type="button" hidden data-state="off" title="Respaldo en Google Drive"><span class="drive-ic" aria-hidden="true"></span><span class="drive-label">Respaldar</span></button>
+            <button id="helpBtn" class="ghost-btn top-chip" title="Video, guías y preguntas frecuentes"><Fragment set:html={I.help} /><span>Ayuda</span></button>
+          </div>
         </header>
 
         <nav class="tabs" role="tablist" aria-label="Secciones">
@@ -328,6 +333,16 @@ const I = {
           <!-- Guardadas -->
           <section class="pane" data-pane="guardadas">
             <button class="pane-help" type="button" data-tour="guardadas"><Fragment set:html={I.help} /> Guía de esta sección</button>
+            <div id="driveNudge" class="nudge" hidden>
+              <div>
+                <b id="driveNudgeTitle">Tus cotizaciones solo están en este navegador</b>
+                <p>Conecta Google Drive y se respaldan solas cada vez que guardas. Si cambias de celular o borras el navegador, las recuperas.</p>
+              </div>
+              <div class="nudge-actions">
+                <button id="driveNudgeBtn" type="button" class="primary">Conectar Google Drive</button>
+                <button id="driveNudgeLater" type="button" class="link-btn">Ahora no</button>
+              </div>
+            </div>
             <div id="dashboard" class="dash"></div>
             <div class="saved-tools">
               <input id="savedSearch" type="search" placeholder="Buscar por número, cliente o alcance" />
@@ -492,6 +507,7 @@ const I = {
             <h3 class="help-h">Preguntas frecuentes</h3>
             <details><summary>¿Dónde quedan mis datos?</summary><p>Solo en tu navegador. No hay servidor ni registro: nadie más ve tus cotizaciones. Si conectas Google Drive, el respaldo va a tu propio Drive. <a href="/privacidad">Privacidad</a>.</p></details>
             <details><summary>¿Si borro el historial del navegador pierdo todo?</summary><p>Sí, se borran del navegador. Conecta Google Drive o descarga un respaldo completo de vez en cuando.</p></details>
+            <details><summary>¿Cómo se actualiza la app?</summary><p>Sola. Cuando hay una versión nueva aparece arriba el aviso <b>Hay una versión nueva</b>: toca <b>Actualizar</b> y listo. Tu borrador y tus cotizaciones se conservan.</p></details>
             <details><summary>¿Funciona en el celular?</summary><p>Sí. Usa los botones <b>Editar</b> y <b>Vista previa</b> de abajo para alternar.</p></details>
             <details><summary>Mi firma sale con un recuadro</summary><p>Usa una foto con buena luz sobre papel blanco, o un PNG con fondo transparente. El blanco se elimina solo; los fondos grises o con sombra no.</p></details>
             <details><summary>¿Puedo agregar IVA o descuentos?</summary><p>Sí. En la pestaña Cotización eliges si el IVA se suma o ya viene incluido, la tarifa general, un descuento (porcentaje o valor) y el anticipo. Cada ítem puede tener su propia tarifa (5 %, exento…).</p></details>
@@ -553,6 +569,31 @@ const I = {
         </div>
         <div class="modal-links"><a href="/privacidad">Privacidad</a></div>
       </div>
+    </div>
+
+    <div id="iosModal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="iosTitle">
+      <div class="modal-box">
+        <div class="modal-header">
+          <img src="/logo.svg" alt="" width="40" height="40" />
+          <div>
+            <h2 id="iosTitle">Instalar en el iPhone</h2>
+            <p>Queda como una app y funciona sin conexión</p>
+          </div>
+        </div>
+        <ol class="modal-steps">
+          <li>Toca <b>Compartir</b> <svg class="ios-share" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="ícono de compartir"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> en la barra de Safari.</li>
+          <li>Baja y elige <b>Agregar a inicio</b>.</li>
+          <li>Toca <b>Agregar</b>. El ícono del Cotizador aparece en tu pantalla de inicio.</li>
+        </ol>
+        <div class="modal-actions">
+          <button id="iosClose" class="primary">Entendido</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="updateBar" class="update-bar" hidden role="status">
+      <span>Hay una versión nueva del Cotizador.</span>
+      <button id="updateBtn" type="button">Actualizar</button>
     </div>
 
     <noscript>

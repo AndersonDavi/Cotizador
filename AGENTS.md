@@ -45,6 +45,14 @@ npx tsc --noEmit   # typecheck
 - El material público (video, og-image) usa solo datos ficticios.
 - `src/lib/inputs.ts`: máscaras de dinero y fecha. `src/lib/colorpicker.ts`: selector de color propio.
 
+## App instalable y actualizaciones
+
+- `src/pages/sw.js.ts` genera `/sw.js` en cada build con una versión distinta (`GITHUB_SHA` en Actions). Navegación: red primero; `/_astro/*` (con hash): caché primero; lo demás: caché y se renueva por detrás.
+- La versión nueva queda en espera: `initActualizaciones` (editor.ts) muestra la barra "Hay una versión nueva" y, al tocar Actualizar, guarda el borrador, activa el SW nuevo y recarga. Se revisa al volver a la pestaña y cada 30 min. Solo en producción.
+- Botón "Instalar" arriba cuando el navegador lo permite (`beforeinstallprompt`); en iPhone abre instrucciones (`#iosModal`). Si la persona dice que no, descansa 30 días (sigue en Más).
+- El indicador de Drive (`#driveChip`) muestra el estado: Respaldar / En Drive / Subiendo / Sin respaldar. En Guardadas hay un aviso para conectar (se pospone 14 días con "Ahora no").
+- El panel de navegador integrado no registra service workers: para probar, build + servidor estático + Edge con playwright-core.
+
 ## Modelo de datos
 
 `Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`. Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.
