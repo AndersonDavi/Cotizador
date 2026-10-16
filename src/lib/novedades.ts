@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.0.1',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'El botón de arriba ahora dice "Ayuda" también en el celular (antes era solo un ícono).',
+      'El nombre de la cotización arriba se corta con "…" para que todo quepa en pantallas pequeñas.',
+    ],
+  },
+  {
     version: '1.0.0',
     fecha: '15-10-2026',
     tipo: 'nueva',

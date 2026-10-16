@@ -607,12 +607,20 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 .drive-chip[data-state="pendiente"] { border-color: #e3a94f; color: #e3a94f; }
 @keyframes drive-pulse { 50% { opacity: .35; transform: translateY(-1px); } }
 .install-chip { border-color: var(--border-2); }
+/* "Ayuda" siempre con texto: el ícono solo no se entiende sin contexto */
+.topbar { gap: 10px; }
+.brandmark { min-width: 0; }
+.brandmark > div { min-width: 0; }
+.doc-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-actions { flex: none; }
+#helpBtn { font-weight: 600; }
 @media (max-width: 480px) {
   .topbar { padding-inline: 12px; }
   .top-chip { padding: 6px 8px; }
-  #helpBtn span, .install-chip span { display: none; }
+  .install-chip span { display: none; }
 }
-@media (max-width: 360px) { .drive-label { display: none; } }
+@media (max-width: 400px) { .drive-chip[data-state="ok"] .drive-label { display: none; } }
+@media (max-width: 340px) { .drive-label { display: none; } .brandmark img { display: none; } }
 
 /* ── Aviso para conectar Drive (Guardadas) ──────────────────────────────── */
 .nudge { display: flex; flex-direction: column; gap: 10px; padding: 14px; margin-bottom: 10px; border-radius: 12px;
