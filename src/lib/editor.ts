@@ -1470,6 +1470,7 @@ function hydrateForm() {
   for (const [id, get] of FIELDS) $in(id).value = get();
   $in('costoAuto').checked = state.costoTotalAuto;
   $in('aceptacionCliente').checked = !!state.aceptacionCliente;
+  $in('iconosItems').checked = state.iconosItems !== false;
   costoMoney?.paint();
   renderEstado();
   renderTerminos();
@@ -1683,6 +1684,7 @@ export function initEditor() {
     paintImages();
     refresh();
   });
+  $in('iconosItems').addEventListener('change', () => { state.iconosItems = $in('iconosItems').checked ? undefined : false; refresh(); });
   $in('aceptacionCliente').addEventListener('change', () => { state.aceptacionCliente = $in('aceptacionCliente').checked || undefined; refresh(); });
   $('firmaClear').addEventListener('click', () => { state.branding.representante.firmaDataUrl = undefined; paintImages(); refresh(); });
 

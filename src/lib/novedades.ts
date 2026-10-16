@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.5.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'En Bloque, Noche, Diagonal y Estudio cada ítem muestra su ícono en la primera columna, y el número pasa al título ("1. Diseño de logo").',
+      'Si prefieres la tabla con números, apaga "Íconos en la lista de ítems" en Diseño.',
+    ],
+  },
+  {
     version: '1.4.0',
     fecha: '16-10-2026',
     tipo: 'nueva',

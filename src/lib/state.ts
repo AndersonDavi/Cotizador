@@ -107,7 +107,8 @@ export type Cotizacion = {
   cobro?: DatosCobro;
   impuestos?: Impuestos;
   vigenciaDias?: number;  // días de validez de la oferta (desde la fecha)
-  aceptacionCliente?: boolean; // espacio para que el cliente firme (diseños que lo tienen); por defecto no
+  aceptacionCliente?: boolean;
+  iconosItems?: boolean;   // ícono de cada ítem en la primera columna y el número en el título (por defecto sí) // espacio para que el cliente firme (diseños que lo tienen); por defecto no
 };
 
 export function estadoDe(c: Cotizacion): Estado {

@@ -40,6 +40,7 @@ type Data = {
   logoUrl: string;
   logoCls: string;
   aceptacion: boolean;
+  iconos: boolean;
   k: { web: string; webUrl: string; email: string; cel: string; ciudad: string; pais: string };
 };
 
@@ -74,12 +75,20 @@ function data(c: Cotizacion): Data {
     logoUrl: b.logoDataUrl ? e(b.logoDataUrl) : '',
     logoCls: logoClase(b),
     aceptacion: !!c.aceptacionCliente,
+    iconos: c.iconosItems !== false,
     k: {
       web: e((k.web || '').trim()), webUrl: e(normalizeWebUrl(k.web || '')),
       email: e(k.email || ''), cel: e(k.cel || ''), ciudad: e(k.ciudad || ''), pais: e(k.pais || ''),
     },
   };
 }
+
+type ItemD = Data['items'][number];
+/** Primera columna: el ícono del ítem (toma el color de la celda) o su número. */
+const marca = (d: Data, it: ItemD) => (d.iconos ? `<span class="ic-it">${buildIconSvg(it.iconKey, 'currentColor', 2)}</span>` : it.n);
+/** Con íconos, el número pasa al título: "1. Diseño de logo". */
+const tit = (d: Data, it: ItemD) => (d.iconos ? `${Number(it.n)}. ${it.titulo}` : it.titulo);
+const colN = (d: Data, txt: string) => (d.iconos ? '' : txt);
 
 const logo = (d: Data, cls = 'logo') => (d.logoUrl ? `<img class="${cls}${d.logoCls}" src="${d.logoUrl}" alt="">` : '');
 
@@ -127,6 +136,8 @@ img.firma{display:block;max-width:240px;max-height:72px;object-fit:contain}
 ${LOGO_CSS}
 .ic{display:inline-flex;width:18px;height:18px;flex:none}
 .ic svg{width:100%;height:100%}
+.ic-it{display:inline-flex;width:24px;height:24px;vertical-align:middle}
+.ic-it svg{width:100%;height:100%}
 table{border-collapse:collapse;width:100%}
 .contact-list{list-style:none;display:flex;flex-direction:column;gap:10px}
 .contact-list li{display:flex;align-items:center;gap:12px}
@@ -201,8 +212,8 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
   </div>
   <div class="sec">
     <h2>Detalle de la propuesta</h2>
-    <table><thead><tr><th class="s">#</th><th class="s">Descripción</th><th class="p">Valor</th></tr></thead>
-    <tbody>${d.items.map((it) => `<tr><td class="n">${it.n}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+    <table><thead><tr><th class="s">${colN(d, '#')}</th><th class="s">Descripción</th><th class="p">Valor</th></tr></thead>
+    <tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
     ${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}
   </div>
   <div class="foot-cols">
@@ -278,8 +289,8 @@ ${sw('tl')}${sw('br')}
   </div>
 </div>
 <div class="rows">
-  <div class="row h"><div>#</div><div>Descripción</div><div>Valor</div></div>
-  ${d.items.map((it) => `<div class="row"><div class="n">${it.n}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
+  <div class="row h"><div>${colN(d, '#')}</div><div>Descripción</div><div>Valor</div></div>
+  ${d.items.map((it) => `<div class="row"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
 </div>
 ${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}
 <div class="bt">
@@ -347,9 +358,9 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 </div>
 <div class="band"><div class="a">Servicios</div><div class="b"></div></div>
 <div class="tbl"><table>
-  <thead><tr><th>N.º</th><th style="text-align:left">Servicio</th><th>Valor</th></tr></thead>
+  <thead><tr><th>${colN(d, 'N.º')}</th><th style="text-align:left">Servicio</th><th>Valor</th></tr></thead>
   <tbody>
-    ${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}
+    ${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}
     ${d.tot.conDesglose ? filasDesglose(d.tot).filter((r, i, a) => i < a.findIndex((x) => x.tipo === 'total')).map((r) => `<tr class="dz"><td></td><td>${e(r.label)}</td><td class="v">${r.value}</td></tr>`).join('') : ''}
     <tr class="t"><td></td><td>Total</td><td class="v">${d.total}</td></tr>
   </tbody>
@@ -422,8 +433,8 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
     <div class="meta"><b>Cotización N.º:</b><span>${d.numero}</span><b>Fecha:</b><span>${d.fecha}</span>${d.valida ? `<b>Válida hasta:</b><span>${d.valida}</span>` : ''}</div>
   </div>
   <div class="sec"><h2>Detalle del servicio:</h2>
-    <table><thead><tr><th style="text-align:center">N.º</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
-    <tbody>${d.items.map((it, i) => `<tr><td class="n">${i + 1}</td><td><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+    <table><thead><tr><th style="text-align:center">${colN(d, 'N.º')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
+    <tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
   </div>
   <div class="mid">
     <div>${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
