@@ -395,7 +395,18 @@ const I = {
               </div>
               <label class="field">Valor a cobrar <small id="cobroValorHint">sale de la cotización; puedes cambiarlo</small><input id="cobroValor" type="text" /></label>
               <button id="cobroValorAuto" type="button" class="link-btn" hidden></button>
-              <label class="field">Por concepto de <small>el período se agrega solo</small><textarea id="cobroConcepto" rows="3" placeholder="Por actividades de desarrollo correspondientes a…"></textarea></label>
+              <label class="field">Por concepto de <small id="cobroConceptoHint">el período se agrega solo</small><textarea id="cobroConcepto" class="auto" rows="3" placeholder="Por actividades de desarrollo correspondientes a…"></textarea></label>
+              <label class="check"><input id="cobroConPeriodo" type="checkbox" checked /> <span>Agregar el período al texto <small>(«realizadas durante el período comprendido…»)</small></span></label>
+              <div class="field detalle" id="detalleWrap">
+                <span>Detalle <small>opcional: una fila por servicio (fecha, descripción y valor)</small></span>
+                <div id="detalleList" class="detalle-list"></div>
+                <div class="perfil-acciones">
+                  <button id="detalleAdd" type="button" class="pill-btn"><Fragment set:html={I.plus} /> Agregar fila</button>
+                  <button id="detallePegar" type="button" class="link-btn">Pegar varias filas</button>
+                  <button id="detalleBorrar" type="button" class="link-btn danger" hidden>Quitar todas</button>
+                </div>
+                <button id="detalleSuma" type="button" class="link-btn" hidden></button>
+              </div>
               <div class="grid2">
                 <label class="field"><span id="cobroDesdeLbl">Trabajo desde</span><input id="cobroDesde" type="text" data-date placeholder="dd-mm-aaaa" /></label>
                 <label class="field">Hasta<input id="cobroHasta" type="text" data-date placeholder="dd-mm-aaaa" /></label>

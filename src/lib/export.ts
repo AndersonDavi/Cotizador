@@ -163,10 +163,10 @@ export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
 /** La cuenta de cobro como PDF directo (tamaño carta), igual que la cotización. */
 export async function pdfCuentaCobro(c: Cotizacion): Promise<File> {
   const html = renderCuentaCobroHtml(cuentaDesdeCotizacion(c, today()), await inlineFonts());
-  return pdfDeHtml(html, 816, `Cuenta de cobro ${numeroVisible(c)}`, `${cuentaArchivo(c)}.pdf`);
+  return pdfDeHtml(html, 816, `Cuenta de cobro ${numeroVisible(c)}`, `${cuentaArchivo(c)}.pdf`, 1056);
 }
 
-async function pdfDeHtml(html: string, ancho: number, titulo: string, nombre: string): Promise<File> {
+async function pdfDeHtml(html: string, ancho: number, titulo: string, nombre: string, pagH?: number): Promise<File> {
   const frame = offscreenFrame(ancho);
   try {
     const size = await loadIntoFrame(frame, html);
@@ -192,7 +192,7 @@ async function pdfDeHtml(html: string, ancho: number, titulo: string, nombre: st
     ctx.drawImage(img, 0, 0);
     const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear la imagen'))), 'image/jpeg', 0.9));
     const jpeg = new Uint8Array(await blob.arrayBuffer());
-    const pdf = armarPdf({ jpeg, w: canvas.width, h: canvas.height, docW: size.width, docH: size.height, titulo, ...capa });
+    const pdf = armarPdf({ jpeg, w: canvas.width, h: canvas.height, docW: size.width, docH: size.height, titulo, pagH, ...capa });
     return new File([pdf], nombre, { type: 'application/pdf' });
   } finally {
     frame.remove();
@@ -262,22 +262,17 @@ function winAnsiHex(s: string): string {
   return out;
 }
 
-/** PDF de una página: imagen JPEG que la llena + texto invisible (modo 3) + enlaces. */
-function armarPdf(p: { jpeg: Uint8Array; w: number; h: number; docW: number; docH: number; titulo: string; trozos: Trozo[]; enlaces: Enlace[] }): Blob {
+/**
+ * PDF con la imagen del documento + texto invisible (modo 3) + enlaces. Con `pagH` (alto de una hoja
+ * en px CSS) un documento más alto se reparte en varias hojas: la misma imagen se dibuja corrida en cada una.
+ */
+function armarPdf(p: { jpeg: Uint8Array; w: number; h: number; docW: number; docH: number; titulo: string; trozos: Trozo[]; enlaces: Enlace[]; pagH?: number }): Blob {
   const PT = 0.75; // 1 px CSS = 0,75 pt (misma medida que el PDF del CLI)
-  const W = p.docW * PT, H = p.docH * PT;
+  const pagH = p.pagH && p.docH > p.pagH + 1 ? p.pagH : p.docH;
+  const nPag = Math.max(1, Math.round(p.docH / pagH));
+  const W = p.docW * PT, H = pagH * PT, HT = p.docH * PT;
   const f = (n: number) => String(+n.toFixed(2));
   const medir = document.createElement('canvas').getContext('2d')!; // Arial mide igual que Helvetica
-
-  let texto = '';
-  for (const t of p.trozos) {
-    medir.font = `${t.fs}px Arial`;
-    const ancho = medir.measureText(t.t).width || 1;
-    const tz = Math.max(20, Math.min(400, (t.w / ancho) * 100)); // estira el texto a la caja real
-    const linea = t.y + (t.h - t.fs) / 2 + t.fs * 0.8; // línea base aproximada
-    texto += `BT 3 Tr /F1 ${f(t.fs * PT)} Tf ${f(tz)} Tz 1 0 0 1 ${f(t.x * PT)} ${f(H - linea * PT)} Tm <${winAnsiHex(t.t)}> Tj ET\n`;
-  }
-  const contenido = `q ${f(W)} 0 0 ${f(H)} 0 0 cm /Im0 Do Q\n${texto}`;
 
   const enc = new TextEncoder();
   const partes: Uint8Array[] = [];
@@ -287,25 +282,45 @@ function armarPdf(p: { jpeg: Uint8Array; w: number; h: number; docW: number; doc
   const obj = (n: number, ...cuerpo: (string | Uint8Array)[]) => { xref[n] = pos; add(`${n} 0 obj\n`); cuerpo.forEach(add); add('\nendobj\n'); };
   const lit = (s: string) => `(${s.replace(/[\\()]/g, (m) => '\\' + m).replace(/[^\x20-\x7e]/g, (m) => encodeURI(m))})`;
 
-  const annots = p.enlaces.map((_, i) => 8 + i);
-  const contenidoBytes = enc.encode(contenido);
+  // Números de objeto: 1 catálogo, 2 páginas, 3 imagen, 4 fuente, 5 info; luego cada hoja (página, contenido, enlaces)
+  let sig = 6;
+  const hojas = Array.from({ length: nPag }, (_, i) => {
+    const y0 = i * pagH;
+    const enlaces = p.enlaces.filter((e) => e.y >= y0 - 1 && e.y < y0 + pagH);
+    return { i, y0, pag: sig++, cont: sig++, annots: enlaces.map(() => sig++), enlaces };
+  });
+
   add('%PDF-1.4\n%âãÏÓ\n');
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(W)} ${f(H)}] /Resources << /XObject << /Im0 5 0 R >> /Font << /F1 7 0 R >> >> /Contents 4 0 R${annots.length ? ` /Annots [${annots.map((n) => `${n} 0 R`).join(' ')}]` : ''} >>`);
-  obj(4, `<< /Length ${contenidoBytes.length} >>\nstream\n`, contenidoBytes, '\nendstream');
-  obj(5, `<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`, p.jpeg, '\nendstream');
-  obj(6, `<< /Title ${pdfTexto(p.titulo)} /Producer (Cotizador) >>`);
-  obj(7, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-  p.enlaces.forEach((e, i) => {
-    const x1 = e.x * PT, y1 = H - (e.y + e.h) * PT, x2 = (e.x + e.w) * PT, y2 = H - e.y * PT;
-    obj(8 + i, `<< /Type /Annot /Subtype /Link /Rect [${f(x1)} ${f(y1)} ${f(x2)} ${f(y2)}] /Border [0 0 0] /A << /S /URI /URI ${lit(e.url)} >> >>`);
-  });
-  const total = 8 + p.enlaces.length;
+  obj(2, `<< /Type /Pages /Kids [${hojas.map((h) => `${h.pag} 0 R`).join(' ')}] /Count ${nPag} >>`);
+  obj(3, `<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`, p.jpeg, '\nendstream');
+  obj(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  obj(5, `<< /Title ${pdfTexto(p.titulo)} /Producer (Cotizador) >>`);
+  for (const h of hojas) {
+    let texto = '';
+    for (const t of p.trozos) {
+      if (t.y < h.y0 - 1 || t.y >= h.y0 + pagH) continue;
+      medir.font = `${t.fs}px Arial`;
+      const ancho = medir.measureText(t.t).width || 1;
+      const tz = Math.max(20, Math.min(400, (t.w / ancho) * 100)); // estira el texto a la caja real
+      const linea = t.y - h.y0 + (t.h - t.fs) / 2 + t.fs * 0.8; // línea base aproximada, dentro de la hoja
+      texto += `BT 3 Tr /F1 ${f(t.fs * PT)} Tf ${f(tz)} Tz 1 0 0 1 ${f(t.x * PT)} ${f(H - linea * PT)} Tm <${winAnsiHex(t.t)}> Tj ET\n`;
+    }
+    // La imagen completa, corrida hacia arriba para que esta hoja muestre su tramo (la hoja recorta el resto)
+    const contenido = enc.encode(`q ${f(W)} 0 0 ${f(HT)} 0 ${f(H - HT + h.i * H)} cm /Im0 Do Q\n${texto}`);
+    obj(h.pag, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(W)} ${f(H)}] /Resources << /XObject << /Im0 3 0 R >> /Font << /F1 4 0 R >> >> /Contents ${h.cont} 0 R${h.annots.length ? ` /Annots [${h.annots.map((n) => `${n} 0 R`).join(' ')}]` : ''} >>`);
+    obj(h.cont, `<< /Length ${contenido.length} >>\nstream\n`, contenido, '\nendstream');
+    h.enlaces.forEach((e, k) => {
+      const y = e.y - h.y0;
+      const x1 = e.x * PT, y1 = H - (y + e.h) * PT, x2 = (e.x + e.w) * PT, y2 = H - y * PT;
+      obj(h.annots[k], `<< /Type /Annot /Subtype /Link /Rect [${f(x1)} ${f(y1)} ${f(x2)} ${f(y2)}] /Border [0 0 0] /A << /S /URI /URI ${lit(e.url)} >> >>`);
+    });
+  }
+  const total = sig;
   const inicio = pos;
   add(`xref\n0 ${total}\n0000000000 65535 f \n`);
   for (let n = 1; n < total; n++) add(`${String(xref[n]).padStart(10, '0')} 00000 n \n`);
-  add(`trailer\n<< /Size ${total} /Root 1 0 R /Info 6 0 R >>\nstartxref\n${inicio}\n%%EOF\n`);
+  add(`trailer\n<< /Size ${total} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${inicio}\n%%EOF\n`);
   return new Blob(partes as BlobPart[], { type: 'application/pdf' });
 }
 

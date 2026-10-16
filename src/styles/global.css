@@ -771,3 +771,18 @@ body.modo-cuenta .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .elegir-ops button:hover, .elegir-ops button:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card-2)); }
 .elegir-ops button:active { transform: scale(.98); }
 .cobro-origen { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+
+/* Detalle de la cuenta de cobro */
+.detalle-list { display: flex; flex-direction: column; gap: 6px; }
+.det-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 110px 30px; gap: 6px; align-items: center; }
+.det-row input { min-width: 0; padding: 8px 10px; font-size: 14px; }
+.det-row .det-valor { text-align: right; }
+.det-row .det-del { width: 30px; height: 30px; border-radius: 8px; background: none; border: 1px solid var(--border); color: var(--muted); }
+.det-row .det-del:hover { color: var(--danger); border-color: var(--danger); }
+.detalle-list:empty { display: none; }
+@media (max-width: 520px) {
+  .det-row { grid-template-columns: 84px minmax(0, 1fr) 30px; }
+  .det-row .det-valor { grid-column: 2; }
+}
+.texto-input.multi { min-height: 160px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 13px; line-height: 1.5; }
+.pv-corte { position: absolute; left: 0; right: 0; height: 14px; transform: translateY(-7px); background: #0d1016; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 10px; font-weight: 600; color: #8b93a1; letter-spacing: .04em; }

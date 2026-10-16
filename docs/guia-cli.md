@@ -208,7 +208,7 @@ cotizador cuenta COTIZACION_00008.json --cliente grupo-logis --desde 07-09-2026 
 - `--marcar`: guarda los datos en el JSON y marca la cotización como `cobrada`.
 - Sale `CUENTA-COBRO-COTIZACION-<n>.pdf` al lado del JSON.
 
-**Cuenta de cobro suelta** (sin cotización): un JSON con `"tipo": "cuenta"`, número `COB-0001`, sin ítems, con `cliente` y `cobro` (`valor`, `concepto`, opcionalmente `desde`/`hasta`, `ciudad`, `nota`, `banco`). Ahí el período es opcional y el valor es obligatorio (`--valor` o `cobro.valor`). Sale `CUENTA-DE-COBRO_<n>.pdf` con el título "CUENTA DE COBRO N.º <n>". Son las mismas que crea la app con Nueva → Cuenta de cobro (se pueden exportar e importar como JSON).
+**Cuenta de cobro suelta** (sin cotización): un JSON con `"tipo": "cuenta"`, número `COB-0001`, sin ítems, con `cliente` y `cobro` (`valor`, `concepto`, opcionalmente `desde`/`hasta`, `ciudad`, `nota`, `banco`). Para una lista bajo el concepto (domicilios, visitas…) usa `cobro.detalle`: `[{ "id": "1", "fecha": "06-10", "texto": "Calle 45 #12-30", "valor": 15000 }]`; sin `cobro.valor`, el valor es la suma del detalle. Con `"conPeriodo": false` el concepto va tal cual (sin "realizadas durante el período…"). Si no cabe en una hoja, el PDF sigue en otra hoja carta. Ahí el período es opcional y el valor es obligatorio (`--valor` o `cobro.valor`). Sale `CUENTA-DE-COBRO_<n>.pdf` con el título "CUENTA DE COBRO N.º <n>". Son las mismas que crea la app con Nueva → Cuenta de cobro (se pueden exportar e importar como JSON).
 
 El nombre legal, la dirección y la cuenta bancaria del emisor vienen de `~/.cotizador.json`.
 

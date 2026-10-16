@@ -28,7 +28,7 @@ import {
 import {
   ESTADOS, ESTADO_LABELS, estadoDe, formatCOP, totalReal, today,
   type Cotizacion, type Estado, type Cliente,
-  totales, filasDesglose, valorItem, qtyLabel, validaHasta,
+  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro,
 } from '../src/lib/state';
 import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, SpecError, type Spec } from './nueva';
 
@@ -312,7 +312,7 @@ async function main() {
       if (!c.cliente?.nit) faltan.push('NIT (--nit)');
       // En una cuenta suelta (tipo "cuenta") el período es opcional y el valor es obligatorio
       if (c.tipo === 'cuenta' ? Boolean(c.cobro.desde) !== Boolean(c.cobro.hasta) : !c.cobro.desde || !c.cobro.hasta) faltan.push('período (--desde y --hasta)');
-      if (c.tipo === 'cuenta' && !(c.cobro.valor! > 0)) faltan.push('valor (--valor)');
+      if (c.tipo === 'cuenta' && !(valorCobro(c) > 0)) faltan.push('valor (--valor, cobro.valor o valores en cobro.detalle)');
       if (!c.branding.contacto?.ciudad?.trim()) faltan.push('ciudad del emisor (Mi marca → Contacto en la cotización)');
       if (!c.branding.banco) faltan.push(`cuenta bancaria (emisor.banco en ${CONFIG_PATH})`);
       if (!c.branding.direccion) faltan.push(`dirección (emisor.direccion en ${CONFIG_PATH})`);

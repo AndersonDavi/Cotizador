@@ -207,6 +207,41 @@ const ENHANCE_JS = `
     all('.contact .rgt').forEach(function (el) { el.style.left = px(W - PX - wOf(el)); });
   }
 
+  // Varias hojas carta (cuenta de cobro con detalle largo): lo que no cabe en una hoja pasa
+  // a la siguiente, dejando sus márgenes; las filas de una tabla repiten el encabezado.
+  function paginar(doc) {
+    var PH = 1056, MT = 110, MB = 90;
+    var units = [];
+    Array.prototype.forEach.call(doc.children, function (el) {
+      if (el.tagName === 'TABLE') {
+        Array.prototype.forEach.call(el.querySelectorAll('tbody tr, tfoot tr'), function (tr, i) { units.push({ el: tr, tabla: el, primera: i === 0 }); });
+      } else units.push({ el: el });
+    });
+    function mover(el, d) { var m = parseFloat(getComputedStyle(el).marginTop) || 0; el.style.marginTop = px(m + d); }
+    units.forEach(function (u) {
+      var top0 = doc.getBoundingClientRect().top;
+      var r = u.el.getBoundingClientRect(), t = r.top - top0, b = r.bottom - top0;
+      var k = Math.floor(t / PH);
+      if (b <= (k + 1) * PH - MB || r.height > PH - MT - MB) return;
+      var destino = (k + 1) * PH + MT;
+      if (u.tabla && u.primera) { mover(u.tabla, destino - (u.tabla.getBoundingClientRect().top - top0)); return; }
+      if (u.tabla) {
+        var sp = document.createElement('tr'); sp.className = 'sp';
+        var td = document.createElement('td'); td.colSpan = 9; sp.appendChild(td);
+        u.el.parentNode.insertBefore(sp, u.el);
+        var hd = u.tabla.querySelector('thead tr');
+        var rep = hd ? hd.cloneNode(true) : null;
+        if (rep) u.el.parentNode.insertBefore(rep, u.el);
+        var tt = (rep || u.el).getBoundingClientRect().top - top0;
+        td.style.height = px(Math.max(0, destino - tt));
+        return;
+      }
+      mover(u.el, destino - t);
+    });
+    var h = doc.getBoundingClientRect().height;
+    doc.style.height = px(Math.max(1, Math.ceil(h / PH - 0.001)) * PH);
+  }
+
   window.__docReady = (async function () {
     if (document.fonts) {
       await Promise.all(Array.from(document.fonts).map(function (f) { return f.load().catch(function () {}); }));
@@ -216,6 +251,7 @@ const ENHANCE_JS = `
     await Promise.all(all('img[data-trim]').map(trim));
     var doc = q('.doc');
     if (doc.classList.contains('cot')) layoutCotizacion();
+    if (doc.dataset.paginar) paginar(doc);
     all('[data-fit]').forEach(fitBlock);
     all('[data-cv]').forEach(cvShift);
     var rect = doc.getBoundingClientRect();
@@ -454,6 +490,7 @@ export type CuentaCobro = {
   titulo?: string;          // "CUENTA DE COBRO N.º 0001" (cuentas sueltas, con consecutivo)
   nota?: string;            // línea final opcional
   archivo?: string;         // nombre del archivo sin extensión
+  detalle?: { fecha?: string; texto: string; valor?: number }[];
 };
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -518,19 +555,42 @@ export function numeroALetras(valor: number): string {
 }
 
 const CUENTA_CSS = `
-.doc{width:816px;height:1056px;padding:110px 113px 90px 113px;font-family:Arial,'Liberation Sans',Helvetica,sans-serif;font-size:11pt;line-height:1.2;color:#000;background:#fff}
+.doc{width:816px;min-height:1056px;padding:110px 113px 90px 113px;font-family:Arial,'Liberation Sans',Helvetica,sans-serif;font-size:11pt;line-height:1.2;color:#000;background:#fff}
 .c{text-align:center}
 .blk{margin-top:44px}
-.just{text-align:justify;margin-top:22px;line-height:1.25}
+.just{text-align:justify;margin-top:22px;line-height:1.25;white-space:pre-line}
+.det{width:100%;border-collapse:collapse;margin-top:14px;font-size:10pt;line-height:1.25}
+.det th{text-align:left;font-weight:700;border-bottom:1px solid #000;padding:4px 6px}
+.det td{padding:4px 6px;border-bottom:.5px solid #bbb;vertical-align:top}
+.det .n{width:1%;color:#555;text-align:right}
+.det .f,.det .v{white-space:nowrap;width:1%}
+.det .v{text-align:right}
+.det tfoot td{font-weight:700;border-bottom:0;border-top:1px solid #000}
+.det tr.sp td{border:0;padding:0}
 .firma{height:64px;margin:26px 0 22px}
 .firma img{max-height:64px;max-width:220px;object-fit:contain}
 .tit{margin-top:30px;font-weight:700;letter-spacing:.02em}
 `;
 
+/** Tabla del detalle: solo muestra las columnas que tienen datos (fecha, valor). */
+function tablaDetalle(filas?: CuentaCobro['detalle']): string {
+  const l = (filas ?? []).filter((f) => f.texto?.trim() || f.fecha?.trim() || f.valor);
+  if (!l.length) return '';
+  const conFecha = l.some((f) => f.fecha?.trim());
+  const conValor = l.some((f) => f.valor);
+  const total = l.reduce((a, f) => a + (f.valor || 0), 0);
+  const cols = 2 + (conFecha ? 1 : 0) + (conValor ? 1 : 0);
+  return `<table class="det">
+    <thead><tr><th class="n">#</th>${conFecha ? '<th class="f">Fecha</th>' : ''}<th>Descripción</th>${conValor ? '<th class="v">Valor</th>' : ''}</tr></thead>
+    <tbody>${l.map((f, i) => `<tr><td class="n">${i + 1}</td>${conFecha ? `<td class="f">${escapeHtml(f.fecha ?? '')}</td>` : ''}<td>${escapeHtml(f.texto ?? '')}</td>${conValor ? `<td class="v">${f.valor ? formatCOP(f.valor) : ''}</td>` : ''}</tr>`).join('')}</tbody>
+    ${conValor ? `<tfoot><tr><td colspan="${cols - 1}">Total</td><td class="v">${formatCOP(total)}</td></tr></tfoot>` : ''}
+  </table>`;
+}
+
 export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): string {
   const e = cc.emisor;
   const body = `
-<div class="doc" data-fixed-page="1">
+<div class="doc" data-fixed-page="1" data-paginar="1">
   <p>${cc.ciudad ? `${escapeHtml(cc.ciudad)}, ` : ''}${escapeHtml(fechaLarga(cc.fecha))}</p>
   ${cc.titulo ? `<p class="c tit">${escapeHtml(cc.titulo)}</p>` : ''}
   <div class="c blk"><p>${escapeHtml(cc.cliente.nombre)}</p>${cc.cliente.nit?.trim() ? `<p>NIT ${escapeHtml(cc.cliente.nit)}</p>` : ''}</div>
@@ -538,15 +598,18 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   <div class="c blk"><p>LA SUMA DE ${formatCOP(cc.valor)}</p><p>${escapeHtml(numeroALetras(cc.valor))}</p></div>
   <p class="c" style="margin-top:28px">Por concepto de:</p>
   <p class="just">${escapeHtml(cc.concepto)}</p>
+  ${tablaDetalle(cc.detalle)}
   ${cc.cuentaBancaria ? `<p style="margin-top:14px">Por favor consignar en la ${escapeHtml(cc.cuentaBancaria)}</p>` : ''}
   ${cc.nota ? `<p class="just" style="margin-top:14px">${escapeHtml(cc.nota)}</p>` : ''}
-  <p style="margin-top:${cc.nota ? 60 : 96}px">Atentamente,</p>
-  <div class="firma">${e.firmaDataUrl ? `<img data-trim src="${escapeHtml(e.firmaDataUrl)}" alt="">` : ''}</div>
-  <p>${escapeHtml(e.nombre)}</p>
-  <div style="margin-top:22px">
-    ${e.direccion?.trim() ? `<p>Dirección: ${escapeHtml(e.direccion)}</p>` : ''}
-    ${e.telefono?.trim() ? `<p>Teléfono: ${escapeHtml(e.telefono)}</p>` : ''}
-    ${e.cedula?.trim() ? `<p>Cédula de ciudadanía: ${escapeHtml(e.cedula)}</p>` : ''}
+  <div class="cierre" style="margin-top:${cc.nota || cc.detalle?.length ? 60 : 96}px">
+    <p>Atentamente,</p>
+    <div class="firma">${e.firmaDataUrl ? `<img data-trim src="${escapeHtml(e.firmaDataUrl)}" alt="">` : ''}</div>
+    <p>${escapeHtml(e.nombre)}</p>
+    <div style="margin-top:22px">
+      ${e.direccion?.trim() ? `<p>Dirección: ${escapeHtml(e.direccion)}</p>` : ''}
+      ${e.telefono?.trim() ? `<p>Teléfono: ${escapeHtml(e.telefono)}</p>` : ''}
+      ${e.cedula?.trim() ? `<p>Cédula de ciudadanía: ${escapeHtml(e.cedula)}</p>` : ''}
+    </div>
   </div>
 </div>`;
   const css = CUENTA_CSS + '\n@page{size:letter;margin:0}';
@@ -558,8 +621,12 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
   const b = c.branding;
   const cobro = c.cobro ?? {};
   const sola = esCuenta(c);
-  const base = (cobro.concepto?.trim() || (sola ? 'Por servicios prestados' : `Por actividades de desarrollo correspondientes a ${c.alcance.trim() || 'los requerimientos de la cotización ' + c.numero}`)).replace(/[.,\s]+$/, '');
-  const periodo = parseFecha(cobro.desde ?? '') && parseFecha(cobro.hasta ?? '') ? `, realizadas durante el período comprendido ${periodoTexto(cobro.desde!, cobro.hasta!)}` : '';
+  const escrito = cobro.concepto?.trim() ?? '';
+  const texto = escrito || (sola ? 'Por servicios prestados' : `Por actividades de desarrollo correspondientes a ${c.alcance.trim() || 'los requerimientos de la cotización ' + c.numero}`);
+  const dosPuntos = /:\s*$/.test(texto); // "Por los domicilios realizados:" presenta la lista del detalle
+  const base = texto.replace(/[.,:\s]+$/, '');
+  const conPeriodo = cobro.conPeriodo !== false;
+  const periodo = conPeriodo && parseFecha(cobro.desde ?? '') && parseFecha(cobro.hasta ?? '') ? `, realizadas durante el período comprendido ${periodoTexto(cobro.desde!, cobro.hasta!)}` : '';
   const t = totales(c);
   const parte = !sola && t.anticipoPct > 0 ? cobro.parte ?? 'total' : 'total';
   const valor = valorCobro(c);
@@ -580,7 +647,9 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
       firmaDataUrl: b.representante.firmaDataUrl,
     },
     valor,
-    concepto: `${base}${periodo}${extra}.`,
+    // Sin período, el texto escrito va tal cual (con sus saltos de línea); si no, se arma la frase
+    concepto: !conPeriodo && escrito ? escrito : `${base}${periodo}${extra}${dosPuntos ? ':' : '.'}`,
+    detalle: (cobro.detalle ?? []).map((f) => ({ fecha: f.fecha, texto: f.texto, valor: f.valor })),
     cuentaBancaria: cobro.banco?.trim() || b.banco || '',
     titulo: sola ? `CUENTA DE COBRO N.º ${numeroVisible(c)}` : undefined,
     nota: cobro.nota?.trim() || undefined,

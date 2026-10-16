@@ -6,6 +6,18 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.11.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Detalle en la cuenta de cobro: una lista con fecha, descripción y valor (por ejemplo, cada domicilio con su dirección y su día). Se escribe fila por fila (Enter agrega la siguiente) o se pega de Excel o de una nota con "Pegar varias filas".',
+      'En una cuenta sin cotización el valor es la suma del detalle; si escribes otro, puedes volver a la suma con un toque.',
+      'El concepto puede ir tal cual lo escribes, sin "realizadas durante el período…", y con varias líneas. El período ahora es opcional.',
+      'Si la lista no cabe, la cuenta sigue en otra hoja carta (el encabezado de la tabla se repite y la firma no se parte). La vista previa muestra una hoja a la vez.',
+      'Borrar el valor a cobrar ya no lo deja en $0: vuelve al valor calculado.',
+    ],
+  },
+  {
     version: '1.10.0',
     fecha: '16-10-2026',
     tipo: 'nueva',

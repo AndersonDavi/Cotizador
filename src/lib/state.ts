@@ -62,6 +62,9 @@ export const ESTADO_LABELS: Record<Estado, string> = {
 
 export type Cliente = { nombre: string; nit: string; cel?: string };
 
+/** Una fila del detalle de la cuenta (un domicilio, una visita…). La fecha es texto libre. */
+export type FilaDetalle = { id: string; fecha?: string; texto: string; valor?: number };
+
 /** Datos para generar la cuenta de cobro de la cotización. Fechas dd-mm-aaaa. */
 export type DatosCobro = {
   fecha?: string;
@@ -76,6 +79,8 @@ export type DatosCobro = {
   cliente?: Cliente;
   banco?: string;
   emisor?: { nombre?: string; cedula?: string; direccion?: string; telefono?: string };
+  detalle?: FilaDetalle[];  // lista bajo el concepto (fecha, descripción, valor)
+  conPeriodo?: boolean;     // false = el concepto va tal cual, sin "realizadas durante el período…"
 };
 
 /** IVA, descuento y anticipo. Sin esto, el total es la suma de los ítems (como antes). */
@@ -282,6 +287,7 @@ export const numeroCuenta = (visible: string) => PREFIJO_CUENTA + visible.trim()
 
 /** Lo que se cobra con la cotización: el total, el anticipo o el saldo. */
 export function valorCalculadoCobro(c: Cotizacion): number {
+  if (esCuenta(c)) return sumaDetalle(c); // una cuenta suelta suma su detalle (si tiene valores)
   const t = totales(c);
   const parte = t.anticipoPct > 0 ? c.cobro?.parte ?? 'total' : 'total';
   return parte === 'anticipo' ? t.anticipo : parte === 'saldo' ? t.saldo : t.total;
@@ -291,7 +297,12 @@ export function valorCalculadoCobro(c: Cotizacion): number {
 export function valorCobro(c: Cotizacion): number {
   const v = c.cobro?.valor;
   if (v != null && Number.isFinite(v)) return v;
-  return esCuenta(c) ? 0 : valorCalculadoCobro(c);
+  return valorCalculadoCobro(c);
+}
+
+/** Suma de los valores del detalle de la cuenta. */
+export function sumaDetalle(c: Cotizacion): number {
+  return (c.cobro?.detalle ?? []).reduce((a, f) => a + (Number.isFinite(f.valor) ? f.valor! : 0), 0);
 }
 
 /** Cliente de la cuenta: en una cuenta suelta es el del documento; desde una cotización, el cambiado o el de la cotización. */

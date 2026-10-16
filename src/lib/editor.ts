@@ -37,6 +37,8 @@ import {
   valorDoc,
   masUnMes,
   clienteCobro,
+  sumaDetalle,
+  type FilaDetalle,
 } from './state';
 import { getAllIconKeys, getIconLabel, getIconSearchText, buildIconDataUrl, ICON_CATEGORIES, type IconKey } from './icons';
 import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastReport, readableOn, type DisenoId } from './theme';
@@ -46,7 +48,7 @@ import {
   importJsonFromFile, printCuentaCobro, pdfCuentaCobro, sharePng, saveTextFile, pdfParaCompartir,
 } from './export';
 import { startTour, TOURS, type TourId } from './tour';
-import { moneyField, dateField } from './inputs';
+import { moneyField, dateField, maskMoneyText, parseMoney, formatMoney } from './inputs';
 import { openColorPicker } from './colorpicker';
 import { abrirModal, cerrarModal, confirmar, animarSalida, pedirTexto, elegir } from './ui';
 import {
@@ -184,6 +186,7 @@ let zoomMode: 'width' | 'page' | number = (() => {
 const recordarZoom = (z: 'width' | 'page') => { try { localStorage.setItem(ZOOM_KEY, z); } catch { /* sin storage */ } };
 let zoomK = 1;
 let docSize = { width: 1080, height: 1400 };
+const HOJA = 1056; // alto de una hoja carta en px CSS (cuenta de cobro)
 
 function frames() {
   const stage = $('previewStage');
@@ -201,8 +204,10 @@ function applyZoom() {
   const avail = scroll.clientWidth - pad;
   if (avail <= 0) return; // vista previa oculta (modo celular): se ajusta al mostrarla
   const availH = scroll.clientHeight - pad;
+  // En "Página" una cuenta de varias hojas se ajusta a una hoja (las demás se ven bajando)
+  const altoPagina = muestraCuenta() ? Math.min(docSize.height, HOJA) : docSize.height;
   const k = zoomMode === 'width' ? Math.min(1.6, avail / docSize.width)
-    : zoomMode === 'page' ? Math.min(avail / docSize.width, availH / docSize.height)
+    : zoomMode === 'page' ? Math.min(avail / docSize.width, availH / altoPagina)
     : zoomMode;
   zoomK = k;
   $('zoomLabel').textContent = `${Math.round(k * 100)}%`;
@@ -219,6 +224,15 @@ function applyZoom() {
     f.style.transform = `translate(-1px, -1px) scale(${kx}, ${ky})`;
   }
   front.style.height = `${docSize.height}px`;
+  // Corte entre hojas de la cuenta de cobro (solo en pantalla: el PDF ya va en hojas separadas)
+  stage.querySelectorAll('.pv-corte').forEach((x) => x.remove());
+  if (muestraCuenta()) {
+    for (let i = 1; i < Math.round(docSize.height / HOJA); i++) {
+      const c = Object.assign(document.createElement('div'), { className: 'pv-corte', textContent: `Hoja ${i + 1}` });
+      c.style.top = `${i * HOJA * k}px`;
+      stage.appendChild(c);
+    }
+  }
 }
 
 /** La vista previa muestra la cuenta de cobro en la pestaña Cobro y en las cuentas sueltas. */
@@ -787,7 +801,7 @@ function faltantesCobro(): string[] {
   if (sola && !(valorCobro(state) > 0)) f.push('Valor a cobrar');
   // En una cuenta suelta el período es opcional; si se escribe, tiene que estar completo
   const d = state.cobro?.desde?.trim() ?? '', h = state.cobro?.hasta?.trim() ?? '';
-  if ((!sola || d || h) && (!parseFecha(d) || !parseFecha(h))) f.push('Período del trabajo (desde / hasta, dd-mm-aaaa)');
+  if ((d || h) && (!parseFecha(d) || !parseFecha(h))) f.push('Período del trabajo completo (desde y hasta, dd-mm-aaaa)');
   if (!state.branding.banco && !state.cobro?.banco?.trim()) f.push('Cuenta bancaria (pestaña Mi marca o "Tus datos en esta cuenta")');
   if (!state.branding.contacto?.ciudad?.trim() && !state.cobro?.ciudad?.trim()) f.push('Ciudad (aquí abajo o en Mi marca → Contacto)');
   if (!state.branding.representante.nombre && !state.branding.nombreLegal) f.push('Tu nombre (pestaña Mi marca)');
@@ -832,9 +846,16 @@ function renderValorCobro() {
   }
   if (document.activeElement !== $('cobroValor')) cobroMoney?.paint();
   const b = $('cobroValorAuto') as HTMLButtonElement;
-  const manual = !esCuenta(state) && state.cobro?.valor != null && state.cobro.valor !== valorCalculadoCobro(state);
+  const calc = valorCalculadoCobro(state);
+  const manual = state.cobro?.valor != null && state.cobro.valor !== calc && (!sola || calc > 0);
   b.hidden = !manual;
-  if (manual) b.textContent = `Usar el valor de la cotización (${formatCOP(valorCalculadoCobro(state))})`;
+  if (manual) b.textContent = sola ? `Usar la suma del detalle (${formatCOP(calc)})` : `Usar el valor de la cotización (${formatCOP(calc)})`;
+  // Desde una cotización el valor no sale del detalle, pero se puede cobrar su suma con un toque
+  const suma = sumaDetalle(state);
+  const ds = $('detalleSuma');
+  ds.hidden = sola || !(suma > 0) || valorCobro(state) === suma;
+  if (!ds.hidden) ds.textContent = `Cobrar la suma del detalle (${formatCOP(suma)})`;
+  $('cobroConceptoHint').textContent = state.cobro?.conPeriodo === false ? 'va tal cual lo escribes (puedes usar varias líneas)' : 'el período se agrega solo';
 }
 
 /** Cambia la interfaz entre cotización y cuenta de cobro suelta. */
@@ -853,7 +874,7 @@ function aplicarModo() {
     ? 'Cuenta de cobro sin cotización: a quién le cobras, cuánto y por qué. Se guarda en Guardadas con su número al generarla.'
     : 'Genera la cuenta de cobro de esta cotización con el total, tus datos y los del cliente. A la derecha ves cómo queda.';
   $('cobroValorHint').textContent = sola ? 'en pesos' : 'sale de la cotización; puedes cambiarlo';
-  $('cobroDesdeLbl').textContent = sola ? 'Período desde (opcional)' : 'Trabajo desde';
+  $('cobroDesdeLbl').textContent = 'Período desde (opcional)';
   ($('cobroConcepto') as HTMLTextAreaElement).placeholder = sola ? 'Por servicios de asesoría contable…' : 'Por actividades de desarrollo correspondientes a…';
   // Lo que solo tiene sentido con una cotización
   for (const id of ['shareBtn', 'pngBtn', 'pdfPrintBtn', 'cuentaMenuBtn', 'exportMdBtn']) ($(id) as HTMLElement).hidden = sola;
@@ -873,6 +894,7 @@ function repetirCuenta(base: Cotizacion) {
   c.cobro = {
     ...cobro,
     fecha: undefined,
+    detalle: undefined, // las filas son de ese mes
     desde: cobro.desde ? masUnMes(cobro.desde) : cobro.desde,
     hasta: cobro.hasta ? masUnMes(cobro.hasta) : cobro.hasta,
   };
@@ -881,6 +903,127 @@ function repetirCuenta(base: Cotizacion) {
   load(c, `Cuenta ${numeroVisible(c)} lista${cobro.desde ? ': el período pasó al mes siguiente' : ''}`);
   showTab('cobro');
   renderSavedList();
+}
+
+// ── Detalle de la cuenta de cobro ────────────────────────────────────────────
+// Filas bajo el concepto (un domicilio, una visita…): fecha libre, descripción y valor opcional.
+
+const filasDetalle = (): FilaDetalle[] => state.cobro?.detalle ?? [];
+function setDetalle(l: FilaDetalle[]) { state.cobro = { ...state.cobro, detalle: l.length ? l : undefined }; }
+
+function renderDetalle(enfocar?: string) {
+  const l = filasDetalle();
+  $('detalleList').innerHTML = l.map((f) => `<div class="det-row" data-id="${escapeHtml(f.id)}">
+    <input class="det-fecha" type="text" value="${escapeHtml(f.fecha ?? '')}" placeholder="06-10" aria-label="Fecha" />
+    <input class="det-texto" type="text" value="${escapeHtml(f.texto ?? '')}" placeholder="Calle 45 #12-30" aria-label="Descripción" />
+    <input class="det-valor" type="text" inputmode="numeric" value="${f.valor ? formatMoney(f.valor) : ''}" placeholder="$ valor" aria-label="Valor" />
+    <button type="button" class="det-del" title="Quitar fila" aria-label="Quitar fila">✕</button>
+  </div>`).join('');
+  ($('detalleBorrar') as HTMLElement).hidden = l.length < 2;
+  if (enfocar) $('detalleList').querySelector<HTMLInputElement>(`[data-id="${enfocar}"] .det-fecha`)?.focus();
+}
+
+/** Convierte texto pegado (una fila por línea; columnas de Excel o "06-10 Calle 45 #12-30 15.000") en filas. */
+function filasDesdeTexto(txt: string): FilaDetalle[] {
+  const esFecha = (x: string) => /^\d{1,2}[-/.]\d{1,2}([-/.]\d{2,4})?$/.test(x);
+  const esValor = (x: string) => /^\$?\s?[\d.,]+$/.test(x) && parseMoney(x) > 0;
+  return txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+    let fecha: string | undefined;
+    let valor: number | undefined;
+    let texto = l;
+    const cols = l.split('\t').map((x) => x.trim()).filter(Boolean);
+    if (cols.length >= 2) {
+      if (esFecha(cols[0])) fecha = cols.shift();
+      if (cols.length > 1 && esValor(cols[cols.length - 1])) valor = parseMoney(cols.pop()!);
+      texto = cols.join(' ');
+    } else {
+      const mf = texto.match(/^(\d{1,2}[-/.]\d{1,2}(?:[-/.]\d{2,4})?)\s+(.+)$/);
+      if (mf) { fecha = mf[1]; texto = mf[2]; }
+      // Valor al final: con $, con puntos de miles o de 4 cifras o más (no confunde "#12-30")
+      const mv = texto.match(/^(.+?)\s+(\$\s?[\d.,]+|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{4,})$/);
+      if (mv) { valor = parseMoney(mv[2]); texto = mv[1]; }
+    }
+    texto = texto.replace(/^[-•*]\s*/, '').replace(/\s*[-–—:|]\s*$/, '').trim();
+    return { id: makeId(), fecha, texto, valor: valor || undefined };
+  });
+}
+
+function initDetalle() {
+  const list = $('detalleList');
+  list.addEventListener('input', (ev) => {
+    const el = ev.target as HTMLInputElement;
+    const f = filasDetalle().find((x) => x.id === el.closest<HTMLElement>('.det-row')?.dataset.id);
+    if (!f) return;
+    if (el.classList.contains('det-fecha')) f.fecha = el.value;
+    else if (el.classList.contains('det-texto')) f.texto = el.value;
+    else if (el.classList.contains('det-valor')) {
+      const { text, caret } = maskMoneyText(el.value, el.selectionStart ?? el.value.length);
+      el.value = text;
+      el.setSelectionRange(caret, caret);
+      f.valor = parseMoney(text) || undefined;
+    }
+    refresh();
+  });
+  // Enter en una fila agrega la siguiente: para escribir muchas seguidas
+  list.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    const row = (ev.target as HTMLElement).closest<HTMLElement>('.det-row');
+    if (!row) return;
+    ev.preventDefault();
+    const l = filasDetalle();
+    const i = l.findIndex((x) => x.id === row.dataset.id);
+    const nueva: FilaDetalle = { id: makeId(), texto: '' };
+    l.splice(i + 1, 0, nueva);
+    setDetalle(l);
+    renderDetalle(nueva.id);
+    refresh();
+  });
+  list.addEventListener('click', async (ev) => {
+    const row = (ev.target as HTMLElement).closest('.det-del')?.closest<HTMLElement>('.det-row');
+    if (!row) return;
+    await animarSalida(row);
+    setDetalle(filasDetalle().filter((x) => x.id !== row.dataset.id));
+    renderDetalle();
+    refresh();
+  });
+  $('detalleAdd').addEventListener('click', () => {
+    const nueva: FilaDetalle = { id: makeId(), texto: '' };
+    setDetalle([...filasDetalle(), nueva]);
+    renderDetalle(nueva.id);
+    refresh();
+  });
+  $('detallePegar').addEventListener('click', async () => {
+    const txt = await pedirTexto({
+      titulo: 'Pegar varias filas',
+      mensaje: 'Una fila por línea: fecha, descripción y valor (los dos últimos opcionales). Sirve copiar de Excel o de una nota.',
+      placeholder: '06-10 Calle 45 #12-30 15.000\n07-10 Cra 8 #20-11 15.000\n08-10 Av. 3 #50-20',
+      aceptar: 'Agregar filas',
+      multilinea: true,
+    });
+    if (!txt) return;
+    const nuevas = filasDesdeTexto(txt);
+    if (!nuevas.length) return;
+    setDetalle([...filasDetalle().filter((x) => x.texto.trim() || x.fecha?.trim() || x.valor), ...nuevas]);
+    renderDetalle();
+    refresh();
+    toast(`${nuevas.length} ${nuevas.length === 1 ? 'fila agregada' : 'filas agregadas'}`);
+  });
+  $('detalleBorrar').addEventListener('click', async () => {
+    if (!(await confirmar({ titulo: '¿Quitar todas las filas del detalle?', mensaje: `Son ${filasDetalle().length} filas. El resto de la cuenta no cambia.`, aceptar: 'Quitar todas', peligro: true }))) return;
+    setDetalle([]);
+    renderDetalle();
+    refresh();
+  });
+  $('detalleSuma').addEventListener('click', () => {
+    state.cobro = { ...state.cobro, valor: sumaDetalle(state) };
+    refresh();
+    cobroMoney?.paint();
+    pulse($in('cobroValor'));
+  });
+  $in('cobroConPeriodo').addEventListener('change', () => {
+    state.cobro = { ...state.cobro, conPeriodo: $in('cobroConPeriodo').checked ? undefined : false };
+    refresh();
+  });
 }
 
 // ── Guardadas ────────────────────────────────────────────────────────────────
@@ -1747,6 +1890,8 @@ function hydrateForm() {
   renderPerfiles();
   costoMoney?.paint();
   cobroMoney?.paint();
+  renderDetalle();
+  $in('cobroConPeriodo').checked = state.cobro?.conPeriodo !== false;
   aplicarModo();
   renderEstado();
   renderTerminos();
@@ -1956,7 +2101,12 @@ export function initEditor() {
   }
   costoMoney = moneyField($in('costoTotal'), () => state.costoTotal, (v) => { state.costoTotal = v; refresh(); }, 50000);
   $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; refresh(); costoMoney?.paint(); });
-  cobroMoney = moneyField($in('cobroValor'), () => valorCobro(state), (v) => { state.cobro = { ...state.cobro, valor: v }; refresh(); }, 50000);
+  // Borrar el valor vuelve al calculado (el de la cotización o la suma del detalle), no a $0
+  cobroMoney = moneyField($in('cobroValor'), () => valorCobro(state), (v) => {
+    state.cobro = { ...state.cobro, valor: $in('cobroValor').value.trim() ? v : undefined };
+    refresh();
+  }, 50000);
+  initDetalle();
   $('cobroValorAuto').addEventListener('click', () => { state.cobro = { ...state.cobro, valor: undefined }; refresh(); cobroMoney?.paint(); pulse($in('cobroValor')); });
   $('cobroEstado').addEventListener('click', (ev) => {
     const e = (ev.target as HTMLElement).closest<HTMLElement>('[data-estado]')?.dataset.estado as Estado | undefined;

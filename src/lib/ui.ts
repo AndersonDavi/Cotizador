@@ -108,7 +108,7 @@ export function confirmar(o: Confirmar): Promise<boolean> {
 }
 
 /** Pide un texto corto (nombre de un perfil…) con la misma ventana. Devuelve null si cancela. */
-export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string; placeholder?: string; aceptar?: string }): Promise<string | null> {
+export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string; placeholder?: string; aceptar?: string; multilinea?: boolean }): Promise<string | null> {
   let el = document.getElementById('textoModal');
   if (!el) {
     el = document.createElement('div');
@@ -125,7 +125,9 @@ export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string
       <div class="confirm-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
       <h2 id="textoTitle">${escapeHtml(o.titulo)}</h2>
       ${o.mensaje ? `<p>${escapeHtml(o.mensaje)}</p>` : ''}
-      <input class="texto-input" type="text" maxlength="60" value="${escapeHtml(o.valor ?? '')}" placeholder="${escapeHtml(o.placeholder ?? '')}" />
+      ${o.multilinea
+        ? `<textarea class="texto-input multi" placeholder="${escapeHtml(o.placeholder ?? '')}">${escapeHtml(o.valor ?? '')}</textarea>`
+        : `<input class="texto-input" type="text" maxlength="60" value="${escapeHtml(o.valor ?? '')}" placeholder="${escapeHtml(o.placeholder ?? '')}" />`}
       <div class="confirm-actions">
         <button type="button" data-r="no">Cancelar</button>
         <button type="submit" class="primary">${escapeHtml(o.aceptar ?? 'Guardar')}</button>
@@ -133,7 +135,7 @@ export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string
     </form>`;
   const overlay = el;
   const form = overlay.querySelector('form')!;
-  const input = overlay.querySelector<HTMLInputElement>('input')!;
+  const input = overlay.querySelector<HTMLInputElement | HTMLTextAreaElement>('.texto-input')!;
   return new Promise((resolve) => {
     const fin = (v: string | null) => {
       document.removeEventListener('keydown', onKey, true);

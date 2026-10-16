@@ -20,7 +20,7 @@ export function parseMoney(s: string): number {
 }
 
 /** Reescribe el texto con la máscara conservando la posición del cursor. */
-function maskMoneyText(raw: string, caret: number): { text: string; caret: number } {
+export function maskMoneyText(raw: string, caret: number): { text: string; caret: number } {
   // Dígitos (y la coma decimal) que había antes del cursor
   const before = raw.slice(0, caret).replace(/[^\d,]/g, '');
   let [ent, dec] = raw.replace(/[^\d,]/g, '').split(',');
