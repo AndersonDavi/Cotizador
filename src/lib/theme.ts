@@ -17,7 +17,7 @@ export type DisenoInfo = {
 };
 
 export const DISENOS: DisenoInfo[] = [
-  { id: 'clasica',   nombre: 'Clásica',   descripcion: 'Encabezado en degradado y tarjetas por ítem', colores: { primary: '#5E5700', secondary: '#F2DA23' } },
+  { id: 'clasica',   nombre: 'Clásica',   descripcion: 'Encabezado en degradado y tarjetas por ítem', colores: { primary: '#2F2E33', secondary: '#F2D22B' } },
   { id: 'bloque',    nombre: 'Bloque',    descripcion: 'Bloques de color y tabla con totales',       colores: { primary: '#2F2E33', secondary: '#E3A94F' } },
   { id: 'noche',     nombre: 'Noche',     descripcion: 'Fondo oscuro con curvas de acento',          colores: { primary: '#232323', secondary: '#F2D21B' } },
   { id: 'diagonal',  nombre: 'Diagonal',  descripcion: 'Franjas en diagonal y pie a dos colores',    colores: { primary: '#356B22', secondary: '#D4EC7A' } },
@@ -29,7 +29,7 @@ export const DISENOS: DisenoInfo[] = [
 
 /** Combinaciones rápidas de la paleta. */
 export const PALETAS: (Colores & { nombre: string })[] = [
-  { nombre: 'Chigüiro',  primary: '#5E5700', secondary: '#F2DA23' },
+  { nombre: 'Chigüiro',  primary: '#2F2E33', secondary: '#F2D22B' },
   { nombre: 'Carbón',    primary: '#2F2E33', secondary: '#E3A94F' },
   { nombre: 'Marino',    primary: '#0E2240', secondary: '#F6C443' },
   { nombre: 'Océano',    primary: '#1F3B57', secondary: '#4FD1C5' },

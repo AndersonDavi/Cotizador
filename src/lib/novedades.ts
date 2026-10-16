@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.3.1',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'La paleta Chigüiro ahora es gris carbón con amarillo (#2F2E33 y #F2D22B), igual que la marca. También son los colores sugeridos de la Clásica y los de una cotización nueva.',
+    ],
+  },
+  {
     version: '1.3.0',
     fecha: '15-10-2026',
     tipo: 'nueva',

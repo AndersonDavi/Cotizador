@@ -144,7 +144,7 @@ Todas las plantillas se pintan con dos colores: principal y secundario. Usa una 
 
 | `paleta` | Principal | Secundario |
 |---|---|---|
-| Chigüiro | `#5E5700` | `#F2DA23` |
+| Chigüiro | `#2F2E33` | `#F2D22B` |
 | Carbón | `#2F2E33` | `#E3A94F` |
 | Marino | `#0E2240` | `#F6C443` |
 | Océano | `#1F3B57` | `#4FD1C5` |
