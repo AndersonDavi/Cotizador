@@ -365,6 +365,7 @@ const I = {
               <button id="waBtn">Enviar PDF por WhatsApp</button>
               <button id="shareBtn">Compartir imagen…</button>
               <button id="pngBtn">Descargar PNG</button>
+              <button id="pdfPrintBtn" hidden title="Abre imprimir: elige Guardar como PDF">PDF con texto seleccionable</button>
               <button id="cuentaMenuBtn">Cuenta de cobro (PDF)</button>
               <hr />
               <button id="backupBtn">Respaldo completo</button>
@@ -568,6 +569,7 @@ const I = {
             <h2 id="driveTitle">Respaldo en Google Drive</h2>
             <p>Tus cotizaciones a salvo y en todos tus equipos</p>
           </div>
+          <button id="driveClose" class="icon-only modal-x" type="button" aria-label="Cerrar">✕</button>
         </div>
         <p id="driveStatus" class="drive-status"></p>
         <ul class="drive-points">
@@ -575,14 +577,15 @@ const I = {
           <li>En otro equipo, conecta la misma cuenta y trae tus cotizaciones.</li>
           <li>El Cotizador solo puede ver los archivos que él mismo crea. No lee el resto de tu Drive.</li>
         </ul>
-        <div class="modal-actions">
+        <div class="drive-actions">
           <button id="driveConnect" class="primary">Conectar con Google</button>
           <button id="driveSync" class="primary" hidden>Respaldar ahora</button>
           <button id="driveRestore" hidden>Traer de Drive</button>
-          <button id="driveDisconnect" class="link-btn" hidden>Desconectar</button>
-          <button id="driveClose" class="link-btn">Cerrar</button>
         </div>
-        <div class="modal-links"><a href="/privacidad">Privacidad</a></div>
+        <div class="drive-foot">
+          <a href="/privacidad">Política de privacidad</a>
+          <button id="driveDisconnect" type="button" hidden>Desconectar Drive</button>
+        </div>
       </div>
     </div>
 

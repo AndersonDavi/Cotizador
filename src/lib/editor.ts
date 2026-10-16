@@ -1637,10 +1637,26 @@ export function initEditor() {
     load(c, `Cotización ${c.numero} lista`);
     showTab('cotizacion');
   });
-  $('pdfBtn').addEventListener('click', async () => {
+  // Celular: el diálogo de imprimir de Android pide elegir "Guardar como PDF" y reduce la hoja a
+  // Carta. Ahí se descarga directo el PDF de imagen; el de texto seleccionable queda en Más.
+  const esMovil = () => matchMedia('(pointer: coarse)').matches;
+  const pdfImprimir = async () => {
     try { await exportPdf(state); }
     catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
+  };
+  $('pdfBtn').addEventListener('click', async () => {
+    if (!esMovil()) return pdfImprimir();
+    toast('Preparando el PDF…');
+    try {
+      const pdf = await pdfParaCompartir(state);
+      const url = URL.createObjectURL(pdf);
+      Object.assign(document.createElement('a'), { href: url, download: pdf.name }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast(`${pdf.name} descargado`);
+    } catch (e) { console.error(e); toast('Error generando el PDF', 'err'); }
   });
+  ($('pdfPrintBtn') as HTMLElement).hidden = !esMovil();
+  $('pdfPrintBtn').addEventListener('click', pdfImprimir);
 
   const menu = $('moreMenu');
   const closeMenu = () => { menu.hidden = true; $('moreBtn').setAttribute('aria-expanded', 'false'); };

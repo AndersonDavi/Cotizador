@@ -243,7 +243,6 @@ button { cursor: pointer; }
 .drive-status.on b { color: var(--ok); }
 .drive-points { margin: 10px 0 18px; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .drive-points b { color: var(--text); font-weight: 600; }
-.drive-box #driveDisconnect:not([hidden]) + .link-btn { margin-left: 0; }
 .drive-box [aria-busy="true"] { opacity: .6; pointer-events: none; cursor: progress; }
 
 /* Guía (driver.js) */
@@ -700,3 +699,19 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 @media (max-width: 860px) {
   html.teclado .actions, html.teclado .mobile-switch, html.teclado .items-foot { display: none; }
 }
+
+/* ── Ventana de Drive: acciones a lo ancho, cerrar arriba y pie ordenado ── */
+.modal-header { position: relative; }
+.modal-header .modal-x { margin-left: auto; align-self: flex-start; height: 34px; width: 34px; flex: none; }
+.drive-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.drive-actions button { padding: 12px 14px; border-radius: 11px; font-weight: 700; background: var(--card-2); border: 1px solid var(--border); color: var(--text); transition: transform .12s, filter .12s, border-color .12s; }
+.drive-actions button:hover { border-color: var(--border-2); }
+.drive-actions button:active { transform: scale(.97); }
+.drive-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.drive-actions .primary:hover { filter: brightness(1.08); }
+.drive-actions #driveConnect { grid-column: 1 / -1; }
+.drive-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; }
+.drive-foot a { color: var(--muted); }
+.drive-foot a:hover { color: var(--text); }
+.drive-foot button { background: none; border: 0; padding: 4px 0; color: color-mix(in srgb, var(--danger) 80%, var(--muted)); font-size: 13px; }
+.drive-foot button:hover { color: var(--danger); text-decoration: underline; }

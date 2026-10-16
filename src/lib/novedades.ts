@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.0.3',
+    fecha: '15-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'En el celular, el botón PDF descarga el archivo directo (antes abría la impresora). El PDF con texto seleccionable sigue en Más.',
+      'La ventana de Google Drive quedó más ordenada: cerrar arriba, acciones a lo ancho, privacidad y desconectar al pie.',
+    ],
+  },
+  {
     version: '1.0.2',
     fecha: '15-10-2026',
     tipo: 'arreglo',
