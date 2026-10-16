@@ -28,9 +28,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 svg { flex: none; }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.app { display: grid; grid-template-columns: var(--editor-w) 1fr; height: 100dvh; overflow: hidden; }
+.app { display: grid; grid-template-columns: var(--editor-w) minmax(0, 1fr); height: 100dvh; overflow: hidden; }
 
-.editor { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--border); }
+.editor { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); border-right: 1px solid var(--border); }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
 .brandmark { display: flex; align-items: center; gap: 10px; }
@@ -305,7 +305,8 @@ button { cursor: pointer; }
 @media (max-width: 1100px) { :root { --editor-w: 400px; } }
 
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  /* minmax(0, 1fr): con 1fr a secas un texto largo sin saltos (ítem compacto) ensancha toda la app */
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; }
   .editor, .preview { grid-row: 1; grid-column: 1; min-height: 0; }
   /* Oculta sin display:none: el iframe necesita seguir maquetando para medir el documento */
   .app[data-view=edit] .preview { visibility: hidden; position: fixed; inset: 0; pointer-events: none; z-index: -1; }
