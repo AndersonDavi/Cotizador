@@ -145,6 +145,55 @@ export async function sharePng(c: Cotizacion, text: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * PDF para compartir (WhatsApp, correo): una página con la imagen del documento.
+ * El PDF con texto seleccionable solo sale del diálogo de impresión, que no entrega un
+ * archivo; este se arma aquí mismo, con la imagen en JPEG, y se ve igual.
+ */
+export async function pdfParaCompartir(c: Cotizacion): Promise<File> {
+  const img = new Image();
+  img.src = await pngDataUrl(c);
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo crear la imagen'))), 'image/jpeg', 0.9));
+  const jpeg = new Uint8Array(await blob.arrayBuffer());
+  // El PNG sale a escala 2 y 1 px CSS = 0,75 pt: misma medida que el PDF del CLI
+  const pdf = pdfConImagen(jpeg, canvas.width, canvas.height, (canvas.width / 2) * 0.75, (canvas.height / 2) * 0.75, `Cotización ${c.numero}`);
+  return new File([pdf], `COTIZACION_${c.numero}.pdf`, { type: 'application/pdf' });
+}
+
+/** Texto para el diccionario /Info en UTF-16BE (admite tildes y ñ). */
+const pdfTexto = (s: string) => '<FEFF' + [...s].map((ch) => ch.charCodeAt(0).toString(16).padStart(4, '0')).join('').toUpperCase() + '>';
+
+/** PDF mínimo de una página con una imagen JPEG que la llena. */
+function pdfConImagen(jpeg: Uint8Array, w: number, h: number, wPt: number, hPt: number, titulo: string): Blob {
+  const enc = new TextEncoder();
+  const partes: Uint8Array[] = [];
+  const xref: number[] = [];
+  let pos = 0;
+  const add = (x: string | Uint8Array) => { const b = typeof x === 'string' ? enc.encode(x) : x; partes.push(b); pos += b.length; };
+  const obj = (n: number, ...cuerpo: (string | Uint8Array)[]) => { xref[n] = pos; add(`${n} 0 obj\n`); cuerpo.forEach(add); add('\nendobj\n'); };
+  const f = (n: number) => String(+n.toFixed(2));
+  const contenido = `q ${f(wPt)} 0 0 ${f(hPt)} 0 0 cm /Im0 Do Q`;
+  add('%PDF-1.4\n%âãÏÓ\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(wPt)} ${f(hPt)}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
+  obj(4, `<< /Length ${contenido.length} >>\nstream\n${contenido}\nendstream`);
+  obj(5, `<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`, jpeg, '\nendstream');
+  obj(6, `<< /Title ${pdfTexto(titulo)} /Producer (Cotizador) >>`);
+  const inicio = pos;
+  add(`xref\n0 7\n0000000000 65535 f \n${[1, 2, 3, 4, 5, 6].map((n) => `${String(xref[n]).padStart(10, '0')} 00000 n \n`).join('')}`);
+  add(`trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n${inicio}\n%%EOF\n`);
+  return new Blob(partes as BlobPart[], { type: 'application/pdf' });
+}
+
 /** Descarga (o comparte en el celular) un archivo de texto. */
 export async function saveTextFile(text: string, name: string, type = 'application/json'): Promise<void> {
   const file = new File([text], name, { type });

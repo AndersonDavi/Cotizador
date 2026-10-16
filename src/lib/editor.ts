@@ -31,11 +31,12 @@ import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastRe
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
   cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
-  importJsonFromFile, printCuentaCobro, sharePng, saveTextFile,
+  importJsonFromFile, printCuentaCobro, sharePng, saveTextFile, pdfParaCompartir,
 } from './export';
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
 import { openColorPicker } from './colorpicker';
+import { abrirModal, cerrarModal, confirmar, animarSalida } from './ui';
 import {
   driveDisponible, driveInfo, prepararDrive, conectarDrive, subirRespaldo, bajarRespaldo,
   desconectarDrive, driveTokenVigente, DriveAuthError,
@@ -924,12 +925,37 @@ function mensajeCliente(): string {
   ].filter(Boolean).join('\n');
 }
 
-function abrirWhatsApp() {
+/**
+ * Celular: comparte el PDF con el mensaje desde el menú del sistema (se elige WhatsApp y el chat).
+ * PC: wa.me solo lleva texto, así que abre el chat con el mensaje y descarga el PDF para adjuntarlo.
+ */
+async function abrirWhatsApp() {
+  const texto = mensajeCliente();
   const dig = (state.cliente?.cel ?? '').replace(/\D/g, '');
   const tel = dig.length === 10 && dig.startsWith('3') ? '57' + dig : dig;
-  const url = `https://wa.me/${tel}?text=${encodeURIComponent(mensajeCliente())}`;
-  window.open(url, '_blank', 'noopener');
-  toast(tel ? 'Abriendo WhatsApp con el mensaje listo. Adjunta el PDF o la imagen.' : 'Agrega el celular del cliente para abrir su chat directamente');
+  const movil = matchMedia('(pointer: coarse)').matches && typeof navigator.canShare === 'function';
+  // La ventana se abre ya (dentro del clic); si se abre después de generar el PDF, el navegador la bloquea
+  // (sin 'noopener': con él window.open devuelve null siempre y no sabríamos si la bloquearon)
+  const chat = movil ? null : window.open(`https://wa.me/${tel}?text=${encodeURIComponent(texto)}`, '_blank');
+  if (chat) chat.opener = null;
+  toast('Preparando el PDF…');
+  let pdf: File;
+  try { pdf = await pdfParaCompartir(state); } catch (e) { console.error(e); toast('No se pudo crear el PDF', 'err'); return; }
+  if (movil && navigator.canShare({ files: [pdf] })) {
+    // Por si WhatsApp no pega el texto junto al archivo
+    navigator.clipboard?.writeText(texto).catch(() => { /* sin permiso */ });
+    try {
+      await navigator.share({ files: [pdf], text: texto, title: `Cotización ${state.numero}` });
+      toast('Listo. El mensaje también quedó copiado por si hace falta pegarlo.');
+    } catch { /* canceló */ }
+    return;
+  }
+  const url = URL.createObjectURL(pdf);
+  const a = Object.assign(document.createElement('a'), { href: url, download: pdf.name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  if (!chat && !movil) toast('Tu navegador bloqueó la ventana de WhatsApp. El PDF se descargó.', 'err');
+  else toast(`${pdf.name} descargado: arrástralo al chat de WhatsApp${tel ? '' : ' (agrega el celular del cliente para abrir su chat directo)'}`);
 }
 
 // ── Respaldo completo ────────────────────────────────────────────────────────
@@ -961,11 +987,11 @@ async function respaldar() {
 
 function restaurar(file: File) {
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     let data: Respaldo;
     try { data = JSON.parse(String(r.result)); } catch { toast('El archivo no es un respaldo válido', 'err'); return; }
     if (!esRespaldo(data)) { toast('El archivo no es un respaldo del Cotizador', 'err'); return; }
-    if (!confirm(`¿Restaurar ${resumenRespaldo(data)}? Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`)) return;
+    if (!(await confirmar({ titulo: 'Restaurar respaldo', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si un número se repite, gana el del respaldo.`, aceptar: 'Restaurar', icono: 'restore' }))) return;
     aplicarRespaldo(data);
     toast('Respaldo restaurado');
   };
@@ -1060,7 +1086,7 @@ function driveSugerir(): boolean {
 function abrirDrive() {
   prepararDrive().catch(() => toast('No se pudo cargar Google. Revisa la conexión.', 'err'));
   renderDrive();
-  $('driveModal').hidden = false;
+  abrirModal($('driveModal'));
 }
 
 function driveError(e: unknown) {
@@ -1089,7 +1115,7 @@ function initDrive() {
   if (!driveDisponible()) return;
   ($('driveBtn') as HTMLElement).hidden = false;
   const overlay = $('driveModal');
-  const close = () => { overlay.hidden = true; };
+  const close = () => cerrarModal(overlay);
   const busy = async (btn: HTMLElement, fn: () => Promise<void>) => {
     btn.setAttribute('aria-busy', 'true');
     try { await fn(); } catch (e) { driveError(e); } finally { btn.removeAttribute('aria-busy'); renderDrive(); }
@@ -1109,13 +1135,13 @@ function initDrive() {
     const r = await conectarDrive();
     if (r.existe) {
       const data = await bajarRespaldo(false);
-      if (esRespaldo(data) && confirm(`Ya tienes un respaldo en Drive (${hace(r.fecha)}) con ${resumenRespaldo(data)}. ¿Traerlo a este navegador? Se combina con lo que ya tienes.`)) aplicarRespaldo(data);
+      if (esRespaldo(data) && await confirmar({ titulo: 'Ya tienes un respaldo en Drive', mensaje: `Es de ${hace(r.fecha)} y trae ${resumenRespaldo(data)}. ¿Lo traes a este navegador? Se combina con lo que ya tienes.`, aceptar: 'Traerlo', cancelar: 'No, gracias', icono: 'cloud' })) aplicarRespaldo(data);
     }
     setDriveEstado('subiendo');
     await subirRespaldo(() => JSON.stringify(armarRespaldo()), false);
     driveEstado = 'ok';
     toast('Drive conectado: cada vez que guardes se respalda solo');
-    close();
+    void close();
   }));
   $('driveSync').addEventListener('click', () => busy($('driveSync'), async () => {
     setDriveEstado('subiendo');
@@ -1126,12 +1152,12 @@ function initDrive() {
   $('driveRestore').addEventListener('click', () => busy($('driveRestore'), async () => {
     const data = await bajarRespaldo(true);
     if (!esRespaldo(data)) { toast('No hay un respaldo en tu Drive todavía', 'err'); return; }
-    if (!confirm(`¿Traer ${resumenRespaldo(data)} desde Drive? Se combinan con lo que ya tienes; si un número se repite, gana el de Drive.`)) return;
+    if (!(await confirmar({ titulo: 'Traer desde Drive', mensaje: `Trae ${resumenRespaldo(data)}. Se combinan con lo que ya tienes; si un número se repite, gana el de Drive.`, aceptar: 'Traer', icono: 'cloud' }))) return;
     aplicarRespaldo(data);
     toast('Respaldo de Drive restaurado');
   }));
-  $('driveDisconnect').addEventListener('click', () => {
-    if (!confirm('¿Desconectar Google Drive? El respaldo sigue en tu Drive, pero ya no se actualizará.')) return;
+  $('driveDisconnect').addEventListener('click', async () => {
+    if (!(await confirmar({ titulo: '¿Desconectar Google Drive?', mensaje: 'El respaldo sigue en tu Drive, pero ya no se actualizará cuando guardes.', aceptar: 'Desconectar', peligro: true, icono: 'unplug' }))) return;
     desconectarDrive();
     renderDrive();
     toast('Drive desconectado');
@@ -1167,7 +1193,7 @@ async function instalar() {
     // Si dijo que no, el botón de arriba descansa un mes (sigue en Más)
     if (r?.outcome !== 'accepted') { try { localStorage.setItem(INSTALL_KEY, String(Date.now())); } catch { /* */ } }
   } else if (esIos()) {
-    $('iosModal').hidden = false;
+    abrirModal($('iosModal'));
     try { localStorage.setItem(INSTALL_KEY, String(Date.now())); } catch { /* */ }
   }
   renderInstall();
@@ -1219,8 +1245,8 @@ function initPwa() {
   $('installBtn').addEventListener('click', instalar);
   $('installChip').addEventListener('click', instalar);
   const ios = $('iosModal');
-  $('iosClose').addEventListener('click', () => { ios.hidden = true; });
-  ios.addEventListener('click', (ev) => { if (ev.target === ios) ios.hidden = true; });
+  $('iosClose').addEventListener('click', () => cerrarModal(ios));
+  ios.addEventListener('click', (ev) => { if (ev.target === ios) cerrarModal(ios); });
   renderInstall();
 }
 
@@ -1554,8 +1580,8 @@ export function initEditor() {
     catch { toast('No hay espacio en el navegador para guardar', 'err'); return; }
     driveAuto(true);
   });
-  $('newBtn').addEventListener('click', () => {
-    if (!confirm('¿Empezar una cotización nueva? Lo que no hayas guardado de la actual se perderá.')) return;
+  $('newBtn').addEventListener('click', async () => {
+    if (!(await confirmar({ titulo: '¿Empezar una cotización nueva?', mensaje: 'Lo que no hayas guardado de la actual se perderá. Si quieres conservarla, toca Guardar primero.', aceptar: 'Empezar nueva', icono: 'doc' }))) return;
     const keep = { diseno: state.diseno, colores: coloresDe(state), terminos: state.terminos, tiempoEntrega: state.tiempoEntrega };
     const c = nuevaCotizacion(nextNumero());
     c.branding = loadBranding() ?? state.branding;
@@ -1601,7 +1627,7 @@ export function initEditor() {
     savedFilter = f as Estado | 'todas';
     renderSavedList();
   });
-  $('savedList').addEventListener('click', (ev) => {
+  $('savedList').addEventListener('click', async (ev) => {
     const btn = (ev.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!btn) return;
     const num = btn.dataset.num!;
@@ -1615,7 +1641,10 @@ export function initEditor() {
       c.cobro = {};
       load(c, `Copia creada como ${c.numero}`);
       showTab('cotizacion');
-    } else if (btn.dataset.act === 'del' && confirm(`¿Eliminar la cotización ${num}?`)) {
+    } else if (btn.dataset.act === 'del') {
+      const quien = found?.cliente?.nombre || found?.alcance || '';
+      if (!(await confirmar({ titulo: `¿Eliminar la cotización ${num}?`, mensaje: `${quien ? quien + ' · ' : ''}Total ${found ? formatCOP(totalReal(found)) : '$0'}. Se borra de este navegador${driveInfo().conectado ? ' y del respaldo en Drive' : ''}; no se puede deshacer.`, aceptar: 'Eliminar', peligro: true }))) return;
+      await animarSalida(btn.closest('.saved-row'));
       deleteSaved(num);
       renderSavedList();
       driveAuto(false);
@@ -1643,7 +1672,11 @@ export function initEditor() {
     if (!(ev.target as HTMLElement).closest('.menu-wrap')) closeMenu();
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') { closeMenu(); if (!$('helpModal').hidden) closeHelp(); }
+    if (ev.key === 'Escape') {
+      closeMenu();
+      if (!$('helpModal').hidden) closeHelp();
+      for (const id of ['driveModal', 'iosModal']) if (!$(id).hidden) void cerrarModal($(id));
+    }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); $('saveBtn').click(); }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'p') { ev.preventDefault(); $('pdfBtn').click(); }
   });
@@ -1679,11 +1712,11 @@ function tour(id: TourId) {
 }
 
 function openHelp() {
-  $('helpModal').hidden = false;
+  abrirModal($('helpModal'));
 }
 
 function closeHelp() {
-  $('helpModal').hidden = true;
+  void cerrarModal($('helpModal'));
   ($('helpVideo') as HTMLVideoElement).pause();
 }
 
@@ -1691,8 +1724,8 @@ function showWelcomeIfNeeded() {
   const KEY = 'cotizador:welcomed';
   try { if (localStorage.getItem(KEY) === 'true') return; } catch { return; }
   const overlay = $('welcomeModal');
-  overlay.hidden = false;
-  const close = () => { overlay.hidden = true; };
+  abrirModal(overlay);
+  const close = () => cerrarModal(overlay);
   $('welcomeStart').addEventListener('click', () => { close(); window.setTimeout(() => tour('completa'), 250); });
   $('welcomeSkip').addEventListener('click', close);
   $('welcomeNever').addEventListener('click', () => { try { localStorage.setItem(KEY, 'true'); } catch { /* */ } close(); });
