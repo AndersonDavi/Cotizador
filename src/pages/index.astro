@@ -122,41 +122,52 @@ const I = {
           <!-- Cotización -->
           <section class="pane active" data-pane="cotizacion">
             <button class="pane-help" type="button" data-tour="cotizacion"><Fragment set:html={I.help} /> Guía de esta sección</button>
-            <div class="card">
-              <div class="grid2">
-                <label class="field">N.º de cotización<input id="numero" type="text" inputmode="numeric" /></label>
-                <label class="field">Fecha
-                  <input id="fecha" type="text" data-date placeholder="dd-mm-aaaa" />
-                </label>
+            <div class="card hero-card">
+              <div class="hero-top">
+                <div class="hero-num">
+                  <span class="eyebrow">Cotización</span>
+                  <label class="num-field"><span aria-hidden="true">N.º</span><input id="numero" type="text" inputmode="numeric" aria-label="Número de cotización" /></label>
+                </div>
+                <label class="field hero-date">Fecha<input id="fecha" type="text" data-date placeholder="dd-mm-aaaa" /></label>
               </div>
               <div class="field">Estado
                 <div id="estadoGroup" class="seg" role="radiogroup" aria-label="Estado"></div>
               </div>
-              <label class="field">Título del documento<input id="titulo" type="text" placeholder="Propuesta económica" /></label>
+              <details class="more">
+                <summary>Título del documento</summary>
+                <label class="field"><span class="sr-only">Título del documento</span><input id="titulo" type="text" placeholder="Propuesta económica" /></label>
+                <p class="hint">Aparece en el encabezado. Por ejemplo: Cotización, Presupuesto, Propuesta comercial.</p>
+              </details>
             </div>
 
             <div class="card">
-              <h3 class="card-title">Cliente</h3>
+              <h3 class="card-title">¿Para quién es?</h3>
               <div class="grid2">
-                <label class="field">Nombre o empresa<input id="clienteNombre" type="text" placeholder="Empresa S.A.S." /></label>
-                <label class="field">NIT / documento<input id="clienteNit" type="text" placeholder="900.000.000" /></label>
+                <label class="field">Cliente<input id="clienteNombre" type="text" placeholder="Panadería La Esquina S.A.S." autocomplete="organization" /></label>
+                <label class="field">NIT o documento<input id="clienteNit" type="text" placeholder="901.234.567-8" /></label>
               </div>
-              <label class="field">Alcance<textarea id="alcance" rows="2" placeholder="Desarrollo de la tienda en línea…"></textarea></label>
+              <label class="field">Alcance <small>una frase que resuma el trabajo</small><textarea id="alcance" class="auto" rows="1" placeholder="Sitio web y tienda en línea para la panadería"></textarea></label>
             </div>
 
-            <div class="card">
-              <h3 class="card-title">Total</h3>
+            <div class="card total-card">
               <div class="total-row">
-                <div class="total-big" id="totalBig">$0</div>
+                <div>
+                  <span class="eyebrow">Total de la propuesta</span>
+                  <div class="total-big" id="totalBig">$0</div>
+                  <span class="hint" id="totalHint"></span>
+                </div>
                 <label class="switch"><input id="costoAuto" type="checkbox" /><span></span> Sumar ítems</label>
               </div>
-              <label class="field" id="costoManualWrap">Valor manual (COP)<input id="costoTotal" type="text" data-money /></label>
+              <label class="field" id="costoManualWrap">Valor total (COP)<input id="costoTotal" type="text" data-money /></label>
             </div>
 
             <div class="card">
               <h3 class="card-title">Condiciones</h3>
-              <label class="field">Tiempo de entrega<textarea id="tiempoEntrega" rows="3"></textarea></label>
-              <label class="field">Términos y condiciones <small>una línea por término</small><textarea id="terminos" rows="3"></textarea></label>
+              <label class="field">Tiempo de entrega<textarea id="tiempoEntrega" class="auto" rows="2" placeholder="15 días hábiles a partir de la aprobación."></textarea></label>
+              <div class="field">Términos y condiciones
+                <div id="terminosList" class="terms-list"></div>
+                <button id="addTermino" type="button" class="link-btn add-term"><Fragment set:html={I.plus} /> Agregar término</button>
+              </div>
             </div>
           </section>
 
@@ -171,7 +182,10 @@ const I = {
               <button id="toggleAllItems" class="chip chip-outline">Colapsar todo</button>
             </div>
             <div id="items" class="items"></div>
-            <button id="addItem" class="add-btn"><Fragment set:html={I.plus} /> Agregar ítem</button>
+            <div class="items-foot">
+              <div class="items-sum"><span id="itemsSummary">0 ítems</span><b id="itemsTotal">$0</b></div>
+              <button id="addItem" class="primary add-item"><Fragment set:html={I.plus} /> Agregar ítem</button>
+            </div>
           </section>
 
           <!-- Diseño -->
@@ -193,6 +207,7 @@ const I = {
                   <span><b>Secundario</b><code id="colorSecondaryHex"></code></span>
                 </button>
               </div>
+              <div id="contrastBox" class="contrast" role="status" aria-live="polite"></div>
               <div class="field">Paletas rápidas<div id="paletteRow" class="palettes"></div></div>
               <div class="field"><span class="field-row">Mis paletas <button id="savePalette" class="link-btn" type="button">+ Guardar la actual</button></span><div id="myPalettes" class="palettes"></div></div>
               <div class="link-row">

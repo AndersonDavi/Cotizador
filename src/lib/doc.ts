@@ -5,7 +5,7 @@
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
 import { formatCOP, totalReal, type Cotizacion } from './state';
-import { disenoDe, onColor, shade } from './theme';
+import { disenoDe, onColor, readableOn, shade } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
 
@@ -37,7 +37,7 @@ export function effectiveTemplate(c: Cotizacion): Template {
       ...base,
       headerBg: p,
       headerBg2: o.bg2 ?? shade(p, 0.78),
-      accent: c.colores.secondary,
+      accent: readableOn(c.colores.secondary, p, 3), // si no se lee sobre el principal, se ajusta el tono
       text: o.text ?? onColor(p),
       cardBg: o.cardBg ?? base.cardBg,
       cardText: o.cardText ?? base.cardText,

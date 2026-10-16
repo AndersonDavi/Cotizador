@@ -50,7 +50,7 @@ let open: { close: () => void } | null = null;
  * Abre el selector junto a `anchor`. `onInput` se llama mientras se arrastra;
  * el color final queda en recientes al cerrar.
  */
-export function openColorPicker(anchor: HTMLElement, initial: string, title: string, onInput: (hex: string) => void) {
+export function openColorPicker(anchor: HTMLElement, initial: string, title: string, onInput: (hex: string) => void, hint?: (hex: string) => string) {
   open?.close();
   let hsv = rgbToHsv(hexToRgb(initial) ?? [0, 0, 0]);
   let hex = rgbToHex(hsvToRgb(hsv));
@@ -73,6 +73,7 @@ export function openColorPicker(anchor: HTMLElement, initial: string, title: str
       <label>G<input class="cp-g" type="number" min="0" max="255" /></label>
       <label>B<input class="cp-b" type="number" min="0" max="255" /></label>
     </div>
+    <div class="cp-hint"></div>
     <div class="cp-recent-wrap"><span>Recientes</span><div class="cp-recent"></div></div>`;
   document.body.appendChild(pop);
 
@@ -95,6 +96,9 @@ export function openColorPicker(anchor: HTMLElement, initial: string, title: str
     prev.style.background = hex;
     if (skip !== hexIn) hexIn.value = hex;
     rgbIn.forEach((el, i) => { if (skip !== el) el.value = String(Math.round(rgb[i])); });
+    const h = pop.querySelector('.cp-hint') as HTMLElement;
+    h.innerHTML = hint ? hint(hex) : '';
+    h.hidden = !hint;
   };
   const emit = (skip?: HTMLElement) => { paint(skip); onInput(hex); };
 

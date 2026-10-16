@@ -18,8 +18,8 @@ import {
   formatCOP,
   today,
 } from './state';
-import { getAllIconKeys, getIconLabel, buildIconDataUrl, type IconKey } from './icons';
-import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, type DisenoId } from './theme';
+import { getAllIconKeys, getIconLabel, getIconSearchText, buildIconDataUrl, ICON_CATEGORIES, type IconKey } from './icons';
+import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastReport, readableOn, type DisenoId } from './theme';
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
   cotizacionHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
@@ -62,11 +62,18 @@ function escapeHtml(s: string): string {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
-function toast(msg: string, kind: 'ok' | 'err' = 'ok') {
+let toastTimer = 0;
+function toast(msg: string, kind: 'ok' | 'err' = 'ok', action?: { label: string; run: () => void }) {
   const el = $('toast');
   el.textContent = msg;
+  if (action) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'toast-action', textContent: action.label });
+    b.addEventListener('click', () => { action.run(); el.className = 'toast'; });
+    el.appendChild(b);
+  }
   el.className = `toast show ${kind}`;
-  window.setTimeout(() => { el.className = 'toast'; }, 2600);
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => { el.className = 'toast'; }, action ? 5000 : 2600);
 }
 
 /** dd-mm-aaaa ⇄ aaaa-mm-dd (inputs type=date) */
@@ -209,6 +216,11 @@ function refresh() {
   $('previewTotal').textContent = `${total} COP`;
   $('docLabel').textContent = `Cotización ${state.numero}${state.cliente?.nombre ? ' · ' + state.cliente.nombre : ''}`;
   $('itemsCount').textContent = String(state.items.length);
+  const n = state.items.length;
+  $('itemsSummary').textContent = `${n} ${n === 1 ? 'ítem' : 'ítems'}`;
+  const sum = $('itemsTotal');
+  if (sum.textContent !== total) { sum.textContent = total; pulse(sum); pulse($('totalBig')); }
+  $('totalHint').textContent = state.costoTotalAuto ? `Suma de ${n} ${n === 1 ? 'ítem' : 'ítems'}` : 'Valor escrito a mano';
   ($('costoManualWrap') as HTMLElement).hidden = state.costoTotalAuto;
   const est = estadoDe(state);
   const badge = $('previewEstado');
@@ -229,6 +241,7 @@ function showTab(tab: string) {
   });
   document.querySelectorAll<HTMLElement>('.pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === tab));
   document.querySelector('.panes')!.scrollTop = 0;
+  requestAnimationFrame(() => document.querySelectorAll<HTMLTextAreaElement>('.pane.active textarea.auto').forEach(autosize));
   try { localStorage.setItem('cotizador:tab', tab); } catch { /* sin storage */ }
   if (tab === 'guardadas') renderSavedList();
   if (tab === 'diseno') renderDesign();
@@ -247,40 +260,80 @@ function renderEstado() {
 
 // ── Ítems ────────────────────────────────────────────────────────────────────
 
-function buildIconPicker(selected: IconKey, onChange: (k: IconKey) => void): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.className = 'icon-picker-wrap';
-  const trigger = document.createElement('button');
-  trigger.type = 'button';
-  trigger.className = 'icon-picker-trigger';
-  const paint = (k: IconKey) => {
-    trigger.innerHTML = `<img src="${buildIconDataUrl(k, '#000')}" class="icon-picker-preview" alt="" /><span>${escapeHtml(getIconLabel(k))}</span>
-      <svg class="icon-picker-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>`;
+/** Categorías del selector; los íconos que no estén en ninguna van a "Otros". */
+function iconGroups(): { nombre: string; keys: IconKey[] }[] {
+  const all = new Set(getAllIconKeys() as string[]);
+  const groups = ICON_CATEGORIES.map((c) => ({ nombre: c.nombre, keys: c.keys.filter((k) => all.has(k)) as IconKey[] }));
+  const used = new Set(groups.flatMap((g) => g.keys as string[]));
+  const rest = [...all].filter((k) => !used.has(k)) as IconKey[];
+  if (rest.length) groups.push({ nombre: 'Otros', keys: rest });
+  return groups;
+}
+
+/** Selector de íconos: popover con buscador (hoja inferior en celular). */
+let closeIconPicker: (() => void) | null = null;
+
+function openIconPicker(anchor: HTMLElement, selected: IconKey, onPick: (k: IconKey) => void) {
+  closeIconPicker?.();
+  const pop = document.createElement('div');
+  pop.className = 'ip';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Elegir ícono');
+  pop.innerHTML = `
+    <div class="ip-head"><input class="ip-search" type="search" placeholder="Buscar ícono: diseño, web, datos…" aria-label="Buscar ícono" /><button type="button" class="ip-x" aria-label="Cerrar">✕</button></div>
+    <div class="ip-body">${iconGroups().map((g) => `
+      <section class="ip-group"><h4>${g.nombre}</h4><div class="ip-grid">${g.keys.map((k) => `
+        <button type="button" class="ip-item${k === selected ? ' active' : ''}" data-key="${k}" data-search="${escapeHtml(getIconSearchText(k))}">
+          <img src="${buildIconDataUrl(k, k === selected ? '#1a1a10' : '#e8eaee')}" alt="" /><span>${escapeHtml(getIconLabel(k))}</span>
+        </button>`).join('')}</div></section>`).join('')}
+      <p class="ip-empty" hidden>Ningún ícono coincide. Prueba con otra palabra.</p></div>`;
+  document.body.appendChild(pop);
+  const mobile = window.matchMedia('(max-width: 860px)').matches;
+  if (mobile) pop.classList.add('sheet');
+  else {
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = `${Math.min(window.innerWidth - w - 12, Math.max(12, r.left))}px`;
+    pop.style.top = `${r.bottom + 8 + h > window.innerHeight - 12 ? Math.max(12, r.top - h - 8) : r.bottom + 8}px`;
+  }
+  void pop.offsetWidth; // fuerza el estilo inicial para que la transición de entrada se vea
+  pop.classList.add('on');
+  const search = pop.querySelector('.ip-search') as HTMLInputElement;
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    let any = false;
+    pop.querySelectorAll<HTMLElement>('.ip-group').forEach((g) => {
+      let n = 0;
+      g.querySelectorAll<HTMLElement>('.ip-item').forEach((b) => {
+        const hit = !q || q.split(/s+/).every((w) => (b.dataset.search ?? '').includes(w));
+        b.hidden = !hit;
+        if (hit) n++;
+      });
+      g.hidden = !n;
+      any ||= n > 0;
+    });
+    (pop.querySelector('.ip-empty') as HTMLElement).hidden = any;
+  });
+  const close = () => {
+    pop.remove();
+    document.removeEventListener('pointerdown', onDoc, true);
+    document.removeEventListener('keydown', onKey);
+    if (closeIconPicker === close) closeIconPicker = null;
   };
-  paint(selected);
-  const panel = document.createElement('div');
-  panel.className = 'icon-picker-panel hidden';
-  panel.innerHTML = getAllIconKeys().map((k) => `
-    <button type="button" class="icon-picker-item${k === selected ? ' active' : ''}" data-key="${k}">
-      <img src="${buildIconDataUrl(k, '#e8eaee')}" width="16" height="16" alt="" /><span>${escapeHtml(getIconLabel(k))}</span>
-    </button>`).join('');
-  trigger.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    const open = !panel.classList.contains('hidden');
-    document.querySelectorAll('.icon-picker-panel:not(.hidden)').forEach((p) => p.classList.add('hidden'));
-    if (!open) panel.classList.remove('hidden');
+  const onDoc = (ev: Event) => { if (!pop.contains(ev.target as Node) && !anchor.contains(ev.target as Node)) close(); };
+  const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { close(); anchor.focus(); } };
+  pop.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).closest('.ip-x')) { close(); return; }
+    const k = (ev.target as HTMLElement).closest<HTMLElement>('[data-key]')?.dataset.key as IconKey | undefined;
+    if (!k) return;
+    close();
+    onPick(k);
+    anchor.focus();
   });
-  panel.addEventListener('click', (ev) => {
-    const btn = (ev.target as HTMLElement).closest('[data-key]') as HTMLElement | null;
-    if (!btn) return;
-    const k = btn.dataset.key as IconKey;
-    panel.querySelectorAll('.icon-picker-item').forEach((el) => el.classList.toggle('active', el === btn));
-    paint(k);
-    panel.classList.add('hidden');
-    onChange(k);
-  });
-  wrap.append(trigger, panel);
-  return wrap;
+  document.addEventListener('pointerdown', onDoc, true);
+  document.addEventListener('keydown', onKey);
+  closeIconPicker = close;
+  if (!mobile) search.focus();
 }
 
 function updateSortButtons() {
@@ -295,6 +348,7 @@ function updateSortButtons() {
 function applySort(field: SortField) {
   if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   else { sortField = field; sortDir = 'asc'; }
+  const before = cardRects();
   state.items.sort((a, b) => {
     let cmp = 0;
     if (field === 'precio') cmp = a.valor - b.valor;
@@ -304,6 +358,7 @@ function applySort(field: SortField) {
   });
   updateSortButtons();
   renderItems();
+  flip(before);
   refresh();
 }
 
@@ -317,6 +372,34 @@ const ICONS: Record<string, string> = {
   trash: svgI('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
 };
 
+// ── Animaciones de la lista (FLIP: las tarjetas se deslizan a su nueva posición) ──
+function cardRects(): Map<string, DOMRect> {
+  const m = new Map<string, DOMRect>();
+  $('items').querySelectorAll<HTMLElement>('.item-card').forEach((c) => m.set(c.dataset.id!, c.getBoundingClientRect()));
+  return m;
+}
+
+function flip(before: Map<string, DOMRect>, enterId?: string) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('items').querySelectorAll<HTMLElement>('.item-card').forEach((c) => {
+    const old = before.get(c.dataset.id!);
+    if (c.dataset.id === enterId || !old) {
+      if (c.dataset.id === enterId) c.classList.add('enter');
+      return;
+    }
+    const dy = old.top - c.getBoundingClientRect().top;
+    if (!dy || reduce) return;
+    c.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+}
+
+export function autosize(el: HTMLTextAreaElement) {
+  if (!el.offsetParent) return; // oculto: se ajusta al mostrar la pestaña
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight + 2, 420)}px`;
+  el.toggleAttribute('data-long', el.scrollHeight > 126); // descripciones largas se ven recortadas hasta editarlas
+}
+
 function renderItems() {
   const wrap = $('items');
   wrap.innerHTML = '';
@@ -327,44 +410,57 @@ function renderItems() {
     const collapsed = collapsedItems.has(it.id);
     const card = document.createElement('div');
     card.className = 'item-card' + (collapsed ? ' item-collapsed' : '');
+    card.dataset.id = it.id;
     const btn = (action: string, label: string, icon: string, extra = '') =>
       `<button type="button" class="icon-btn${action === 'remove' ? ' danger' : ''}" data-action="${action}" title="${label}" aria-label="${label}" ${extra}>${ICONS[icon]}</button>`;
-    const ctrl =
-      btn('up', 'Subir este ítem', 'up', idx === 0 ? 'disabled' : '') +
-      btn('down', 'Bajar este ítem', 'down', idx === state.items.length - 1 ? 'disabled' : '') +
-      btn('dup', 'Duplicar ítem', 'copy') +
-      btn('toggle', collapsed ? 'Mostrar detalles' : 'Ocultar detalles', collapsed ? 'expand' : 'collapse') +
-      btn('remove', 'Eliminar ítem', 'trash');
+    const iconBtn = `<button type="button" class="ic-icon" data-action="icon" title="Ícono: ${escapeHtml(getIconLabel(it.iconKey))} (cambiar)" aria-label="Cambiar ícono, actual: ${escapeHtml(getIconLabel(it.iconKey))}"><img src="${buildIconDataUrl(it.iconKey, '#e8eaee')}" alt="" /></button>`;
     if (collapsed) {
-      card.innerHTML = `<div class="item-head item-head-compact">
-        <span class="item-num">${idx + 1}</span>
-        <span class="item-titulo-compact">${escapeHtml(it.titulo || '(sin título)')}</span>
-        <span class="item-valor-compact">${formatCOP(it.valor)}</span>${ctrl}</div>`;
+      card.innerHTML = `<div class="ic-top ic-compact" data-action="toggle" title="Mostrar detalles">
+        ${iconBtn}
+        <span class="ic-ctitle">${escapeHtml(it.titulo || 'Ítem sin título')}</span>
+        <span class="ic-cval">${formatCOP(it.valor)}</span>
+        ${btn('toggle', 'Mostrar detalles', 'expand')}</div>`;
     } else {
       card.innerHTML = `
-        <div class="item-head"><span class="item-num">${idx + 1}</span><span class="picker-slot"></span><span class="spacer"></span>${ctrl}</div>
-        <div><label>Título</label><input type="text" data-action="titulo" value="${escapeHtml(it.titulo)}" placeholder="Ej. Diseño del logo" /></div>
-        <div><label>Descripción</label><textarea class="item-desc" data-action="descripcion" rows="3" placeholder="Qué incluye…">${escapeHtml(it.descripcion)}</textarea></div>
-        <div><label>Valor (COP)</label><input class="valor-slot" /></div>`;
-      card.querySelector('.picker-slot')!.replaceWith(buildIconPicker(it.iconKey, (k) => { it.iconKey = k; refresh(); }));
+        <div class="ic-top">
+          ${iconBtn}
+          <input class="ic-title" type="text" data-action="titulo" value="${escapeHtml(it.titulo)}" placeholder="Nombre del servicio" aria-label="Título del ítem ${idx + 1}" />
+          ${btn('toggle', 'Ocultar detalles', 'collapse')}
+        </div>
+        <textarea class="ic-desc auto" data-action="descripcion" rows="2" placeholder="Qué incluye: entregables, alcance, número de revisiones…" aria-label="Descripción del ítem ${idx + 1}">${escapeHtml(it.descripcion)}</textarea>
+        <div class="ic-bottom">
+          <div class="ic-actions">
+            <span class="ic-num">#${idx + 1}</span>
+            ${btn('up', 'Subir', 'up', idx === 0 ? 'disabled' : '')}${btn('down', 'Bajar', 'down', idx === state.items.length - 1 ? 'disabled' : '')}${btn('dup', 'Duplicar', 'copy')}${btn('remove', 'Eliminar', 'trash')}
+          </div>
+          <input class="valor-slot" aria-label="Valor del ítem ${idx + 1}" />
+        </div>`;
       moneyField(card.querySelector('.valor-slot') as HTMLInputElement, () => it.valor, (v) => { it.valor = v; refresh(); });
     }
     card.addEventListener('input', (ev) => {
       const t = ev.target as HTMLInputElement | HTMLTextAreaElement;
       if (t.dataset.action === 'titulo') it.titulo = t.value;
-      else if (t.dataset.action === 'descripcion') it.descripcion = t.value;
+      else if (t.dataset.action === 'descripcion') { it.descripcion = t.value; autosize(t as HTMLTextAreaElement); }
       else return;
       refresh();
     });
     card.addEventListener('click', (ev) => {
-      const action = (ev.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
-      if (action === 'remove') {
-        if ((it.titulo || it.descripcion) && !confirm(`¿Eliminar "${it.titulo || 'este ítem'}"?`)) return;
-        state.items.splice(idx, 1);
-        collapsedItems.delete(it.id);
-        if (!state.items.length) state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
-      } else if (action === 'dup') {
-        state.items.splice(idx + 1, 0, { ...it, id: makeId() });
+      const el = (ev.target as HTMLElement).closest<HTMLElement>('[data-action]');
+      const action = el?.dataset.action;
+      if (!action || el?.hasAttribute('disabled')) return;
+      if (action === 'icon') {
+        ev.stopPropagation();
+        openIconPicker(el!, it.iconKey, (k) => { it.iconKey = k; renderItems(); refresh(); flash(it.id); });
+        return;
+      }
+      if (action === 'remove') { removeItem(it.id); return; }
+      const before = cardRects();
+      let enter: string | undefined;
+      if (action === 'dup') {
+        const copy = { ...it, id: makeId() };
+        state.items.splice(idx + 1, 0, copy);
+        enter = copy.id;
+        toast('Ítem duplicado');
       } else if (action === 'up' && idx > 0) {
         [state.items[idx - 1], state.items[idx]] = [state.items[idx], state.items[idx - 1]];
       } else if (action === 'down' && idx < state.items.length - 1) {
@@ -372,13 +468,60 @@ function renderItems() {
       } else if (action === 'toggle') {
         if (collapsedItems.has(it.id)) collapsedItems.delete(it.id); else collapsedItems.add(it.id);
         renderItems();
+        flip(before);
         return;
       } else return;
       renderItems();
+      flip(before, enter);
       refresh();
+      if (enter) wrap.querySelector<HTMLElement>(`[data-id="${enter}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // Mantiene el foco en el botón que se usó (para mover varias veces con teclado)
+      wrap.querySelector<HTMLElement>(`[data-id="${it.id}"] [data-action="${action}"]`)?.focus({ preventScroll: true });
     });
     wrap.appendChild(card);
   });
+  requestAnimationFrame(() => wrap.querySelectorAll<HTMLTextAreaElement>('textarea.auto').forEach(autosize));
+}
+
+function flash(id: string) {
+  const c = $('items').querySelector<HTMLElement>(`[data-id="${id}"]`);
+  c?.classList.remove('enter');
+  void c?.offsetWidth;
+  c?.classList.add('enter');
+}
+
+/** Elimina con animación y ofrece deshacer (sin ventana de confirmación). */
+function removeItem(id: string) {
+  const idx = state.items.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const card = $('items').querySelector<HTMLElement>(`[data-id="${id}"]`);
+  const doRemove = () => {
+    const before = cardRects();
+    const [removed] = state.items.splice(idx, 1);
+    collapsedItems.delete(id);
+    if (!state.items.length) state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
+    renderItems();
+    flip(before);
+    refresh();
+    toast(`Eliminaste "${removed.titulo || 'ítem sin título'}"`, 'ok', {
+      label: 'Deshacer',
+      run: () => {
+        const b = cardRects();
+        if (state.items.length === 1 && !state.items[0].titulo && !state.items[0].descripcion && !state.items[0].valor) state.items = [];
+        state.items.splice(Math.min(idx, state.items.length), 0, removed);
+        renderItems();
+        flip(b, removed.id);
+        refresh();
+      },
+    });
+  };
+  if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { doRemove(); return; }
+  const h = card.offsetHeight;
+  card.animate([
+    { opacity: 1, transform: 'none', height: `${h}px` },
+    { opacity: 0, transform: 'translateX(-24px) scale(.98)', height: `${h}px`, offset: 0.6 },
+    { opacity: 0, transform: 'translateX(-24px) scale(.98)', height: '0px', marginTop: `-${parseFloat(getComputedStyle($('items')).rowGap) || 10}px`, paddingTop: '0', paddingBottom: '0' },
+  ], { duration: 320, easing: 'ease-in' }).onfinish = doRemove;
 }
 
 // ── Diseño ───────────────────────────────────────────────────────────────────
@@ -410,6 +553,7 @@ function renderDesign() {
       <div class="thumb">${thumb(d.id, primary, secondary)}</div>
       <div><b>${d.nombre}</b><small>${d.descripcion}</small></div>
     </button>`).join('');
+  renderContrast(primary, secondary);
   $('colorPrimarySw').style.background = primary;
   $('colorSecondarySw').style.background = secondary;
   $('colorPrimaryHex').textContent = primary.toUpperCase();
@@ -424,6 +568,27 @@ function renderDesign() {
     ? mine.map((p, i) => chip(p, `data-mia="${i}"`, `<button type="button" class="palette-del" data-del="${i}" title="Quitar paleta" aria-label="Quitar paleta">×</button>`)).join('')
     : '<span class="hint">Guarda aquí los colores de tu marca o de tus clientes.</span>';
   ($('savePalette') as HTMLButtonElement).disabled = mine.some(same) || PALETAS.some(same);
+}
+
+/** Medidor de contraste entre principal y secundario, con arreglos de un clic. */
+function renderContrast(primary: string, secondary: string) {
+  const r = contrastReport({ primary, secondary });
+  const ratio = r.ratio.toFixed(1).replace('.', ',');
+  const box = $('contrastBox');
+  box.className = `contrast ${r.level}`;
+  const sample = `<span class="contrast-sample" style="background:${primary};color:${secondary}" aria-hidden="true">Aa</span>`;
+  if (r.level === 'bien') {
+    box.innerHTML = `${sample}<div><b>Buen contraste (${ratio}:1)</b><span>El secundario se lee bien sobre el principal.</span></div>`;
+    return;
+  }
+  const fixed = readableOn(secondary, primary, 4.5);
+  box.innerHTML = `${sample}<div><b>${r.level === 'justo' ? `Contraste justo (${ratio}:1)` : `Poco contraste (${ratio}:1)`}</b>
+    <span>${r.level === 'justo' ? 'Se lee en títulos grandes, pero los textos pequeños pueden costar.' : 'El secundario casi no se ve sobre el principal. En el documento lo ajustamos solo a un tono legible, pero puedes elegirlo tú:'}</span>
+    <div class="contrast-fixes">
+      <button type="button" data-fix="${fixed}"><i style="background:${fixed}"></i>Usar tono legible</button>
+      <button type="button" data-fix="swap">Intercambiar</button>
+      <button type="button" data-fix="suggest">Colores sugeridos</button>
+    </div></div>`;
 }
 
 // Paletas propias en localStorage
@@ -540,7 +705,6 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['clienteNit', () => state.cliente?.nit ?? '', (v) => { state.cliente = { nombre: state.cliente?.nombre ?? '', nit: v }; }],
   ['alcance', () => state.alcance, (v) => { state.alcance = v; }],
   ['tiempoEntrega', () => state.tiempoEntrega, (v) => { state.tiempoEntrega = v; }],
-  ['terminos', () => state.terminos.join('\n'), (v) => { state.terminos = v.split('\n').map((s) => s.trim()).filter(Boolean); }],
   ['empresa', () => state.branding.empresa ?? '', (v) => { state.branding.empresa = v; }],
   ['repNombre', () => state.branding.representante.nombre, (v) => { state.branding.representante.nombre = v; }],
   ['repCedula', () => state.branding.representante.cedula, (v) => { state.branding.representante.cedula = v; }],
@@ -558,11 +722,41 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['cobroConcepto', () => state.cobro?.concepto ?? '', (v) => { state.cobro = { ...state.cobro, concepto: v }; }],
 ];
 
+/** Breve animación para señalar que un valor cambió. */
+function pulse(el: HTMLElement) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)', color: '#f2d22b' }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
+}
+
+// ── Términos como lista editable ─────────────────────────────────────────────
+function renderTerminos(focusIdx?: number) {
+  const wrap = $('terminosList');
+  if (!state.terminos.length) {
+    wrap.innerHTML = '<p class="hint">Sin términos. Ejemplos: forma de pago, vigencia de la oferta, número de revisiones.</p>';
+    return;
+  }
+  wrap.innerHTML = state.terminos.map((t, i) => `
+    <div class="term-row">
+      <span class="term-dot" aria-hidden="true"></span>
+      <textarea class="auto" rows="1" data-term="${i}" aria-label="Término ${i + 1}" placeholder="Ej. 50% para iniciar y 50% contra entrega">${escapeHtml(t)}</textarea>
+      <button type="button" class="icon-btn danger" data-del-term="${i}" title="Quitar término" aria-label="Quitar término ${i + 1}">${ICONS.trash}</button>
+    </div>`).join('');
+  requestAnimationFrame(() => {
+    wrap.querySelectorAll<HTMLTextAreaElement>('textarea').forEach(autosize);
+    if (focusIdx != null) {
+      const ta = wrap.querySelector<HTMLTextAreaElement>(`[data-term="${focusIdx}"]`);
+      ta?.focus();
+      ta?.closest('.term-row')?.classList.add('enter');
+    }
+  });
+}
+
 function hydrateForm() {
   for (const [id, get] of FIELDS) $in(id).value = get();
   $in('costoAuto').checked = state.costoTotalAuto;
   costoMoney?.paint();
   renderEstado();
+  renderTerminos();
   paintImages();
   renderItems();
   renderDesign();
@@ -596,6 +790,44 @@ export function initEditor() {
   costoMoney = moneyField($in('costoTotal'), () => state.costoTotal, (v) => { state.costoTotal = v; refresh(); }, 50000);
   $in('costoAuto').addEventListener('change', () => { state.costoTotalAuto = $in('costoAuto').checked; refresh(); costoMoney?.paint(); });
 
+  // Textareas que crecen con el contenido
+  document.addEventListener('input', (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t instanceof HTMLTextAreaElement && t.classList.contains('auto')) autosize(t);
+  });
+
+  // Términos
+  const terms = $('terminosList');
+  terms.addEventListener('input', (ev) => {
+    const t = ev.target as HTMLTextAreaElement;
+    if (t.dataset.term == null) return;
+    state.terminos[Number(t.dataset.term)] = t.value.replace(/\n/g, ' ');
+    refresh();
+  });
+  terms.addEventListener('keydown', (ev) => {
+    const t = ev.target as HTMLTextAreaElement;
+    if (t.dataset.term == null || ev.key !== 'Enter') return;
+    // Enter crea el siguiente término; Shift+Enter no aplica (los términos son de una línea)
+    ev.preventDefault();
+    const i = Number(t.dataset.term) + 1;
+    state.terminos.splice(i, 0, '');
+    renderTerminos(i);
+    refresh();
+  });
+  terms.addEventListener('click', (ev) => {
+    const del = (ev.target as HTMLElement).closest<HTMLElement>('[data-del-term]')?.dataset.delTerm;
+    if (del == null) return;
+    const i = Number(del);
+    const [quitado] = state.terminos.splice(i, 1);
+    renderTerminos();
+    refresh();
+    if (quitado?.trim()) toast('Término quitado', 'ok', { label: 'Deshacer', run: () => { state.terminos.splice(i, 0, quitado); renderTerminos(); refresh(); } });
+  });
+  $('addTermino').addEventListener('click', () => {
+    state.terminos.push('');
+    renderTerminos(state.terminos.length - 1);
+  });
+
   // Pestañas
   document.querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab!)));
   let lastTab = 'cotizacion';
@@ -613,11 +845,15 @@ export function initEditor() {
 
   // Ítems
   $('addItem').addEventListener('click', () => {
-    state.items.push({ id: makeId(), iconKey: 'code', titulo: '', descripcion: '', valor: 0 });
+    const before = cardRects();
+    const nuevo = { id: makeId(), iconKey: state.items.at(-1)?.iconKey ?? 'code', titulo: '', descripcion: '', valor: 0 };
+    state.items.push(nuevo);
     renderItems();
+    flip(before, nuevo.id);
     refresh();
-    const cards = $('items').querySelectorAll('.item-card');
-    (cards[cards.length - 1]?.querySelector('input[data-action=titulo]') as HTMLInputElement | null)?.focus();
+    const card = $('items').querySelector<HTMLElement>(`[data-id="${nuevo.id}"]`);
+    card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    card?.querySelector<HTMLInputElement>('input[data-action=titulo]')?.focus({ preventScroll: true });
   });
   $('toggleAllItems').addEventListener('click', () => {
     const all = state.items.every((it) => collapsedItems.has(it.id));
@@ -641,8 +877,23 @@ export function initEditor() {
   };
   for (const which of ['primary', 'secondary'] as const) {
     const btn = $(which === 'primary' ? 'colorPrimaryBtn' : 'colorSecondaryBtn');
-    btn.addEventListener('click', () => openColorPicker(btn, coloresDe(state)[which], which === 'primary' ? 'Color principal' : 'Color secundario', (hex) => onColor(which, hex)));
+    const other = which === 'primary' ? 'secondary' : 'primary';
+    btn.addEventListener('click', () => openColorPicker(btn, coloresDe(state)[which], which === 'primary' ? 'Color principal' : 'Color secundario', (hex) => onColor(which, hex),
+      (hex) => {
+        const r = contrast(hex, coloresDe(state)[other]);
+        const lvl = r >= 4.5 ? 'bien' : r >= 3 ? 'justo' : 'bajo';
+        return `<span class="cp-ct ${lvl}">Contraste con el ${other === 'primary' ? 'principal' : 'secundario'}: <b>${r.toFixed(1).replace('.', ',')}:1</b> ${lvl === 'bien' ? '✓' : lvl === 'justo' ? '· justo' : '· bajo'}</span>`;
+      }));
   }
+  $('contrastBox').addEventListener('click', (ev) => {
+    const fix = (ev.target as HTMLElement).closest<HTMLElement>('[data-fix]')?.dataset.fix;
+    if (!fix) return;
+    const c = coloresDe(state);
+    if (fix === 'swap') setColores(c.secondary, c.primary);
+    else if (fix === 'suggest') { const d = DISENOS.find((x) => x.id === disenoDe(state))!; setColores(d.colores.primary, d.colores.secondary); }
+    else setColores(c.primary, fix);
+    toast('Colores ajustados');
+  });
   $('paletteRow').addEventListener('click', (ev) => {
     const i = (ev.target as HTMLElement).closest<HTMLElement>('[data-paleta]')?.dataset.paleta;
     if (i == null) return;

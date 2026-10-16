@@ -112,7 +112,7 @@ const bloque: Layout = {
 .doc{background:var(--pSofter)}
 .top{display:flex;min-height:250px}
 .top .l{flex:0 0 610px;background:var(--p);color:var(--onP);padding:52px 56px 40px}
-.top h1{font-weight:800;font-size:60px;line-height:1.05;color:var(--s);margin-bottom:22px}
+.top h1{font-weight:800;font-size:60px;line-height:1.05;color:var(--sOnP);margin-bottom:22px}
 .meta{display:grid;grid-template-columns:150px 1fr;row-gap:6px;font-size:16px}
 .meta dt{font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
 .top .r{flex:1;background:var(--s);color:var(--onS);display:flex;align-items:center;justify-content:center;gap:16px;padding:40px}
@@ -195,13 +195,13 @@ const noche: Layout = {
 .swoosh.tl{left:-250px;top:-300px}
 .swoosh.br{right:-260px;bottom:-300px;transform:rotate(180deg)}
 .hd{display:flex;justify-content:space-between;gap:40px;position:relative}
-.lbl{font-weight:700;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--s)}
+.lbl{font-weight:700;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--sOnP)}
 .to{max-width:440px;margin-top:70px}
 .to .name{font-weight:700;font-size:22px;margin-top:6px}
 .to p{font-size:15px;opacity:.85}
 .brand{text-align:right;display:flex;flex-direction:column;align-items:flex-end}
 .brand .logo{max-width:150px;max-height:80px;object-fit:contain;margin-bottom:10px}
-.brand .emp{font-weight:800;font-size:24px;line-height:1.1;text-transform:uppercase;color:var(--s);max-width:420px}
+.brand .emp{font-weight:800;font-size:24px;line-height:1.1;text-transform:uppercase;color:var(--sOnP);max-width:420px}
 .brand h1{font-weight:800;font-size:34px;line-height:1.1;text-transform:uppercase;margin-top:26px;max-width:460px}
 .brand .meta{font-size:15px;margin-top:6px;opacity:.9}
 .rows{margin-top:56px;display:flex;flex-direction:column;gap:12px}
@@ -249,9 +249,9 @@ ${sw('tl')}${sw('br')}
 <div class="tot"><div>Total</div><div class="v">${d.total}</div></div>
 <div class="bt">
   <div>
-    ${d.banco ? `<h3 style="color:var(--s)">Información de pago</h3><p>${d.banco}</p>` : ''}
-    ${d.tiempo ? `<h3 style="color:var(--s)">Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
-    ${d.terminos.length ? `<h3 style="color:var(--s)">Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}
+    ${d.banco ? `<h3 style="color:var(--sOnP)">Información de pago</h3><p>${d.banco}</p>` : ''}
+    ${d.tiempo ? `<h3 style="color:var(--sOnP)">Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
+    ${d.terminos.length ? `<h3 style="color:var(--sOnP)">Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}
   </div>
   <div class="sig">${firma(d, d.t.p)}<div class="nm">${d.rep.nombre}</div>${d.rep.cedula ? `<div style="font-size:13px;opacity:.8">CC ${d.rep.cedula}</div>` : ''}</div>
 </div>
@@ -343,7 +343,7 @@ const estudio: Layout = {
 .hd h1{font-weight:800;font-size:76px;line-height:1;text-transform:uppercase;max-width:600px}
 .brand{display:flex;align-items:center;gap:14px;max-width:340px}
 .brand .logo{max-width:96px;max-height:96px;object-fit:contain;border-radius:18px}
-.brand .emp{font-weight:600;font-size:28px;line-height:1.1;color:var(--p)}
+.brand .emp{font-weight:600;font-size:28px;line-height:1.1;color:var(--pOnW)}
 .to{display:grid;grid-template-columns:1fr 330px;gap:40px;margin-top:40px;align-items:end}
 h2{font-weight:600;font-size:28px;margin-bottom:12px}
 .kv{font-size:16px;line-height:1.6}
@@ -411,7 +411,7 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 // ── Editorial ────────────────────────────────────────────────────────────────
 const editorial: Layout = {
   css: `
-.doc{padding:100px 112px 96px;font-family:Roboto,Arial,sans-serif;color:var(--p)}
+.doc{padding:100px 112px 96px;font-family:Roboto,Arial,sans-serif;color:var(--pOnW)}
 .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:40px}
 .brand .logo{max-width:160px;max-height:90px;object-fit:contain;margin-bottom:12px;display:block}
 .brand .emp{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:46px;line-height:.98;text-transform:uppercase;max-width:420px}
@@ -427,12 +427,12 @@ table{margin-top:70px}
 th{font-weight:700;font-size:18px;text-align:left;padding:0 18px 18px;border-bottom:1.5px solid var(--p)}
 th.v,td.v{text-align:right}
 td{padding:26px 18px;font-size:18px;vertical-align:top}
-td p{font-size:15px;color:var(--s);margin-top:6px;line-height:1.5}
+td p{font-size:15px;color:var(--sOnW);margin-top:6px;line-height:1.5}
 td.v{width:220px;white-space:nowrap}
 tbody tr:last-child td{border-bottom:1.5px solid var(--p)}
 .tot{display:flex;justify-content:flex-end;margin-top:22px}
 .tot div{display:grid;grid-template-columns:auto 230px;align-items:center;gap:30px;font-size:19px}
-.tot b{font-weight:700;color:var(--s)}
+.tot b{font-weight:700;color:var(--sOnW)}
 .tot strong{background:var(--p);color:var(--onP);font-weight:700;text-align:center;padding:6px 10px}
 .thin{height:6px;background:var(--p);margin-top:60px}
 .ft{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:40px;font-size:18px;letter-spacing:.03em;line-height:1.6}
@@ -470,12 +470,12 @@ const redonda: Layout = {
 .doc{padding-bottom:0}
 .hd{display:flex;align-items:center;gap:16px;padding:70px 90px 0;height:190px}
 .hd .logo{max-width:110px;max-height:80px;object-fit:contain}
-.hd .emp{font-weight:700;font-size:30px;color:var(--p);line-height:1.1;max-width:420px}
+.hd .emp{font-weight:700;font-size:30px;color:var(--pOnW);line-height:1.1;max-width:420px}
 .band{background:var(--p);color:var(--onP);height:240px;position:relative;padding:34px 90px 0}
 .band p{font-size:19px;line-height:1.75}
 .band b{font-weight:700}
 .tab{position:absolute;right:60px;top:-100px;width:470px;height:190px;background:#fff;border-radius:0 0 46px 46px;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 44px 28px 130px}
-.tab h1{font-weight:800;font-size:44px;color:var(--s);line-height:1.02;text-transform:uppercase;text-align:right;overflow-wrap:anywhere}
+.tab h1{font-weight:800;font-size:44px;color:var(--sOnW);line-height:1.02;text-transform:uppercase;text-align:right;overflow-wrap:anywhere}
 .dot{position:absolute;border-radius:50%}
 .dot.a{left:42px;top:52px;width:42px;height:42px;border:7px solid var(--s)}
 .dot.b{left:96px;top:22px;width:24px;height:24px;background:var(--p)}
@@ -532,11 +532,11 @@ const lateral: Layout = {
 .side{background:var(--p);color:var(--onP);padding:56px 30px;display:flex;flex-direction:column;gap:30px}
 .side .logo{max-width:170px;max-height:110px;object-fit:contain;align-self:flex-start}
 .side .emp{font-weight:700;font-size:24px;line-height:1.15}
-.lbl{font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--s);margin-bottom:4px}
+.lbl{font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--sOnP);margin-bottom:4px}
 .side .num{font-weight:800;font-size:40px;line-height:1}
 .side .sm{font-size:15px;opacity:.9}
 .side hr{border:0;border-top:1px solid currentColor;opacity:.25}
-.side .tot{font-weight:800;font-size:36px;line-height:1.1;color:var(--s)}
+.side .tot{font-weight:800;font-size:36px;line-height:1.1;color:var(--sOnP)}
 .side .contact-list{margin-top:auto;font-size:13px;gap:12px;overflow-wrap:anywhere}
 .main{padding:64px 56px 56px}
 .main h1{font-weight:800;font-size:46px;line-height:1.1;color:var(--pDeep)}

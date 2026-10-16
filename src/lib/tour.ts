@@ -58,7 +58,7 @@ function stepsFor(id: TourId, ctx: TourCtx): DriveStep[] {
       s('cotizacion', '#clienteNombre', 'Cliente', 'Nombre y NIT de quien recibe la propuesta. También se usan en la cuenta de cobro.'),
       s('cotizacion', '#alcance', 'Alcance', 'Una frase que resume el trabajo, por ejemplo “Sitio web y tienda en línea”.'),
       s('cotizacion', '#totalBig', 'Total', 'Por defecto suma los ítems. Apaga “Sumar ítems” si quieres poner un valor global distinto.'),
-      s('cotizacion', '#terminos', 'Condiciones', 'Tiempo de entrega y términos: un término por línea (forma de pago, vigencia de la oferta, etc.).', 'top'),
+      s('cotizacion', '#terminosList', 'Condiciones', 'Tiempo de entrega y términos: cada término en su propia línea (forma de pago, vigencia de la oferta…). Agrega o quita los que necesites.', 'top'),
     ],
     items: [
       s('items', '#items .item-card', 'Cada servicio es un ítem', 'Elige un ícono, escribe título, descripción y valor. El total se recalcula solo.'),

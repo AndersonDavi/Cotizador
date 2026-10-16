@@ -83,6 +83,31 @@ export function onColor(bg: string): string {
 
 export const isDark = (c: string) => onColor(c) === '#FFFFFF';
 
+/**
+ * El mismo tono, aclarado u oscurecido lo justo para leerse sobre `bg`
+ * (contraste mínimo `min`, 3:1 = texto grande según WCAG). Si no lo logra, blanco o negro.
+ */
+export function readableOn(fg: string, bg: string, min = 3): string {
+  if (contrast(fg, bg) >= min) return fg;
+  const towardWhite = contrast('#FFFFFF', bg) >= contrast('#000000', bg);
+  const order: [string, string][] = towardWhite ? [['#FFFFFF', 'w'], ['#000000', 'b']] : [['#000000', 'b'], ['#FFFFFF', 'w']];
+  for (const [target] of order) {
+    for (let t = 0.1; t <= 1.0001; t += 0.1) {
+      const c = mix(fg, target, t);
+      if (contrast(c, bg) >= min) return c;
+    }
+  }
+  return onColor(bg);
+}
+
+export type ContrastReport = { ratio: number; ok: boolean; level: 'bien' | 'justo' | 'bajo' };
+
+/** Qué tan bien se ve el secundario sobre el principal (lo que más usan las plantillas). */
+export function contrastReport(c: Colores): ContrastReport {
+  const ratio = contrast(c.secondary, c.primary);
+  return { ratio, ok: ratio >= 3, level: ratio >= 4.5 ? 'bien' : ratio >= 3 ? 'justo' : 'bajo' };
+}
+
 /** Tema derivado de primario/secundario que usan las plantillas nuevas. */
 export type Theme = {
   p: string; s: string;
@@ -90,6 +115,9 @@ export type Theme = {
   pDark: string; pDeep: string;
   pSoft: string; pSofter: string;
   sSoft: string;
+  sOnP: string;   // secundario legible sobre el principal (textos de acento en bloques de color)
+  sOnW: string;   // secundario legible sobre blanco
+  pOnW: string;   // principal legible sobre blanco
   ink: string; muted: string; line: string; paper: string;
 };
 
@@ -103,6 +131,9 @@ export function buildTheme({ primary: p, secondary: s }: Colores): Theme {
     pSoft: tint(p, 0.85),
     pSofter: tint(p, 0.93),
     sSoft: tint(s, 0.75),
+    sOnP: readableOn(s, p, 3),
+    sOnW: readableOn(s, '#FFFFFF', 3),
+    pOnW: readableOn(p, '#FFFFFF', 3),
     ink: '#1C1D21',
     muted: '#62666E',
     line: '#DADDE2',
