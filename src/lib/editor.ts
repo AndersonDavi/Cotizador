@@ -158,7 +158,14 @@ function scheduleAutosave() {
 let costoMoney: { paint: () => void } | null = null;
 let renderSeq = 0;
 /** 'width' = ocupa el ancho disponible, 'page' = documento completo a la vista, número = zoom fijo. */
-let zoomMode: 'width' | 'page' | number = 'width';
+// Zoom de la vista previa: en PC arranca en "Página" (el documento completo a lo alto), en el
+// celular en "Ancho" (a página completa quedaría diminuto). Se recuerda la última elección.
+const ZOOM_KEY = 'cotizador:zoom';
+let zoomMode: 'width' | 'page' | number = (() => {
+  try { const z = localStorage.getItem(ZOOM_KEY); if (z === 'width' || z === 'page') return z; } catch { /* sin storage */ }
+  return matchMedia('(max-width: 860px)').matches ? 'width' : 'page';
+})();
+const recordarZoom = (z: 'width' | 'page') => { try { localStorage.setItem(ZOOM_KEY, z); } catch { /* sin storage */ } };
 let zoomK = 1;
 let docSize = { width: 1080, height: 1400 };
 
@@ -1826,8 +1833,8 @@ export function initEditor() {
   const zoomBy = (d: number) => { zoomMode = Math.min(2, Math.max(0.2, Math.round((zoomK + d) * 10) / 10)); applyZoom(); };
   $('zoomIn').addEventListener('click', () => zoomBy(0.1));
   $('zoomOut').addEventListener('click', () => zoomBy(-0.1));
-  $('zoomWidth').addEventListener('click', () => { zoomMode = 'width'; applyZoom(); });
-  $('zoomPage').addEventListener('click', () => { zoomMode = 'page'; applyZoom(); $('previewScroll').scrollTop = 0; });
+  $('zoomWidth').addEventListener('click', () => { zoomMode = 'width'; recordarZoom('width'); applyZoom(); });
+  $('zoomPage').addEventListener('click', () => { zoomMode = 'page'; recordarZoom('page'); applyZoom(); $('previewScroll').scrollTop = 0; });
   // Ctrl + rueda sobre la vista previa = zoom
   $('previewScroll').addEventListener('wheel', (ev) => {
     if (!ev.ctrlKey) return;

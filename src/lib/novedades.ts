@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.6.1',
+    fecha: '16-10-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'En el computador la vista previa arranca en "Página" para ver el documento completo; en el celular sigue en "Ancho". Se recuerda la que elijas.',
+    ],
+  },
+  {
     version: '1.6.0',
     fecha: '16-10-2026',
     tipo: 'nueva',
