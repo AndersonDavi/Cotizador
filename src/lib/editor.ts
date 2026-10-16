@@ -1537,6 +1537,8 @@ export function initEditor() {
   document.querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab!)));
   let lastTab = 'cotizacion';
   try { lastTab = localStorage.getItem('cotizador:tab') || lastTab; } catch { /* */ }
+  const tabUrl = new URLSearchParams(location.search).get('tab');
+  if (tabUrl) { lastTab = tabUrl; history.replaceState(history.state, '', location.pathname); }
   if (!document.querySelector(`.tab[data-tab="${lastTab}"]`)) lastTab = 'cotizacion';
 
   // Estado

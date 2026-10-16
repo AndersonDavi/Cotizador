@@ -4,6 +4,8 @@ import { BUILD } from './build-info.mjs';
 export default defineConfig({
   site: 'https://cotizador.andersonrueda.com',
   base: '/',
+  // cotizacion.html en vez de cotizacion/index.html: GitHub Pages la sirve en /cotizacion sin redirigir
+  build: { format: 'file' },
   server: { port: 4321 },
   vite: {
     build: { target: 'es2022' },

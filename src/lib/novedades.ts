@@ -6,6 +6,15 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.2.0',
+    fecha: '15-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Guías nuevas: "Qué debe llevar una cuenta de cobro" y "Cómo hacer una cotización con IVA", con ejemplos y preguntas frecuentes.',
+      'Desde las guías, un botón abre la app directo en la pestaña que necesitas.',
+    ],
+  },
+  {
     version: '1.1.1',
     fecha: '15-10-2026',
     tipo: 'arreglo',

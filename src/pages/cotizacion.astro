@@ -1,0 +1,113 @@
+---
+import Contenido from '../layouts/Contenido.astro';
+
+const SITE = 'https://cotizador.andersonrueda.com';
+const TITLE = 'Cotización gratis en PDF con tu logo e IVA: generador online | Cotizador';
+const DESC = 'Crea cotizaciones en PDF gratis con tu logo, firma e IVA del 19 %. Descuentos, anticipos, 8 plantillas y envío por WhatsApp. Ilimitado y sin anuncios.';
+
+const FAQ = [
+  ['¿El cotizador es gratis de verdad?', 'Sí. Es gratis, ilimitado y sin anuncios. No pide registro, no tiene plan de pago y el PDF sale sin marca de agua.'],
+  ['¿Cómo agrego el IVA a una cotización?', 'En la pestaña Cotización eliges "Sumar IVA" (se agrega encima de los precios) o "IVA incluido" (los precios ya lo traen y el documento separa base e IVA). La tarifa general es 19 %, y cada ítem puede tener la suya: 5 % o exento.'],
+  ['¿Puedo poner cantidades y precio unitario?', 'Sí. Cada ítem tiene cantidad, unidad (und, m, hora…) y precio unitario; el valor se calcula solo y el documento muestra, por ejemplo, "8 und × $350.000".'],
+  ['¿Se puede pedir un anticipo?', 'Sí. Indica el porcentaje y la cotización muestra el anticipo y el saldo contra entrega. Después puedes generar la cuenta de cobro solo del anticipo o del saldo.'],
+  ['¿Cómo se la envío al cliente?', 'Descarga el PDF o toca "Enviar PDF por WhatsApp": en el celular se comparte el archivo con un mensaje listo, y en el computador se abre el chat y se descarga el PDF para adjuntarlo.'],
+  ['¿Dónde se guardan mis cotizaciones?', 'En tu navegador, sin servidor. Si quieres respaldo o usarlas en varios equipos, conecta tu propio Google Drive.'],
+  ['¿Funciona sin internet?', 'Sí. Instálalo como app desde el navegador y funciona sin conexión.'],
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org', '@type': 'HowTo',
+    name: 'Cómo hacer una cotización en PDF con IVA',
+    description: DESC,
+    image: `${SITE}/ejemplos/cotizacion.jpg`,
+    totalTime: 'PT3M',
+    tool: [{ '@type': 'HowToTool', name: 'Cotizador (gratis, en el navegador)' }],
+    step: [
+      { '@type': 'HowToStep', name: 'Tu marca', text: 'Sube tu logo y tu firma y escribe tus datos de contacto una sola vez.' },
+      { '@type': 'HowToStep', name: 'El cliente', text: 'Escribe el nombre, el NIT y el alcance del trabajo.' },
+      { '@type': 'HowToStep', name: 'Los ítems', text: 'Agrega cada servicio o producto con cantidad, precio unitario e IVA.' },
+      { '@type': 'HowToStep', name: 'Diseño y envío', text: 'Elige una de las 8 plantillas y tus colores, y descarga el PDF o envíalo por WhatsApp.' },
+    ],
+  },
+  {
+    '@context': 'https://schema.org', '@type': 'FAQPage',
+    mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+  },
+  {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Cotizador', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: 'Cotización', item: `${SITE}/cotizacion` },
+    ],
+  },
+];
+---
+<Contenido title={TITLE} description={DESC} path="/cotizacion" jsonLd={jsonLd}>
+  <section class="hero">
+    <span class="eyebrow">Generador de cotizaciones gratis</span>
+    <h1>Cotizaciones en PDF con tu logo, IVA y anticipo</h1>
+    <p class="lead">Arma una cotización profesional en minutos: tu marca, los ítems con cantidad y precio, el IVA calculado solo y un PDF listo para enviar por correo o WhatsApp.</p>
+    <div class="ctas">
+      <a class="btn primary" href="/?tab=cotizacion">Crear mi cotización</a>
+      <a class="btn ghost" href="#que-debe-llevar">Qué debe llevar</a>
+    </div>
+    <ul class="badges"><li>Gratis e ilimitado</li><li>Sin anuncios</li><li>Sin registro</li><li>Sin marca de agua</li><li>8 plantillas</li></ul>
+  </section>
+
+  <figure>
+    <img src="/ejemplos/cotizacion.jpg" width="1080" height="1589" loading="eager" alt="Ejemplo de cotización en PDF con logo, datos del cliente, ítems con valor, IVA del 19 %, total, anticipo y saldo" />
+    <figcaption>Ejemplo con datos ficticios en la plantilla Bloque.</figcaption>
+  </figure>
+
+  <h2>¿Qué es una cotización?</h2>
+  <p>Una cotización (o propuesta económica) le dice a tu cliente qué vas a hacer, cuánto cuesta y en qué condiciones, antes de empezar. Si la aprueba, es la base para cobrar: con el Cotizador, de una cotización aprobada sale la <a href="/cuenta-de-cobro">cuenta de cobro</a> en un clic.</p>
+
+  <h2 id="que-debe-llevar">Qué debe llevar una cotización</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Tu marca:</strong> logo, nombre o empresa y datos de contacto.</li>
+      <li><strong>El cliente:</strong> nombre o razón social, NIT y lo que pidió.</li>
+      <li><strong>Número, fecha y vigencia:</strong> hasta cuándo vale la oferta.</li>
+      <li><strong>Los ítems:</strong> descripción, cantidad, unidad y precio unitario.</li>
+      <li><strong>Subtotal, descuento, IVA y total.</strong></li>
+      <li><strong>Forma de pago:</strong> anticipo, saldo y cuenta bancaria.</li>
+      <li><strong>Tiempo de entrega, términos y tu firma.</strong></li>
+    </ul>
+  </div>
+
+  <h2>Cómo calcular el IVA en una cotización</h2>
+  <p>En Colombia la tarifa general del IVA es del 19 %; algunos bienes y servicios tienen 5 % o están excluidos. Hay dos formas de presentarlo:</p>
+  <div class="tabla">
+    <table>
+      <thead><tr><th></th><th>Sumar IVA</th><th>IVA incluido</th></tr></thead>
+      <tbody>
+        <tr><th>Precio que escribes</th><td>$1.000.000</td><td>$1.000.000</td></tr>
+        <tr><th>Base</th><td>$1.000.000</td><td>$840.336</td></tr>
+        <tr><th>IVA 19 %</th><td>$190.000</td><td>$159.664</td></tr>
+        <tr><th>Total para el cliente</th><td><strong>$1.190.000</strong></td><td><strong>$1.000.000</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>El Cotizador hace estas cuentas solo, también cuando hay descuento o ítems con distinta tarifa, y muestra una línea por cada tarifa.</p>
+
+  <h2>Cómo hacer tu cotización con el Cotizador</h2>
+  <ol class="pasos">
+    <li><strong>Tu marca, una sola vez.</strong> Sube tu logo y tu firma y escribe tus datos de contacto.</li>
+    <li><strong>El cliente.</strong> Nombre, NIT y una frase con el alcance del trabajo.</li>
+    <li><strong>Los ítems.</strong> Agrega cada servicio con cantidad, precio e IVA; guarda los que repites en tu catálogo.</li>
+    <li><strong>Diseño y envío.</strong> Elige una de las 8 plantillas y tus dos colores, y descarga el PDF o envíalo por WhatsApp.</li>
+  </ol>
+
+  <h2>8 plantillas con tus colores</h2>
+  <p>Clásica, Bloque, Noche, Diagonal, Estudio, Editorial, Redonda y Lateral. Todas se pintan con dos colores, así tu marca se ve bien en cualquiera, y la app te avisa si el contraste no se lee bien.</p>
+
+  <h2>Preguntas frecuentes</h2>
+  {FAQ.map(([q, a]) => <details><summary>{q}</summary><p>{a}</p></details>)}
+
+  <section class="cierre">
+    <h2>Haz tu primera cotización</h2>
+    <p>Gratis, ilimitado y sin anuncios. Tus datos se quedan en tu navegador.</p>
+    <a class="btn primary" href="/?tab=cotizacion">Crear mi cotización</a>
+  </section>
+</Contenido>

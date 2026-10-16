@@ -1,0 +1,112 @@
+---
+import Contenido from '../layouts/Contenido.astro';
+
+const SITE = 'https://cotizador.andersonrueda.com';
+const TITLE = 'Cuenta de cobro en PDF gratis: formato 2026 y generador | Cotizador';
+const DESC = 'Genera tu cuenta de cobro en PDF gratis, con el valor en letras, tu firma y datos bancarios. Formato 2026 para persona natural en Colombia. Sin registro.';
+
+const FAQ = [
+  ['¿El generador de cuentas de cobro es gratis?', 'Sí. Es gratis, ilimitado y sin anuncios. No pide registro ni pone marca de agua en el PDF.'],
+  ['¿Una cuenta de cobro es lo mismo que una factura?', 'No. La factura electrónica la expiden quienes están obligados a facturar ante la DIAN. La cuenta de cobro la usan personas naturales no obligadas a facturar para pedir el pago de un servicio; no tiene un formato oficial único.'],
+  ['¿Qué datos necesito para hacer una cuenta de cobro?', 'Tu nombre completo y cédula, el nombre o razón social y el NIT de quien te paga, el valor, el concepto del servicio con su período, tu cuenta bancaria y tu firma. Con eso el Cotizador arma el documento y escribe el valor en letras.'],
+  ['¿Puedo cobrar solo el anticipo o el saldo?', 'Sí. Si tu cotización tiene anticipo, en la pestaña Cobro eliges si cobras el total, el anticipo o el saldo, y el concepto lo dice solo.'],
+  ['¿Qué más me puede pedir la empresa que me paga?', 'Depende de la empresa. Es común que pidan copia del RUT, la planilla de seguridad social (PILA) del período y, si están obligadas, ellas generan el documento soporte electrónico. Confirma con tu cliente antes de enviar la cuenta de cobro.'],
+  ['¿Dónde quedan mis datos?', 'En tu navegador. El Cotizador no tiene servidor: tu cédula, tu firma y tu cuenta bancaria no salen de tu equipo, salvo que conectes tu propio Google Drive como respaldo.'],
+  ['¿Funciona en el celular?', 'Sí. Puedes instalarlo como app, funciona sin conexión y el PDF se descarga directo o se envía por WhatsApp.'],
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org', '@type': 'HowTo',
+    name: 'Cómo hacer una cuenta de cobro en PDF',
+    description: DESC,
+    image: `${SITE}/ejemplos/cuenta-de-cobro.jpg`,
+    totalTime: 'PT2M',
+    tool: [{ '@type': 'HowToTool', name: 'Cotizador (gratis, en el navegador)' }],
+    step: [
+      { '@type': 'HowToStep', name: 'Tus datos', text: 'En Mi marca escribe tu nombre completo, cédula, ciudad, cuenta bancaria y sube tu firma.' },
+      { '@type': 'HowToStep', name: 'El cliente', text: 'En Cotización escribe el nombre o razón social y el NIT de quien te paga, y los servicios con su valor.' },
+      { '@type': 'HowToStep', name: 'El período', text: 'En Cobro indica desde y hasta cuándo trabajaste y si cobras el total, el anticipo o el saldo.' },
+      { '@type': 'HowToStep', name: 'El PDF', text: 'Toca Generar cuenta de cobro: sale en tamaño carta con el valor en letras y tu firma.' },
+    ],
+  },
+  {
+    '@context': 'https://schema.org', '@type': 'FAQPage',
+    mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+  },
+  {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Cotizador', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: 'Cuenta de cobro', item: `${SITE}/cuenta-de-cobro` },
+    ],
+  },
+];
+---
+<Contenido title={TITLE} description={DESC} path="/cuenta-de-cobro" jsonLd={jsonLd}>
+  <section class="hero">
+    <span class="eyebrow">Generador gratis · formato 2026</span>
+    <h1>Cuenta de cobro en PDF, lista en un minuto</h1>
+    <p class="lead">Llena tus datos y los de tu cliente, y descarga la cuenta de cobro con el valor en letras, tu firma y tu cuenta bancaria. Para personas naturales e independientes en Colombia.</p>
+    <div class="ctas">
+      <a class="btn primary" href="/?tab=cobro">Crear mi cuenta de cobro</a>
+      <a class="btn ghost" href="#que-debe-llevar">Qué debe llevar</a>
+    </div>
+    <ul class="badges"><li>Gratis e ilimitado</li><li>Sin anuncios</li><li>Sin registro</li><li>Sin marca de agua</li><li>Valor en letras automático</li></ul>
+  </section>
+
+  <figure>
+    <img src="/ejemplos/cuenta-de-cobro.jpg" width="816" height="1056" loading="eager" alt="Ejemplo de cuenta de cobro en PDF: ciudad y fecha, cliente con NIT, debe a, la suma en números y en letras, concepto, cuenta bancaria y firma" />
+    <figcaption>Ejemplo con datos ficticios, generado con el Cotizador.</figcaption>
+  </figure>
+
+  <h2>¿Qué es una cuenta de cobro?</h2>
+  <p>Es el documento con el que una persona natural le pide a otra persona o a una empresa el pago por un servicio que prestó. La usan sobre todo quienes <strong>no están obligados a expedir factura electrónica</strong>: independientes, contratistas por prestación de servicios y freelancers.</p>
+  <p>No es una factura y la DIAN no le exige un formato único, pero sí debe tener la información suficiente para que quien paga sepa qué, cuánto y a quién le está pagando.</p>
+
+  <h2 id="que-debe-llevar">Qué debe llevar una cuenta de cobro</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Ciudad y fecha</strong> en que la expides.</li>
+      <li><strong>Quién paga:</strong> nombre o razón social y NIT o cédula.</li>
+      <li><strong>"Debe a":</strong> tu nombre completo y tu número de cédula.</li>
+      <li><strong>La suma</strong> en números y en letras.</li>
+      <li><strong>El concepto:</strong> qué servicio prestaste y en qué período.</li>
+      <li><strong>Cómo pagarte:</strong> banco, tipo y número de cuenta.</li>
+      <li><strong>Tu firma</strong> y tus datos de contacto (dirección y teléfono).</li>
+    </ul>
+  </div>
+  <p>El Cotizador incluye todo lo anterior. El valor en letras lo escribe solo, así no hay errores entre el número y el texto.</p>
+
+  <h2>Cómo hacer tu cuenta de cobro con el Cotizador</h2>
+  <ol class="pasos">
+    <li><strong>Tus datos, una sola vez.</strong> En <em>Mi marca</em> escribe tu nombre completo, cédula, ciudad y cuenta bancaria, y sube tu firma (el fondo blanco se quita solo).</li>
+    <li><strong>El cliente y el servicio.</strong> En <em>Cotización</em> escribe el nombre y el NIT de quien te paga; en <em>Ítems</em>, lo que hiciste y su valor.</li>
+    <li><strong>El período.</strong> En <em>Cobro</em> indica desde y hasta cuándo trabajaste. Si pactaste anticipo, elige si cobras el total, el anticipo o el saldo.</li>
+    <li><strong>Descarga o envía.</strong> Toca <em>Generar cuenta de cobro</em>: sale en tamaño carta, lista para enviar por correo o WhatsApp.</li>
+  </ol>
+  <p>Si ya le habías enviado una <a href="/cotizacion">cotización</a> a ese cliente, la cuenta de cobro sale de la misma información: no vuelves a escribir nada.</p>
+
+  <h2>Cuenta de cobro o factura electrónica</h2>
+  <div class="tabla">
+    <table>
+      <thead><tr><th></th><th>Cuenta de cobro</th><th>Factura electrónica</th></tr></thead>
+      <tbody>
+        <tr><th>Quién la usa</th><td>Personas naturales no obligadas a facturar</td><td>Quienes están obligados a facturar</td></tr>
+        <tr><th>Formato</th><td>Libre, con los datos mínimos</td><td>Validado por la DIAN</td></tr>
+        <tr><th>Numeración</th><td>Opcional</td><td>Con resolución de la DIAN</td></tr>
+        <tr><th>IVA</th><td>No se cobra (no responsables de IVA)</td><td>Se discrimina si aplica</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="nota">Esta guía es informativa. Si tienes dudas sobre tus obligaciones tributarias (IVA, retención en la fuente, seguridad social), consulta con un contador.</p>
+
+  <h2>Preguntas frecuentes</h2>
+  {FAQ.map(([q, a]) => <details><summary>{q}</summary><p>{a}</p></details>)}
+
+  <section class="cierre">
+    <h2>Haz tu cuenta de cobro ahora</h2>
+    <p>Gratis, sin registro y sin anuncios. Tus datos se quedan en tu navegador.</p>
+    <a class="btn primary" href="/?tab=cobro">Crear mi cuenta de cobro</a>
+  </section>
+</Contenido>

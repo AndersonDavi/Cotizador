@@ -1,6 +1,6 @@
 {
   "name": "cotizador-chiguiro",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -12,6 +12,7 @@
     "preview": "astro preview",
     "cli": "node bin/cotizador.mjs",
     "tutorial": "node tutorial/record.mjs",
+    "ejemplos": "tsx tutorial/ejemplos.ts",
     "promo": "node tutorial/promo.mjs"
   },
   "dependencies": {

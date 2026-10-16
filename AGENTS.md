@@ -59,6 +59,13 @@ npx tsc --noEmit   # typecheck
 - Agregar la entrada arriba de todo en `src/lib/novedades.ts` (fecha dd-mm-aaaa, `tipo` 'arreglo' o 'nueva', cambios en lenguaje de usuario). El centro de ayuda muestra la versión cargada, el commit y ese historial; tras actualizar sale el aviso "Actualizado a la versión X".
 - `build-info.mjs` calcula versión, commit y fecha; `astro.config.mjs` los expone como `__BUILD__` (también el nombre de la caché del service worker). El CLI: `cotizador --version`.
 
+## Páginas de contenido (SEO)
+
+- `src/layouts/Contenido.astro` + `src/pages/cuenta-de-cobro.astro` y `cotizacion.astro`: guías con texto para Google (HowTo, FAQPage y BreadcrumbList en JSON-LD). Sus botones abren la app con `/?tab=cobro` o `/?tab=cotizacion`.
+- `build.format: 'file'` genera `cotizacion.html`: GitHub Pages la sirve en `/cotizacion` sin redirigir a `/cotizacion/` (la canónica y el sitemap van sin barra final).
+- Las imágenes de `public/ejemplos/` salen de `npm run ejemplos` (tutorial/ejemplos.ts) con los datos ficticios de `tutorial/demo.mjs`.
+- Al agregar una página: sumarla a `public/sitemap.xml` y enlazarla desde la app o desde otra guía.
+
 ## Modelo de datos
 
 `Cotizacion` (`state.ts`): `numero`, `fecha` (dd-mm-aaaa), `alcance`, `items`, `costoTotal`/`costoTotalAuto`, `tiempoEntrega`, `terminos`, `branding` (logo, representante + firma, `empresa`, `nombreLegal`, `direccion`, `banco`, contacto), `diseno`, `colores` {primary, secondary}, `titulo`, `estado`, `cliente` {nombre, nit, cel}, `cobro` {fecha, desde, hasta, concepto, parte}, `impuestos` {ivaModo, ivaTasa, descuentoTipo, descuento, anticipo}, `vigenciaDias`. Cada `Item` puede tener `cantidad`, `unidad` e `ivaTasa` propia; `valor` es el precio unitario. Los totales salen siempre de `totales(c)`.
