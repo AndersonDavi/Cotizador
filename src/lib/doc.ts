@@ -302,6 +302,9 @@ ${LOGO_CSS}
 .foot h4{left:${(DOC_W - 112) * 0.3 + 24}px;top:10px;font-weight:800;font-size:17px}
 .foot .terms{position:absolute;left:${(DOC_W - 112) * 0.3 + 24}px;top:42px;width:${(DOC_W - 112) * 0.7 - 42}px}
 .foot .terms p{font-size:15px;line-height:20px;max-height:60px;overflow:hidden;color:#555}
+.acept{margin:0 56px;padding:64px 8px 16px;background:var(--fbg);color:var(--ftxt);border-top:1px solid var(--bd)}
+.acept .ln{width:${(DOC_W - 112) * 0.3 - 16}px;border-top:1.2px solid #1A1A1A;padding-top:6px;font-weight:800;font-size:16px}
+.acept small{display:block;font-weight:500;font-size:13px;color:#555}
 .contact{position:relative;height:88px;font-size:14px}
 .contact .ab{font-size:14px}
 `;
@@ -371,6 +374,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <h4 class="ab" data-cv>Términos y condiciones</h4>
     <div class="terms">${c.terminos.slice(0, 6).map((x) => `<p data-cv>${escapeHtml(x)}</p>`).join('')}</div>
   </section>
+  ${c.aceptacionCliente ? `<section class="acept"><div class="ln">Aceptación del cliente<small>${escapeHtml(c.cliente?.nombre || 'Nombre, firma y fecha')}</small></div></section>` : ''}
   <footer class="contact">
     <span class="ab" data-cv style="left:56px;top:18px;font-weight:500;color:${muted}">CEL: ${escapeHtml(k.cel)}</span>
     <span class="ab" data-cv style="left:56px;top:42px;font-weight:800;color:${muted}">Email: ${k.email ? `<a href="mailto:${escapeHtml(k.email)}">${escapeHtml(k.email)}</a>` : ''}</span>

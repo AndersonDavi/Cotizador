@@ -110,6 +110,7 @@ export type Cotizacion = {
   impuestos?: Impuestos;
   vigenciaDias?: number;  // días de validez de la oferta (desde la fecha)
   actualizado?: string;   // último guardado (ISO): al combinar respaldos gana la más reciente
+  perfilId?: string;      // perfil de marca con el que se hizo (la marca va copiada en branding)
   aceptacionCliente?: boolean;
   iconosItems?: boolean;   // ícono de cada ítem en la primera columna y el número en el título (por defecto sí) // espacio para que el cliente firme (diseños que lo tienen); por defecto no
 };

@@ -38,7 +38,7 @@ import {
 import { startTour, TOURS, type TourId } from './tour';
 import { moneyField, dateField } from './inputs';
 import { openColorPicker } from './colorpicker';
-import { abrirModal, cerrarModal, confirmar, animarSalida } from './ui';
+import { abrirModal, cerrarModal, confirmar, animarSalida, pedirTexto } from './ui';
 import {
   driveDisponible, driveInfo, prepararDrive, conectarDrive, subirRespaldo, bajarRespaldo,
   desconectarDrive, driveTokenVigente, DriveAuthError,
@@ -153,7 +153,7 @@ function scheduleAutosave() {
       if (marcaVista !== null && marca !== marcaVista) state.branding.actualizado = new Date().toISOString();
       marcaVista = marca;
       saveDraft(state);
-      saveBranding(state.branding);
+      if (!marcaPropia) guardarEnPerfil();
       programarRespaldo();
     } catch {
       toast('El navegador no tiene espacio para guardar. Usa imágenes más livianas.', 'err');
@@ -710,7 +710,13 @@ function paintImages() {
   $('logoPreview').className = logoClase(state.branding).trim();
   const col = coloresDe(state);
   $('logoTinteUi').setAttribute('flood-color', estilo === 'secundario' ? col.secondary : col.primary);
+  // Cada punto muestra el color que aplica (los dos últimos, los colores de la cotización)
+  const puntos: Record<string, string> = {
+    original: 'conic-gradient(#e8623a 0 33%, #4fd1c5 0 66%, #f2d22b 0)', fondo: 'radial-gradient(circle, #555 0 34%, #fff 36%)',
+    blanco: '#ffffff', negro: '#111111', primario: col.primary, secundario: col.secondary,
+  };
   document.querySelectorAll<HTMLElement>('#logoEstilo [data-logo]').forEach((b) => {
+    b.style.setProperty('--dot', puntos[b.dataset.logo!] ?? 'var(--accent)');
     const on = b.dataset.logo === estilo;
     b.classList.toggle('active', on);
     b.setAttribute('aria-checked', String(on));
@@ -789,7 +795,7 @@ function renderSavedList() {
     return `<div class="saved-row${c.numero === state.numero ? ' current' : ''}">
       <div class="top"><span class="id">${escapeHtml(c.numero)}</span><span class="badge" style="--dot:${ESTADO_COLOR[e]}">${ESTADO_LABELS[e]}</span>
         <span class="who">${escapeHtml(c.cliente?.nombre || c.alcance || '—')}</span>${venceBadge(c)}</div>
-      <div class="meta">${formatCOP(totalReal(c))} · ${escapeHtml(c.fecha)}${c.cliente?.nombre && c.alcance ? ' · ' + escapeHtml(c.alcance) : ''}</div>
+      <div class="meta">${formatCOP(totalReal(c))} · ${escapeHtml(c.fecha)}${perfiles().length > 1 && perfilDe(c.perfilId) ? ' · ' + escapeHtml(perfilDe(c.perfilId)!.nombre) : ''}${c.cliente?.nombre && c.alcance ? ' · ' + escapeHtml(c.alcance) : ''}</div>
       <div class="acts">
         <button data-num="${escapeHtml(c.numero)}" data-act="load">Abrir</button>
         <button data-num="${escapeHtml(c.numero)}" data-act="dup" title="Duplicar como nueva">⧉</button>
@@ -1031,6 +1037,8 @@ type Respaldo = {
   catalogo: CatItem[]; clientes: Cliente[]; paletas: unknown[];
   /** Cotizaciones eliminadas (para que otro equipo no las reviva al combinar). */
   borradas?: Borrada[];
+  perfiles?: Perfil[];
+  perfilActivo?: string;
 };
 
 const BORRADAS_KEY = 'cotizador:borradas';
@@ -1043,9 +1051,9 @@ function anotarBorrada(numero: string) {
 function armarRespaldo(): Respaldo {
   return {
     app: 'cotizador', version: 1, fecha: new Date().toISOString(),
-    guardadas: loadSaved(), borrador: state, marca: state.branding,
+    guardadas: loadSaved(), borrador: state, marca: perfilDe()?.branding ?? state.branding,
     catalogo: catalogo(), clientes: clientes(), paletas: loadJson<unknown[]>('cotizador:paletas', []),
-    borradas: borradas(),
+    borradas: borradas(), perfiles: perfiles(), perfilActivo: perfilActivoId(),
   };
 }
 
@@ -1093,12 +1101,7 @@ function aplicarRespaldo(data: Respaldo) {
   saveJson(CAT_KEY, mergeBy(catalogo(), data.catalogo ?? [], (x) => x.titulo.toLowerCase()));
   saveJson(CLI_KEY, mergeBy(clientes(), data.clientes ?? [], (x) => x.nombre.toLowerCase()));
   if (Array.isArray(data.paletas)) saveJson('cotizador:paletas', mergeBy(loadJson<{ primary: string; secondary: string }[]>('cotizador:paletas', []), data.paletas as { primary: string; secondary: string }[], (x) => x.primary + x.secondary));
-  if (data.marca && (!state.branding.representante.nombre || (data.marca.actualizado ?? '') > (state.branding.actualizado ?? ''))) {
-    state.branding = data.marca;
-    saveBranding(data.marca);
-    marcaVista = JSON.stringify({ ...data.marca, actualizado: undefined });
-    hydrateForm();
-  }
+  combinarPerfiles(data);
   renderClientes();
   renderSavedList();
   refresh();
@@ -1385,6 +1388,7 @@ function initActualizaciones() {
 
 function initPwa() {
   initActualizaciones();
+  installEvent = (window as any).__instalar ?? null; // si ya llegó antes de cargar este código
   window.addEventListener('beforeinstallprompt', (ev) => {
     ev.preventDefault();
     installEvent = ev;
@@ -1447,6 +1451,7 @@ function initExtras() {
   initDrive();
   initSincronizacion();
   initTeclado();
+  initPerfiles();
   initAtras();
 }
 
@@ -1585,6 +1590,7 @@ function hydrateForm() {
   $in('costoAuto').checked = state.costoTotalAuto;
   $in('aceptacionCliente').checked = !!state.aceptacionCliente;
   $in('iconosItems').checked = state.iconosItems !== false;
+  renderPerfiles();
   costoMoney?.paint();
   renderEstado();
   renderTerminos();
@@ -1595,10 +1601,167 @@ function hydrateForm() {
 
 function load(c: Cotizacion, msg?: string) {
   state = normalize(c);
+  state.perfilId = perfilDe(state.perfilId)?.id;
+  revisarMarcaPropia();
   collapsedItems.clear();
   hydrateForm();
   refresh();
-  if (msg) toast(msg);
+  if (marcaPropia) toast(`${msg ? msg + '. ' : ''}Tiene la marca de cuando la guardaste`, 'ok', { label: 'Usar mi perfil', run: usarPerfilActual });
+  else if (msg) toast(msg);
+}
+
+// ── Perfiles de marca ────────────────────────────────────────────────────────
+// El perfil es la fuente de verdad (logo, firma, contacto, cuenta). Cada cotización guarda
+// qué perfil usa y una copia de la marca: así un documento ya enviado no cambia si después
+// cambias de cuenta. Si una cotización abierta tiene una copia distinta a su perfil, queda
+// "con marca propia": lo que se edite en Mi marca solo la afecta a ella.
+
+type Perfil = { id: string; nombre: string; branding: Cotizacion['branding'] };
+const PERFILES_KEY = 'cotizador:perfiles';
+const PERFIL_ACTIVO_KEY = 'cotizador:perfilActivo';
+let marcaPropia = false;
+
+const perfiles = (): Perfil[] => loadJson<Perfil[]>(PERFILES_KEY, []);
+const guardarPerfiles = (l: Perfil[]) => saveJson(PERFILES_KEY, l);
+const perfilActivoId = (): string => { try { return localStorage.getItem(PERFIL_ACTIVO_KEY) || ''; } catch { return ''; } };
+const setPerfilActivo = (id: string) => { try { localStorage.setItem(PERFIL_ACTIVO_KEY, id); } catch { /* sin storage */ } };
+/** El perfil pedido; si no existe, el activo; si no, el primero. */
+function perfilDe(id?: string): Perfil | undefined {
+  const l = perfiles();
+  return l.find((p) => p.id === id) ?? l.find((p) => p.id === perfilActivoId()) ?? l[0];
+}
+const nombreMarca = (b: Cotizacion['branding']) => b.empresa?.trim() || b.representante?.nombre?.trim() || 'Mi marca';
+const sinFecha = (b: Cotizacion['branding']) => JSON.stringify({ ...b, actualizado: undefined });
+const copiaMarca = (b: Cotizacion['branding']) => structuredClone(b);
+
+/** Primera vez: el perfil "principal" sale de la marca que ya había. */
+function asegurarPerfiles(base: Cotizacion['branding']) {
+  if (perfiles().length) return;
+  guardarPerfiles([{ id: 'principal', nombre: nombreMarca(base), branding: copiaMarca(base) }]);
+  setPerfilActivo('principal');
+}
+
+function revisarMarcaPropia() {
+  const p = perfilDe(state.perfilId);
+  marcaPropia = !!p && sinFecha(p.branding) !== sinFecha(state.branding);
+  marcaVista = sinFecha(state.branding);
+}
+
+/** La marca editada pasa al perfil de la cotización (y a la marca de compatibilidad). */
+function guardarEnPerfil() {
+  const l = perfiles();
+  const p = l.find((x) => x.id === state.perfilId) ?? l.find((x) => x.id === perfilActivoId());
+  if (!p) return;
+  if (JSON.stringify(p.branding) !== JSON.stringify(state.branding)) {
+    p.branding = copiaMarca(state.branding);
+    guardarPerfiles(l);
+  }
+  if (p.id === perfilActivoId()) saveBranding(state.branding);
+}
+
+/** La cotización abierta toma la marca de su perfil. */
+function usarPerfilActual() {
+  const p = perfilDe(state.perfilId);
+  if (!p) return;
+  state.perfilId = p.id;
+  state.branding = copiaMarca(p.branding);
+  marcaPropia = false;
+  marcaVista = sinFecha(state.branding);
+  hydrateForm();
+  refresh();
+  toast(`La cotización ahora usa el perfil «${p.nombre}»`);
+}
+
+function renderPerfiles() {
+  const l = perfiles();
+  const cur = perfilDe(state.perfilId);
+  $('perfilChips').innerHTML = l.map((p) =>
+    `<button type="button" role="radio" aria-checked="${p.id === cur?.id}" class="${p.id === cur?.id ? 'active' : ''}" data-perfil="${p.id}">${escapeHtml(p.nombre)}</button>`).join('');
+  ($('perfilEliminar') as HTMLElement).hidden = l.length < 2;
+  $('perfilHint').textContent = marcaPropia
+    ? ''
+    : `Lo que cambies aquí se guarda en el perfil «${cur?.nombre ?? 'Mi marca'}» y lo usan tus cotizaciones nuevas.`;
+  ($('perfilHint') as HTMLElement).hidden = marcaPropia;
+  ($('marcaAviso') as HTMLElement).hidden = !marcaPropia;
+}
+
+/** Combina los perfiles de un respaldo: por perfil, gana la marca cambiada más recientemente. */
+function combinarPerfiles(data: Respaldo) {
+  const l = perfiles();
+  if (data.perfiles?.length) {
+    for (const r of data.perfiles) {
+      const i = l.findIndex((p) => p.id === r.id);
+      if (i < 0) l.push(r);
+      else if ((r.branding.actualizado ?? '') > (l[i].branding.actualizado ?? '')) l[i] = { ...r };
+    }
+  } else if (data.marca) {
+    // Respaldo de antes de los perfiles: su marca va al perfil activo si es más reciente
+    const p = l.find((x) => x.id === perfilActivoId()) ?? l[0];
+    if (p && (!p.branding.representante?.nombre || (data.marca.actualizado ?? '') > (p.branding.actualizado ?? ''))) p.branding = copiaMarca(data.marca);
+  }
+  guardarPerfiles(l);
+  // La cotización abierta se pone al día con su perfil, salvo que tenga marca propia
+  const p = perfilDe(state.perfilId);
+  if (p && !marcaPropia && sinFecha(p.branding) !== sinFecha(state.branding)) {
+    state.branding = copiaMarca(p.branding);
+    marcaVista = sinFecha(state.branding);
+    hydrateForm();
+  }
+}
+
+function initPerfiles() {
+  $('perfilChips').addEventListener('click', (ev) => {
+    const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-perfil]')?.dataset.perfil;
+    const p = id ? perfiles().find((x) => x.id === id) : undefined;
+    if (!p || (p.id === state.perfilId && !marcaPropia)) return;
+    state.perfilId = p.id;
+    setPerfilActivo(p.id);
+    usarPerfilActual();
+  });
+  $('marcaUsarPerfil').addEventListener('click', usarPerfilActual);
+  $('perfilNuevo').addEventListener('click', async () => {
+    const nombre = await pedirTexto({
+      titulo: 'Nuevo perfil de marca',
+      mensaje: 'Por ejemplo, tu otra empresa. Empieza como copia del perfil actual: después cambias el logo, los datos y la cuenta.',
+      placeholder: 'Nombre del perfil', aceptar: 'Crear perfil',
+    });
+    if (!nombre) return;
+    const p: Perfil = { id: makeId(), nombre, branding: { ...copiaMarca(state.branding), actualizado: new Date().toISOString() } };
+    guardarPerfiles([...perfiles(), p]);
+    state.perfilId = p.id;
+    setPerfilActivo(p.id);
+    usarPerfilActual();
+    burbuja($('perfilChips').querySelector(`[data-perfil="${p.id}"]`), true);
+  });
+  $('perfilRenombrar').addEventListener('click', async () => {
+    const p = perfilDe(state.perfilId);
+    if (!p) return;
+    const nombre = await pedirTexto({ titulo: 'Renombrar perfil', valor: p.nombre, aceptar: 'Renombrar' });
+    if (!nombre || nombre === p.nombre) return;
+    guardarPerfiles(perfiles().map((x) => (x.id === p.id ? { ...x, nombre } : x)));
+    renderPerfiles();
+    renderSavedList();
+  });
+  $('perfilEliminar').addEventListener('click', async () => {
+    const l = perfiles();
+    const p = perfilDe(state.perfilId);
+    if (!p || l.length < 2) return;
+    if (!(await confirmar({
+      titulo: `¿Eliminar el perfil «${p.nombre}»?`,
+      mensaje: 'Las cotizaciones que lo usan conservan su copia de la marca. Este perfil ya no estará para cotizaciones nuevas.',
+      aceptar: 'Eliminar', peligro: true,
+    }))) return;
+    await animarSalida($('perfilChips').querySelector(`[data-perfil="${p.id}"]`));
+    const resto = l.filter((x) => x.id !== p.id);
+    guardarPerfiles(resto);
+    setPerfilActivo(resto[0].id);
+    saveBranding(resto[0].branding);
+    state.perfilId = resto[0].id;
+    revisarMarcaPropia(); // la cotización abierta conserva su marca hasta que elija usar el perfil
+    renderPerfiles();
+    renderSavedList();
+    toast('Perfil eliminado');
+  });
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -1609,6 +1772,9 @@ export function initEditor() {
   const initial = draft ?? nuevaCotizacion(nextNumero());
   if (branding && !draft) initial.branding = branding;
   state = normalize(initial);
+  asegurarPerfiles(branding ?? state.branding);
+  state.perfilId = perfilDe(state.perfilId)?.id;
+  revisarMarcaPropia();
 
   // Fechas dd-mm-aaaa con máscara y calendario (antes de FIELDS, para que lean el valor ya formateado)
   document.querySelectorAll<HTMLInputElement>('input[data-date]').forEach((el) => dateField(el, () => el.dispatchEvent(new Event('change'))));
@@ -1847,7 +2013,9 @@ export function initEditor() {
     if (!(await confirmar({ titulo: '¿Empezar una cotización nueva?', mensaje: 'Lo que no hayas guardado de la actual se perderá. Si quieres conservarla, toca Guardar primero.', aceptar: 'Empezar nueva', icono: 'doc' }))) return;
     const keep = { diseno: state.diseno, colores: coloresDe(state), terminos: state.terminos, tiempoEntrega: state.tiempoEntrega };
     const c = nuevaCotizacion(nextNumero());
-    c.branding = loadBranding() ?? state.branding;
+    const perfil = perfilDe(state.perfilId);
+    c.branding = perfil ? copiaMarca(perfil.branding) : (loadBranding() ?? state.branding);
+    c.perfilId = perfil?.id;
     Object.assign(c, keep);
     load(c, `Cotización ${c.numero} lista`);
     showTab('cotizacion');
@@ -1915,6 +2083,8 @@ export function initEditor() {
       c.fecha = today();
       c.estado = 'borrador';
       c.cobro = {};
+      const perfil = perfilDe(c.perfilId);
+      if (perfil) { c.branding = copiaMarca(perfil.branding); c.perfilId = perfil.id; } // la copia nueva usa el perfil al día
       load(c, `Copia creada como ${c.numero}`);
       showTab('cotizacion');
     } else if (btn.dataset.act === 'del') {

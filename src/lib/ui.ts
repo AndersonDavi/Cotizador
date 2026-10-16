@@ -107,6 +107,50 @@ export function confirmar(o: Confirmar): Promise<boolean> {
   return abierto;
 }
 
+/** Pide un texto corto (nombre de un perfil…) con la misma ventana. Devuelve null si cancela. */
+export function pedirTexto(o: { titulo: string; mensaje?: string; valor?: string; placeholder?: string; aceptar?: string }): Promise<string | null> {
+  let el = document.getElementById('textoModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'textoModal';
+    el.className = 'modal-overlay confirm-overlay';
+    el.hidden = true;
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'textoTitle');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <form class="modal-box confirm-box">
+      <div class="confirm-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
+      <h2 id="textoTitle">${escapeHtml(o.titulo)}</h2>
+      ${o.mensaje ? `<p>${escapeHtml(o.mensaje)}</p>` : ''}
+      <input class="texto-input" type="text" maxlength="60" value="${escapeHtml(o.valor ?? '')}" placeholder="${escapeHtml(o.placeholder ?? '')}" />
+      <div class="confirm-actions">
+        <button type="button" data-r="no">Cancelar</button>
+        <button type="submit" class="primary">${escapeHtml(o.aceptar ?? 'Guardar')}</button>
+      </div>
+    </form>`;
+  const overlay = el;
+  const form = overlay.querySelector('form')!;
+  const input = overlay.querySelector<HTMLInputElement>('input')!;
+  return new Promise((resolve) => {
+    const fin = (v: string | null) => {
+      document.removeEventListener('keydown', onKey, true);
+      cerrarModal(overlay).then(() => resolve(v));
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fin(null); } };
+    form.addEventListener('submit', (ev) => { ev.preventDefault(); const v = input.value.trim(); if (v) fin(v); else input.focus(); });
+    overlay.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('[data-r="no"]') || ev.target === overlay) fin(null);
+    });
+    document.addEventListener('keydown', onKey, true);
+    abrirModal(overlay);
+    input.focus();
+    input.select();
+  });
+}
+
 /** Anima la salida de un elemento (fila de una lista) antes de quitarlo. */
 export function animarSalida(el: Element | null): Promise<void> {
   if (!el || sinMovimiento()) return Promise.resolve();

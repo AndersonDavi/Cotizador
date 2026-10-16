@@ -6,6 +6,19 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.9.0',
+    fecha: '16-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Perfiles de marca: en Mi marca puedes tener varias marcas (por ejemplo, dos empresas) y elegir cuál usa cada cotización. Lo que cambias se guarda en el perfil.',
+      'Cada cotización guarda una copia de su marca: abrir una vieja no cambia tu perfil, y si tiene datos distintos te avisa y puedes pasarla a tu perfil actual con un toque.',
+      'El espacio para la firma de aceptación del cliente ahora sale en todas las plantillas.',
+      'Los estilos del logo muestran en su punto el color que van a aplicar.',
+      'Corporativa centra los íconos de los ítems y Mosaico centra la firma cuando va sola.',
+      'En Windows el botón Instalar aparece de forma más confiable (Chrome y Edge).',
+    ],
+  },
+  {
     version: '1.8.1',
     fecha: '16-10-2026',
     tipo: 'arreglo',

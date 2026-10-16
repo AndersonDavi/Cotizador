@@ -74,6 +74,6 @@ Compatibilidad: sin `colores` se usan `plantilla` + `coloresOverride` (formato a
 
 ## Persistencia local
 
-`cotizador:draft`, `cotizador:saved`, `cotizador:branding`, `cotizador:welcomed`, `cotizador:tab`, `cotizador:catalogo`, `cotizador:clientes`, `cotizador:paletas`, `cotizador:drive` (estado de la conexión, sin tokens). Logo y firma se reducen al subirlos para no llenar `localStorage`.
+`cotizador:draft`, `cotizador:saved`, `cotizador:branding` (marca del perfil activo, por compatibilidad), `cotizador:perfiles` + `cotizador:perfilActivo` (perfiles de marca: fuente de verdad; cada cotización guarda `perfilId` y una copia de la marca, y si la copia difiere del perfil queda "con marca propia"), `cotizador:welcomed`, `cotizador:tab`, `cotizador:catalogo`, `cotizador:clientes`, `cotizador:paletas`, `cotizador:drive` (estado de la conexión, sin tokens). Logo y firma se reducen al subirlos para no llenar `localStorage`.
 
 El CLI lee `~/.cotizador.json` (emisor, clientes frecuentes y `base`, la cotización de la que `nueva` copia la marca); no va en el repo porque tiene datos personales.

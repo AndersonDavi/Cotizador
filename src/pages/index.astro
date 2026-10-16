@@ -67,6 +67,8 @@ const I = {
     <meta name="twitter:image:alt"   content="Cotizador: cotizaciones y cuentas de cobro en PDF" />
 
     <link rel="manifest" href="/manifest.json" />
+    <!-- El navegador avisa que se puede instalar muy temprano: se guarda aquí para que editor.ts no se lo pierda -->
+    <script is:inline>window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); window.__instalar = e; });</script>
     <meta name="theme-color" content="#15181e" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -246,7 +248,7 @@ const I = {
               <label class="switch opt-row"><input id="iconosItems" type="checkbox" /><span></span> Íconos en la lista de ítems</label>
               <small class="hint">En Bloque, Noche, Diagonal, Estudio, Panel, Corporativa y Mosaico el ícono reemplaza el número, que pasa al título ("1. Diseño de logo").</small>
               <label class="switch opt-row"><input id="aceptacionCliente" type="checkbox" /><span></span> Espacio para la firma de aceptación del cliente</label>
-              <small class="hint">Lo usan Diagonal, Editorial y Corporativa. Actívalo si tu cliente firma la cotización al aprobarla.</small>
+              <small class="hint">Agrega debajo de tu firma una línea para que el cliente firme al aprobar la cotización. Sale en todas las plantillas.</small>
             </div>
             <div class="card">
               <h3 class="card-title">Colores <small>toda la plantilla sale de estos dos</small></h3>
@@ -273,7 +275,20 @@ const I = {
           <!-- Mi marca -->
           <section class="pane" data-pane="marca">
             <button class="pane-help" type="button" data-tour="marca"><Fragment set:html={I.help} /> Guía de esta sección</button>
-            <p class="hint">Estos datos se guardan en tu navegador y se usan en todas tus cotizaciones.</p>
+            <div class="card" id="perfilCard">
+              <h3 class="card-title">Perfil de marca <small>cada cotización usa uno</small></h3>
+              <div id="perfilChips" class="seg perfiles" role="radiogroup" aria-label="Perfil de marca"></div>
+              <div class="perfil-acciones">
+                <button id="perfilNuevo" class="pill-btn" type="button">＋ Nuevo perfil</button>
+                <button id="perfilRenombrar" class="link-btn" type="button">Renombrar</button>
+                <button id="perfilEliminar" class="link-btn danger" type="button">Eliminar</button>
+              </div>
+              <p id="perfilHint" class="hint"></p>
+              <div id="marcaAviso" class="marca-aviso" hidden>
+                <p><b>Esta cotización tiene su propia marca.</b> Conserva los datos de cuando la guardaste, distintos a tu perfil. Lo que cambies aquí solo la afecta a ella.</p>
+                <button id="marcaUsarPerfil" class="pill-btn" type="button">Usar mi perfil actual</button>
+              </div>
+            </div>
             <div class="card">
               <h3 class="card-title">Logo y nombre</h3>
               <div class="brand-row">

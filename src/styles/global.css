@@ -737,10 +737,21 @@ input:hover:not(:focus), textarea:hover:not(:focus) { border-color: var(--border
 #logoPreview.logo-blanco { filter: brightness(0) invert(1); }
 #logoPreview.logo-negro { filter: brightness(0); }
 #logoPreview.logo-primario, #logoPreview.logo-secundario { filter: url(#logo-tinte-ui); }
-#logoEstilo button { --dot: var(--accent); }
+#logoEstilo button::before { box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+#logoEstilo button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .opt-row { margin-top: 14px; color: var(--text); font-size: 13.5px; }
 .opt-row + .hint { display: block; margin: 4px 0 0 44px; }
 
 /* Ítems: la barra del total y Agregar ítem siempre al fondo, aunque la lista sea corta (colapsada) */
 .pane[data-pane="items"].active { min-height: 100%; }
 .pane[data-pane="items"] .items-foot { margin-top: auto; }
+/* Perfiles de marca */
+.perfiles button { --dot: var(--accent); }
+.perfil-acciones { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+#perfilHint { margin-top: 10px; }
+.marca-aviso { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, #e3a94f 12%, transparent); border: 1px solid color-mix(in srgb, #e3a94f 50%, var(--border)); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.marca-aviso[hidden] { display: none; }
+.marca-aviso p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.marca-aviso b { color: var(--text); }
+.texto-input { width: 100%; margin-top: 14px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-2); background: #10131a; color: var(--text); font-size: 15px; }
+.texto-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
