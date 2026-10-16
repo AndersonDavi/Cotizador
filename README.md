@@ -79,7 +79,7 @@ Es opcional y no necesita servidor: el navegador pide un permiso de Google (`dri
 3. En **Clientes** crea uno de tipo **Aplicación web** con tu dominio (y `http://localhost:4321`) en *Orígenes de JavaScript autorizados*. No hace falta URI de redirección ni el secreto.
 4. Define `PUBLIC_GOOGLE_CLIENT_ID` al compilar: en local, en `.env.local`; en GitHub Pages, como variable del repositorio `GOOGLE_CLIENT_ID` (el workflow ya la pasa).
 
-Sin ese valor, la opción no aparece.
+Sin ese valor, la opción solo aparece en el dominio oficial (y en localhost), con el ID de cliente del sitio que está en `src/lib/drive.ts`.
 
 ## Cómo se genera el documento
 

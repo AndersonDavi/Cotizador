@@ -4,10 +4,15 @@
 // El respaldo es un JSON en la carpeta "Cotizador" del Drive de la persona; Drive guarda
 // las versiones anteriores por su cuenta.
 //
-// Para activarlo hay que definir PUBLIC_GOOGLE_CLIENT_ID al compilar (ver README).
-// Sin ese valor, la opción no aparece.
+// Para activarlo en otro dominio hay que definir PUBLIC_GOOGLE_CLIENT_ID al compilar (ver README).
+// Sin ese valor solo funciona el ID del sitio oficial, y solo en su dominio y en localhost
+// (Google rechaza cualquier otro origen). El ID de cliente no es secreto.
 
-const CLIENT_ID = (import.meta.env.PUBLIC_GOOGLE_CLIENT_ID as string | undefined)?.trim();
+const ID_OFICIAL = '47104754240-q72ctatmrqc2fbnsmv6gstkgmr3ck57q.apps.googleusercontent.com';
+const ORIGENES_OFICIALES = ['cotizador.andersonrueda.com', 'localhost'];
+
+const CLIENT_ID = (import.meta.env.PUBLIC_GOOGLE_CLIENT_ID as string | undefined)?.trim()
+  || (typeof location !== 'undefined' && ORIGENES_OFICIALES.includes(location.hostname) ? ID_OFICIAL : undefined);
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const KEY = 'cotizador:drive';
 const FOLDER = 'Cotizador';
