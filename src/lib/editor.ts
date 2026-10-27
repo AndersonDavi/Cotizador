@@ -31,6 +31,14 @@ import {
   today,
   esCuenta,
   esEmpresa,
+  conOpciones,
+  totalesOpcion,
+  valoresHitos,
+  errorHitos,
+  PERIODOS,
+  NOTA_TERCEROS,
+  type ParteCobro,
+  type Periodo,
   numeroVisible,
   numeroCuenta,
   nextNumeroCuenta,
@@ -591,6 +599,7 @@ function renderItems() {
       if (action === 'dup') {
         const copy = { ...it, id: makeId() };
         state.items.splice(idx + 1, 0, copy);
+        state.opciones?.forEach((o) => { if (o.items.includes(it.id)) o.items.push(copy.id); });
         enter = copy.id;
         toast('Ítem duplicado');
       } else if ((action === 'up' && idx > 0) || (action === 'down' && idx < state.items.length - 1)) {
@@ -617,6 +626,7 @@ function renderItems() {
     wrap.appendChild(card);
   });
   pintarGrupos();
+  renderOpciones();
   requestAnimationFrame(() => wrap.querySelectorAll<HTMLTextAreaElement>('textarea.auto').forEach(autosize));
 }
 
@@ -1194,9 +1204,285 @@ function renderExtras() {
     : '';
   const hasta = validaHasta(state);
   $('validaHint').textContent = hasta ? `Hasta el ${hasta}` : 'Sin fecha de vencimiento';
-  ($('cobroParteWrap') as HTMLElement).hidden = esCuenta(state) || !(t.anticipoPct > 0);
+  // Qué se cobra: total, anticipo y saldo, o cada hito del plan de pagos
+  const hitos = valoresHitos(state);
+  ($('cobroParteWrap') as HTMLElement).hidden = esCuenta(state) || !(t.anticipoPct > 0 || hitos.length);
+  document.querySelectorAll<HTMLElement>('#cobroParte [data-parte=anticipo], #cobroParte [data-parte=saldo]').forEach((b) => { b.hidden = !(t.anticipoPct > 0); });
+  const cont = $('cobroParte');
+  cont.querySelectorAll('[data-parte^="hito:"]').forEach((b) => b.remove());
+  cont.insertAdjacentHTML('beforeend', hitos.map((v) => `<button type="button" data-parte="hito:${escapeHtml(v.hito.id)}" style="--dot:#c084fc">${escapeHtml(v.hito.nombre || 'Pago')} · ${String(Math.round(v.pct * 100) / 100).replace('.', ',')} %</button>`).join(''));
+  pintarTotalesOpciones();
+  pintarHitos();
   const parte = state.cobro?.parte ?? 'total';
   document.querySelectorAll<HTMLElement>('#cobroParte [data-parte]').forEach((b) => b.classList.toggle('active', b.dataset.parte === parte));
+}
+
+// ── Opciones, plan de pagos y costos de terceros ─────────────────────────────
+
+/** "24", "24,5", "4.000" o "1.500.000" → número (vacío = undefined). */
+function numero(s: string): number | undefined {
+  const t = s.trim().replace(/[$\s%]/g, '');
+  if (!t) return undefined;
+  const n = parseFloat(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, '') : t);
+  return Number.isFinite(n) ? n : undefined;
+}
+const numTxt = (n?: number) => (n == null ? '' : String(n).replace('.', ','));
+
+/** Fases seguidas (como en el documento); los ítems sin fase del principio van sueltos. */
+function tramosItems(): { nombre: string | null; items: Item[] }[] {
+  const g = gruposItems(state.items);
+  const runs: { nombre: string | null; items: Item[] }[] = [];
+  let run: { nombre: string | null; items: Item[] } | null = null;
+  state.items.forEach((it, i) => {
+    if (g[i]) { run = { nombre: g[i]!.nombre, items: [] }; runs.push(run); }
+    if (run) run.items.push(it);
+    else runs.push({ nombre: null, items: [it] });
+  });
+  return runs;
+}
+
+/** Un ítem nuevo entra a las opciones que ya tienen todos los demás de su fase. */
+function sumarAOpciones(it: Item) {
+  for (const o of state.opciones ?? []) {
+    const hermanos = state.items.filter((x) => x !== it && grupoDe(x) === grupoDe(it));
+    const base = hermanos.length ? hermanos : state.items.filter((x) => x !== it);
+    if (base.every((x) => o.items.includes(x.id))) o.items.push(it.id);
+  }
+}
+
+const opAbiertas = new Set<string>(); // "opción:tramo" con los ítems a la vista
+
+function renderOpciones() {
+  const ops = state.opciones ?? [];
+  const auto = state.costoTotalAuto;
+  ($('opcionesAviso') as HTMLElement).hidden = auto;
+  ($('opcionAdd') as HTMLElement).hidden = ops.length >= 3 || !auto;
+  $('opcionAdd').textContent = ops.length ? '＋ Agregar opción' : '＋ Comparar opciones';
+  ($('opcionesHint') as HTMLElement).hidden = ops.length > 0;
+  const runs = tramosItems();
+  const fila = (o: (typeof ops)[number], it: Item) =>
+    `<label class="op-i"><input type="checkbox" data-op-i="${escapeHtml(it.id)}"${o.items.includes(it.id) ? ' checked' : ''} /><span>${escapeHtml(it.titulo || 'Ítem sin título')}</span><small>${formatCOP(valorItem(it))}</small></label>`;
+  $('opcionesList').innerHTML = ops.map((o, i) => {
+    const rec = o.recomendada ?? false;
+    const cuerpo = runs.map((r, ri) => {
+      if (r.nombre == null) return fila(o, r.items[0]);
+      const k = r.items.filter((it) => o.items.includes(it.id)).length;
+      const abierta = opAbiertas.has(`${o.id}:${ri}`) || (k > 0 && k < r.items.length);
+      return `<div class="op-g${abierta ? ' open' : ''}"><div class="op-gh"><label><input type="checkbox" data-op-g="${ri}"${k === r.items.length ? ' checked' : ''} data-parcial="${k > 0 && k < r.items.length}" /><b>${escapeHtml(r.nombre)}</b></label><button type="button" class="op-ver" data-op-a="ver" data-run="${ri}">${k} de ${r.items.length} ${abierta ? '▴' : '▾'}</button></div><div class="op-gi">${r.items.map((it) => fila(o, it)).join('')}</div></div>`;
+    }).join('');
+    return `<div class="op-card${rec ? ' rec' : ''}" data-op="${i}">
+      <div class="op-top"><input type="text" class="op-nombre" data-op-f="nombre" value="${escapeHtml(o.nombre)}" placeholder="Nombre de la opción" aria-label="Nombre de la opción ${i + 1}" />
+        <button type="button" class="op-rec${rec ? ' on' : ''}" data-op-a="rec" aria-pressed="${rec}">${rec ? '★ Recomendada' : '☆ Recomendar'}</button>
+        <button type="button" class="icon-btn danger" data-op-a="quitar" title="Quitar opción" aria-label="Quitar opción">${ICONS.trash}</button></div>
+      <input type="text" data-op-f="descripcion" value="${escapeHtml(o.descripcion ?? '')}" placeholder="Descripción corta (opcional)" aria-label="Descripción de la opción ${i + 1}" />
+      <div class="op-items">${cuerpo}</div>
+      <div class="op-total"><span>Total de esta opción</span><b data-op-total="${i}">${formatCOP(totalesOpcion(state, o).total)}</b></div>
+    </div>`;
+  }).join('');
+  $('opcionesList').querySelectorAll<HTMLInputElement>('[data-parcial="true"]').forEach((x) => { x.indeterminate = true; });
+  if (ops.length === 1) $('opcionesList').insertAdjacentHTML('beforeend', '<p class="hint">Agrega otra opción para que el documento muestre la comparación.</p>');
+}
+
+function pintarTotalesOpciones() {
+  (state.opciones ?? []).forEach((o, i) => {
+    const el = document.querySelector(`[data-op-total="${i}"]`);
+    if (el) el.textContent = formatCOP(totalesOpcion(state, o).total);
+  });
+}
+
+function initOpciones() {
+  const list = $('opcionesList');
+  $('opcionAdd').addEventListener('click', () => {
+    const todos = state.items.map((it) => it.id);
+    const ops = (state.opciones ??= []);
+    if (!ops.length) ops.push({ id: makeId(), nombre: 'Opción A', recomendada: true, items: [...todos] }, { id: makeId(), nombre: 'Opción B', items: [...todos] });
+    else ops.push({ id: makeId(), nombre: `Opción ${'ABC'[ops.length]}`, items: [...todos] });
+    renderOpciones();
+    refresh();
+    toast('Marca en cada opción qué incluye; el total del documento es el de la recomendada');
+  });
+  list.addEventListener('input', (ev) => {
+    const t = ev.target as HTMLInputElement;
+    const o = state.opciones?.[Number(t.closest<HTMLElement>('[data-op]')?.dataset.op)];
+    if (!o || !t.dataset.opF) return;
+    if (t.dataset.opF === 'nombre') o.nombre = t.value;
+    else o.descripcion = t.value.trim() ? t.value : undefined;
+    refresh();
+  });
+  list.addEventListener('change', (ev) => {
+    const t = ev.target as HTMLInputElement;
+    const o = state.opciones?.[Number(t.closest<HTMLElement>('[data-op]')?.dataset.op)];
+    if (!o) return;
+    const ids = t.dataset.opI != null ? [t.dataset.opI] : t.dataset.opG != null ? tramosItems()[Number(t.dataset.opG)].items.map((it) => it.id) : [];
+    if (!ids.length) return;
+    o.items = o.items.filter((x) => !ids.includes(x));
+    if (t.checked) o.items.push(...ids);
+    o.items = state.items.map((it) => it.id).filter((x) => o.items.includes(x)); // en el orden de los ítems
+    renderOpciones();
+    refresh();
+  });
+  list.addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-op-a]');
+    const i = Number(b?.closest<HTMLElement>('[data-op]')?.dataset.op);
+    const ops = state.opciones;
+    if (!b || !ops?.[i]) return;
+    if (b.dataset.opA === 'rec') ops.forEach((o, j) => { o.recomendada = j === i || undefined; });
+    else if (b.dataset.opA === 'quitar') {
+      const [quitada] = ops.splice(i, 1);
+      if (quitada.recomendada && ops[0]) ops[0].recomendada = true;
+      if (!ops.length) state.opciones = undefined;
+      toast(`Quitaste «${quitada.nombre}»`, 'ok', { label: 'Deshacer', run: () => { (state.opciones ??= []).splice(i, 0, quitada); if (quitada.recomendada) state.opciones.forEach((o) => { o.recomendada = o === quitada || undefined; }); renderOpciones(); refresh(); } });
+    } else if (b.dataset.opA === 'ver') {
+      const k = `${ops[i].id}:${b.dataset.run}`;
+      const g = b.closest('.op-g')!;
+      if (g.classList.toggle('open')) opAbiertas.add(k); else opAbiertas.delete(k);
+      return;
+    }
+    renderOpciones();
+    refresh();
+  });
+}
+
+function renderHitos() {
+  const l = state.hitos ?? [];
+  const porValor = l.some((h) => h.valor != null && h.pct == null);
+  const grupos = [...new Set(state.items.map(grupoDe).filter(Boolean))];
+  $('hitosList').innerHTML = l.map((h, i) => `<div class="hito-row" data-hito="${i}">
+    <input type="text" data-h="nombre" value="${escapeHtml(h.nombre)}" placeholder="Nombre del pago" aria-label="Nombre del pago ${i + 1}" />
+    <span class="with-suffix hito-cant"><input type="text" inputmode="decimal" data-h="${porValor ? 'valor' : 'pct'}" value="${porValor ? (h.valor != null ? formatMoney(h.valor) : '') : numTxt(h.pct)}" placeholder="0" aria-label="${porValor ? 'Valor' : 'Porcentaje'} del pago ${i + 1}" /><i>${porValor ? 'COP' : '%'}</i></span>
+    <input type="text" data-h="condicion" value="${escapeHtml(h.condicion ?? '')}" placeholder="Cuándo: al iniciar la Fase 1, al salir en vivo…" aria-label="Cuándo se paga el pago ${i + 1}" />
+    <select data-h="grupo" aria-label="Fase del pago ${i + 1}"${grupos.length ? '' : ' hidden'}><option value="">Sin fase</option>${grupos.map((g) => `<option${h.grupo === g ? ' selected' : ''}>${escapeHtml(g)}</option>`).join('')}</select>
+    <button type="button" class="det-del" data-h-a="quitar" title="Quitar pago" aria-label="Quitar pago ${i + 1}">×</button>
+  </div>`).join('');
+  ($('hitosTipo') as HTMLElement).hidden = !l.length;
+  $('hitosTipo').textContent = porValor ? 'Usar porcentajes' : 'Usar valores en pesos';
+  ($('hitosHint') as HTMLElement).hidden = l.length > 0;
+  pintarHitos();
+}
+
+/** Suma del plan (o qué está mal) y el anticipo deshabilitado mientras haya hitos. */
+function pintarHitos() {
+  const l = state.hitos ?? [];
+  const err = errorHitos(state);
+  const el = $('hitosSuma');
+  el.hidden = !l.length;
+  el.classList.toggle('err', !!err);
+  el.textContent = err ? `Revisa: ${err}.` : `${valoresHitos(state).map((v) => formatCOP(v.valor)).join(' + ')} = ${formatCOP(totales(state).total)}`;
+  const ant = $in('anticipo');
+  ant.disabled = l.length > 0;
+  ant.title = l.length ? 'Con plan de pagos no se usa el anticipo' : '';
+}
+
+function initHitos() {
+  const list = $('hitosList');
+  $('hitoAdd').addEventListener('click', () => {
+    const l = (state.hitos ??= []);
+    if (!l.length) {
+      const a = Math.min(100, Math.max(0, Number(state.impuestos?.anticipo) || 50));
+      l.push({ id: makeId(), nombre: 'Anticipo', pct: a, condicion: 'Al iniciar' });
+      if (a < 100) l.push({ id: makeId(), nombre: 'Entrega', pct: 100 - a, condicion: 'Al entregar' });
+    } else {
+      const porValor = l.some((h) => h.valor != null && h.pct == null);
+      const usado = l.reduce((s, h) => s + (Number(porValor ? h.valor : h.pct) || 0), 0);
+      const resta = (porValor ? totales(state).total : 100) - usado;
+      l.push({ id: makeId(), nombre: '', ...(porValor ? { valor: resta > 0 ? resta : undefined } : { pct: resta > 0 ? Math.round(resta * 100) / 100 : undefined }) });
+    }
+    renderHitos();
+    refresh();
+    list.querySelector<HTMLInputElement>(`[data-hito="${l.length - 1}"] [data-h=nombre]`)?.focus();
+  });
+  $('hitosTipo').addEventListener('click', () => {
+    const l = state.hitos ?? [];
+    const porValor = l.some((h) => h.valor != null && h.pct == null);
+    const v = valoresHitos(state);
+    l.forEach((h, i) => {
+      if (porValor) { h.pct = Math.round(v[i].pct * 100) / 100; delete h.valor; } else { h.valor = v[i].valor; delete h.pct; }
+    });
+    if (porValor && l.length) l[l.length - 1].pct = Math.round((100 - l.slice(0, -1).reduce((s, h) => s + (h.pct ?? 0), 0)) * 100) / 100;
+    renderHitos();
+    refresh();
+  });
+  const leer = (ev: Event) => {
+    const t = ev.target as HTMLInputElement | HTMLSelectElement;
+    const h = state.hitos?.[Number(t.closest<HTMLElement>('[data-hito]')?.dataset.hito)];
+    if (!h || !t.dataset.h) return;
+    const k = t.dataset.h;
+    if (k === 'nombre') h.nombre = t.value;
+    else if (k === 'condicion') h.condicion = t.value.trim() ? t.value : undefined;
+    else if (k === 'grupo') h.grupo = t.value || undefined;
+    else if (k === 'pct') h.pct = numero(t.value);
+    else if (k === 'valor') h.valor = numero(t.value);
+    refresh();
+  };
+  list.addEventListener('input', leer);
+  list.addEventListener('change', (ev) => { if ((ev.target as HTMLElement).tagName === 'SELECT') leer(ev); });
+  list.addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-h-a=quitar]');
+    const i = Number(b?.closest<HTMLElement>('[data-hito]')?.dataset.hito);
+    if (!b || !state.hitos?.[i]) return;
+    const [quitado] = state.hitos.splice(i, 1);
+    if (!state.hitos.length) state.hitos = undefined;
+    if (state.cobro?.parte === `hito:${quitado.id}`) state.cobro.parte = undefined;
+    renderHitos();
+    refresh();
+    toast(`Quitaste el pago «${quitado.nombre || 'sin nombre'}»`, 'ok', { label: 'Deshacer', run: () => { (state.hitos ??= []).splice(i, 0, quitado); renderHitos(); refresh(); } });
+  });
+}
+
+function renderTerceros() {
+  const l = state.costosTerceros ?? [];
+  const per = Object.entries(PERIODOS) as [Periodo, string][];
+  $('tercerosList').innerHTML = l.map((x, i) => {
+    const usd = x.moneda === 'USD';
+    const v = (n?: number) => (n == null ? '' : usd ? numTxt(n) : formatMoney(n));
+    return `<div class="terc-row" data-terc="${i}">
+      <input type="text" data-t="concepto" value="${escapeHtml(x.concepto)}" placeholder="Concepto: servidor, dominio, pasarela…" aria-label="Concepto del costo ${i + 1}" />
+      <input type="text" data-t="proveedor" value="${escapeHtml(x.proveedor ?? '')}" placeholder="Proveedor" aria-label="Proveedor del costo ${i + 1}" />
+      <select data-t="periodo" aria-label="Periodicidad del costo ${i + 1}"><option value="">Periodicidad</option>${per.map(([k, lbl]) => `<option value="${k}"${x.periodo === k ? ' selected' : ''}>${lbl}</option>`).join('')}</select>
+      <div class="terc-valor"><select data-t="moneda" aria-label="Moneda del costo ${i + 1}"><option${usd ? '' : ' selected'}>COP</option><option${usd ? ' selected' : ''}>USD</option></select>
+        <input type="text" inputmode="decimal" data-t="valor" value="${v(x.valor)}" placeholder="Valor" aria-label="Valor del costo ${i + 1}" /><span>–</span>
+        <input type="text" inputmode="decimal" data-t="valorHasta" value="${v(x.valorHasta)}" placeholder="Hasta (opcional)" aria-label="Valor máximo del costo ${i + 1}" /></div>
+      <input type="text" data-t="nota" value="${escapeHtml(x.nota ?? '')}" placeholder="Nota: 2,65 % + $700 + IVA por transacción" aria-label="Nota del costo ${i + 1}" />
+      <button type="button" class="det-del" data-t-a="quitar" title="Quitar costo" aria-label="Quitar costo ${i + 1}">×</button>
+    </div>`;
+  }).join('');
+  ($('trmWrap') as HTMLElement).hidden = !l.some((x) => x.moneda === 'USD');
+  ($('notaTercerosWrap') as HTMLElement).hidden = !l.length;
+  ($('tercerosHint') as HTMLElement).hidden = l.length > 0;
+}
+
+function initTerceros() {
+  const list = $('tercerosList');
+  $('terceroAdd').addEventListener('click', () => {
+    (state.costosTerceros ??= []).push({ concepto: '', moneda: 'COP', periodo: 'mensual' });
+    renderTerceros();
+    refresh();
+    list.querySelector<HTMLInputElement>(`[data-terc="${state.costosTerceros.length - 1}"] [data-t=concepto]`)?.focus();
+  });
+  const leer = (ev: Event) => {
+    const t = ev.target as HTMLInputElement | HTMLSelectElement;
+    const x = state.costosTerceros?.[Number(t.closest<HTMLElement>('[data-terc]')?.dataset.terc)];
+    if (!x || !t.dataset.t) return;
+    const k = t.dataset.t;
+    if (k === 'concepto') x.concepto = t.value;
+    else if (k === 'proveedor' || k === 'nota') x[k] = t.value.trim() ? t.value : undefined;
+    else if (k === 'periodo') x.periodo = (t.value || undefined) as Periodo | undefined;
+    else if (k === 'moneda') { x.moneda = t.value === 'USD' ? 'USD' : 'COP'; renderTerceros(); }
+    else if (k === 'valor' || k === 'valorHasta') x[k] = numero(t.value);
+    refresh();
+  };
+  list.addEventListener('input', (ev) => { if ((ev.target as HTMLElement).tagName === 'INPUT') leer(ev); });
+  list.addEventListener('change', (ev) => { if ((ev.target as HTMLElement).tagName === 'SELECT') leer(ev); });
+  list.addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-t-a=quitar]');
+    const i = Number(b?.closest<HTMLElement>('[data-terc]')?.dataset.terc);
+    if (!b || !state.costosTerceros?.[i]) return;
+    const [quitado] = state.costosTerceros.splice(i, 1);
+    if (!state.costosTerceros.length) state.costosTerceros = undefined;
+    renderTerceros();
+    refresh();
+    toast(`Quitaste «${quitado.concepto || 'el costo'}»`, 'ok', { label: 'Deshacer', run: () => { (state.costosTerceros ??= []).splice(i, 0, quitado); renderTerceros(); refresh(); } });
+  });
 }
 
 // ── Catálogo de servicios ────────────────────────────────────────────────────
@@ -1265,6 +1551,7 @@ function openCatalog(anchor: HTMLElement) {
     // Si solo hay un ítem vacío, lo reemplaza
     if (state.items.length === 1 && !state.items[0].titulo && !state.items[0].descripcion && !state.items[0].valor) state.items = [];
     state.items.push(nuevo);
+    sumarAOpciones(nuevo);
     renderItems();
     flip(before, nuevo.id);
     refresh();
@@ -1788,7 +2075,7 @@ function initExtras() {
     refresh();
   });
   $('cobroParte').addEventListener('click', (ev) => {
-    const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-parte]')?.dataset.parte as 'total' | 'anticipo' | 'saldo' | undefined;
+    const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-parte]')?.dataset.parte as ParteCobro | undefined;
     if (!p) return;
     state.cobro = { ...state.cobro, parte: p, valor: undefined }; // elegir una parte vuelve al valor calculado
     refresh();
@@ -1821,6 +2108,9 @@ function initExtras() {
   initSincronizacion();
   initTeclado();
   initPerfiles();
+  initOpciones();
+  initHitos();
+  initTerceros();
   initAtras();
 }
 
@@ -1928,6 +2218,8 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['cPais', () => state.branding.contacto.pais, (v) => { state.branding.contacto.pais = v; }],
   ['banco', () => state.branding.banco ?? '', (v) => { state.branding.banco = v; }],
   ['nombreLegal', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
+  ['trm', () => numTxt(state.trm), (v) => { state.trm = numero(v); }],
+  ['notaTerceros', () => state.notaTerceros ?? '', (v) => { state.notaTerceros = v.trim() ? v : undefined; }],
   ['razonSocial', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
   ['nitEmpresa', () => state.branding.nit ?? '', (v) => { state.branding.nit = v.trim() ? v : undefined; }],
   ['cargo', () => state.branding.cargo ?? '', (v) => { state.branding.cargo = v.trim() ? v : undefined; }],
@@ -1986,6 +2278,9 @@ function hydrateForm() {
   $in('iconosItems').checked = state.iconosItems !== false;
   $in('mostrarBanco').checked = state.mostrarBanco !== false;
   aplicarTipoPersona();
+  ($('notaTerceros') as HTMLTextAreaElement).placeholder = NOTA_TERCEROS;
+  renderHitos();
+  renderTerceros();
   renderPerfiles();
   costoMoney?.paint();
   cobroMoney?.paint();
@@ -2347,6 +2642,7 @@ export function initEditor() {
     const ult = state.items.at(-1);
     const nuevo: Item = { id: makeId(), iconKey: ult?.iconKey ?? 'code', titulo: '', descripcion: '', valor: 0, ...(ult && grupoDe(ult) ? { grupo: ult.grupo } : {}) };
     state.items.push(nuevo);
+    sumarAOpciones(nuevo);
     renderItems();
     flip(before, nuevo.id);
     refresh();

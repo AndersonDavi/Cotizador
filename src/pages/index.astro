@@ -205,6 +205,17 @@ const I = {
               <dl id="desglose" class="desglose-ui" hidden></dl>
             </div>
 
+            <div class="card" id="hitosCard">
+              <h3 class="card-title">Plan de pagos <small>por hitos, en vez de anticipo y saldo</small></h3>
+              <div id="hitosList" class="hitos-list"></div>
+              <p id="hitosSuma" class="hitos-suma" hidden></p>
+              <div class="perfil-acciones">
+                <button id="hitoAdd" class="pill-btn" type="button">＋ Agregar pago</button>
+                <button id="hitosTipo" class="link-btn" type="button" hidden>Usar valores en pesos</button>
+              </div>
+              <p class="hint" id="hitosHint">Divide el pago en partes ligadas a entregas (por ejemplo 30 % al iniciar, 40 % al entregar en pruebas y 30 % al salir en vivo). En Cobro puedes cobrar cada una.</p>
+            </div>
+
             <div class="card">
               <h3 class="card-title">Condiciones</h3>
               <label class="field">Tiempo de entrega<textarea id="tiempoEntrega" class="auto" rows="2" placeholder="15 días hábiles a partir de la aprobación."></textarea></label>
@@ -212,6 +223,15 @@ const I = {
                 <div id="terminosList" class="terms-list"></div>
                 <button id="addTermino" type="button" class="link-btn add-term"><Fragment set:html={I.plus} /> Agregar término</button>
               </div>
+            </div>
+
+            <div class="card" id="tercerosCard">
+              <h3 class="card-title">Costos de terceros <small>informativos, no suman al total</small></h3>
+              <div id="tercerosList" class="terc-list"></div>
+              <button id="terceroAdd" class="pill-btn" type="button">＋ Agregar costo</button>
+              <p class="hint" id="tercerosHint">Lo que el cliente le paga a otros: hosting, dominio, pasarela de pagos, licencias…</p>
+              <label class="field" id="trmWrap" hidden>TRM <small>pesos por dólar, para mostrar el equivalente</small><input id="trm" type="text" inputmode="decimal" placeholder="4.000" /></label>
+              <label class="field" id="notaTercerosWrap" hidden>Nota al pie <small>vacía, va el texto de ejemplo</small><textarea id="notaTerceros" class="auto" rows="2"></textarea></label>
             </div>
           </section>
 
@@ -233,6 +253,13 @@ const I = {
                 <button id="fromCatalog" class="add-cat" type="button" title="Agregar un servicio guardado"><Fragment set:html={I.folder} /> Catálogo</button>
                 <button id="addItem" class="primary add-item"><Fragment set:html={I.plus} /> Agregar ítem</button>
               </div>
+            </div>
+            <div class="card" id="opcionesCard">
+              <h3 class="card-title">Opciones para el cliente <small>compara 2 o 3 alcances</small></h3>
+              <p class="hint" id="opcionesHint">Arma escenarios (por ejemplo Básica, Recomendada y Recomendada con soporte): el documento muestra una tabla para compararlos y el total es el de la recomendada.</p>
+              <p class="hint warn" id="opcionesAviso" hidden>Las opciones necesitan "Sumar ítems" (pestaña Cotización): con un total escrito a mano no se pueden comparar.</p>
+              <div id="opcionesList" class="opciones"></div>
+              <button id="opcionAdd" class="pill-btn" type="button">＋ Comparar opciones</button>
             </div>
             <datalist id="gruposItems"></datalist>
             <datalist id="unidades">
