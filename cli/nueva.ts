@@ -18,7 +18,11 @@ export type SpecItem = {
   unidad?: string;
   icono?: string;             // clave de ícono (ver "cotizador iconos")
   iva?: number | string;      // tarifa propia: 19, 5, 0 o "exento"; sin valor usa la general
+  grupo?: string;             // "Fase 1": los ítems seguidos con el mismo grupo salen bajo un encabezado con subtotal
 };
+
+/** Otra forma de escribir los grupos: cada uno con sus ítems. */
+export type SpecGrupo = { nombre: string; items: SpecItem[] };
 
 export type Spec = {
   numero?: string;
@@ -30,6 +34,7 @@ export type Spec = {
   nit?: string;
   cel?: string;
   items: SpecItem[];
+  grupos?: SpecGrupo[];       // se suman a "items", en orden, con el grupo puesto
   diseno?: DisenoId;
   colores?: { primary: string; secondary: string } | [string, string] | string; // "#111111,#F2D22B"
   paleta?: string;            // nombre de una paleta rápida
@@ -40,6 +45,7 @@ export type Spec = {
   vigencia?: number | string;  // días
   tiempoEntrega?: string;
   terminos?: string[];
+  mostrarBanco?: boolean;     // false: la cotización sale sin la cuenta bancaria
 };
 
 export class SpecError extends Error {}
@@ -86,7 +92,7 @@ export function parseItemFlag(s: string): SpecItem {
     it[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 1).trim();
   }
   if (!it.titulo) throw new SpecError('--item: falta "titulo="');
-  return { titulo: it.titulo, descripcion: it.descripcion ?? it.desc, precio: it.precio ?? it.valor, cantidad: it.cantidad ?? it.cant, unidad: it.unidad, icono: it.icono, iva: it.iva };
+  return { titulo: it.titulo, descripcion: it.descripcion ?? it.desc, precio: it.precio ?? it.valor, cantidad: it.cantidad ?? it.cant, unidad: it.unidad, icono: it.icono, iva: it.iva, grupo: it.grupo };
 }
 
 /** Siguiente número (5 dígitos) según las COTIZACION_*.json de la carpeta y sus subcarpetas. */
@@ -110,6 +116,15 @@ export function siguienteNumero(dir: string, leer: (f: string) => Cotizacion | n
 
 /** Construye la cotización: base (marca, términos, diseño) + lo que diga la especificación. */
 export function construir(spec: Spec, base: Cotizacion | null, numero: string): Cotizacion {
+  if (spec?.grupos != null) {
+    if (!Array.isArray(spec.grupos)) throw new SpecError('grupos: usa una lista [{ "nombre": "Fase 1", "items": [...] }]');
+    const deGrupos = spec.grupos.flatMap((g, i) => {
+      if (!g?.nombre?.trim()) throw new SpecError(`grupo ${i + 1}: falta "nombre"`);
+      if (!Array.isArray(g.items) || !g.items.length) throw new SpecError(`grupo "${g.nombre}": necesita al menos un ítem en "items"`);
+      return g.items.map((it) => ({ ...it, grupo: g.nombre }));
+    });
+    spec = { ...spec, items: [...(spec.items ?? []), ...deGrupos] };
+  }
   if (!spec || !Array.isArray(spec.items) || !spec.items.length) throw new SpecError('la cotización necesita al menos un ítem');
   const c: Cotizacion = base
     ? { ...nuevaCotizacion(numero), branding: base.branding, terminos: base.terminos, tiempoEntrega: base.tiempoEntrega, diseno: base.diseno, colores: base.colores, plantilla: base.plantilla, coloresOverride: base.coloresOverride ?? {}, titulo: base.titulo, impuestos: base.impuestos ? { ivaModo: base.impuestos.ivaModo, ivaTasa: base.impuestos.ivaTasa } : undefined, vigenciaDias: base.vigenciaDias }
@@ -147,6 +162,7 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
       ...(cant && cant !== 1 ? { cantidad: cant } : {}),
       ...(s.unidad ? { unidad: s.unidad } : {}),
       ...(iva != null ? { ivaTasa: iva } : {}),
+      ...(s.grupo?.trim() ? { grupo: s.grupo.trim() } : {}),
     };
   });
   c.costoTotalAuto = true;
@@ -193,6 +209,7 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
   }
   if (spec.tiempoEntrega != null) c.tiempoEntrega = spec.tiempoEntrega;
   if (spec.terminos) c.terminos = spec.terminos;
+  if (spec.mostrarBanco === false) c.mostrarBanco = false;
   return c;
 }
 

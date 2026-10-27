@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, totales, valorItem, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
+import { formatCOP, totalReal, totales, valorItem, gruposItems, esEmpresa, terminosVisibles, proveedorDe, cargoFirma, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade, logoTinteSvg } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
@@ -316,6 +316,10 @@ ${LOGO_CSS}
 .cnt{margin-left:142px;width:${DOC_W - 112 - 186 - 142 - 24}px;padding:24px 0}
 .cnt h3{font-weight:700;font-size:24px;line-height:29px;white-space:pre-line}
 .cnt p{font-size:17px;line-height:22px;color:var(--cmut);margin-top:4px;white-space:pre-line}
+.grp{position:relative;display:flex;justify-content:space-between;align-items:center;gap:24px;margin-top:28px;padding:16px 24px;background:var(--card);color:var(--ctxt);border-left:6px solid var(--acc);font-weight:900;font-size:22px}
+.grp::before{content:'';position:absolute;inset:-0.5px;border:1px solid var(--bd);pointer-events:none}
+.grp:first-child{margin-top:0}
+.grp b{white-space:nowrap}
 .tl{font-weight:500;font-size:18px;color:var(--cmut)}
 .tv{font-weight:900;font-size:30px}
 .tiempo{height:130px;margin:110px 56px 0}
@@ -365,9 +369,12 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
   const muted = t.cardMuted || '#777';
   const strong = t.cardText || '#1A1A1A';
 
-  const items = c.items.map((it) => {
+  const grupos = gruposItems(c.items);
+  const items = c.items.map((it, i) => {
     const desc = sinLineasVacias(it.descripcion);
-    return `
+    const g = grupos[i];
+    return `${g ? `
+  <div class="grp"><span>${escapeHtml(g.nombre)}</span><b>${formatCOP(g.subtotal)}</b></div>` : ''}
   <div class="card">
     <div class="ico">${buildIconSvg(it.iconKey, t.iconColor, 2)}</div>
     <div class="vl"></div><div class="vl r"></div>
@@ -405,10 +412,10 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     ${b.representante.firmaDataUrl ? `<img class="firma-img" data-trim src="${escapeHtml(b.representante.firmaDataUrl)}" alt="">` : ''}
     <div class="line"></div>
     <div class="ab nom" data-cv>${escapeHtml(b.representante.nombre)}</div>
-    <div class="ab cc" data-cv>CC: ${escapeHtml(b.representante.cedula)}</div>
+    <div class="ab cc" data-cv>${esEmpresa(b) ? `${escapeHtml(b.cargo?.trim() || 'Representante legal')} · ` : ''}CC: ${escapeHtml(b.representante.cedula)}</div>
     <div class="dv"></div>
     <h4 class="ab" data-cv>Términos y condiciones</h4>
-    <div class="terms">${c.terminos.slice(0, 6).map((x) => `<p data-cv>${escapeHtml(x)}</p>`).join('')}</div>
+    <div class="terms">${terminosVisibles(c).slice(0, 6).map((x) => `<p data-cv>${escapeHtml(x)}</p>`).join('')}</div>
   </section>
   ${c.aceptacionCliente ? `<section class="acept"><div class="ln">Aceptación del cliente<small>${escapeHtml(c.cliente?.nombre || 'Nombre, firma y fecha')}</small></div></section>` : ''}
   <footer class="contact">
@@ -443,26 +450,30 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
   lines.push('');
   lines.push(`## Ítems`);
   lines.push('');
-  for (const it of c.items) {
-    lines.push(`### ${it.titulo || '_(sin título)_'}`);
+  const grupos = gruposItems(c.items);
+  const h = grupos.some(Boolean) ? '####' : '###';
+  c.items.forEach((it, i) => {
+    const g = grupos[i];
+    if (g) lines.push(`### ${g.nombre} — ${formatCOP(g.subtotal)}`, '');
+    lines.push(`${h} ${it.titulo || '_(sin título)_'}`);
     if (it.descripcion) lines.push(it.descripcion);
     lines.push('');
     lines.push(`**Total: ${formatCOP(valorItem(it))}**${qtyLabel(it) ? ` (${qtyLabel(it)})` : ''}`);
     lines.push('');
-  }
+  });
   lines.push(`## Tiempo de entrega`);
   lines.push(c.tiempoEntrega);
   lines.push('');
   lines.push(`## Términos y condiciones`);
-  for (const t of c.terminos) lines.push(`- ${t}`);
+  for (const t of terminosVisibles(c)) lines.push(`- ${t}`);
   lines.push('');
   lines.push('---');
   lines.push('');
   lines.push(`**${c.branding.representante.nombre}**  `);
-  lines.push(`CC: ${c.branding.representante.cedula}`);
+  lines.push(`CC: ${c.branding.representante.cedula}${esEmpresa(c.branding) ? '  ' : ''}`);
+  if (esEmpresa(c.branding)) lines.push(`${cargoFirma(c.branding)}  `, `NIT ${proveedorDe(c.branding).id}`);
   lines.push('');
-  lines.push(c.branding.banco);
-  lines.push('');
+  if (c.mostrarBanco !== false && c.branding.banco) lines.push(c.branding.banco, '');
   const k = c.branding.contacto;
   lines.push(`CEL: ${k.cel} · Email: ${k.email} · Web: ${k.web}  `);
   lines.push(`${k.ciudad}, ${k.pais}`);
@@ -483,7 +494,9 @@ export type CuentaCobro = {
   ciudad: string;
   fecha: string;            // dd-mm-aaaa
   cliente: { nombre: string; nit: string };
-  emisor: { nombre: string; cedula: string; direccion: string; telefono: string; firmaDataUrl?: string };
+  emisor: { nombre: string; cedula: string; direccion: string; telefono: string; firmaDataUrl?: string;
+    /** Si cobra una empresa: "cedula" es su NIT y firma su representante. */
+    empresa?: { representante: string; cedula: string; cargo: string } };
   valor: number;
   concepto: string;         // párrafo completo "Por actividades de ..."
   cuentaBancaria: string;   // "Cuenta de Ahorros BANCOLOMBIA No. ..."
@@ -594,7 +607,7 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   <p>${cc.ciudad ? `${escapeHtml(cc.ciudad)}, ` : ''}${escapeHtml(fechaLarga(cc.fecha))}</p>
   ${cc.titulo ? `<p class="c tit">${escapeHtml(cc.titulo)}</p>` : ''}
   <div class="c blk"><p>${escapeHtml(cc.cliente.nombre)}</p>${cc.cliente.nit?.trim() ? `<p>NIT ${escapeHtml(cc.cliente.nit)}</p>` : ''}</div>
-  <div class="c blk"><p>DEBE A:</p><p>${escapeHtml(e.nombre)}</p><p>C.C. ${escapeHtml(e.cedula)}</p></div>
+  <div class="c blk"><p>DEBE A:</p><p>${escapeHtml(e.nombre)}</p><p>${e.empresa ? 'NIT' : 'C.C.'} ${escapeHtml(e.cedula)}</p></div>
   <div class="c blk"><p>LA SUMA DE ${formatCOP(cc.valor)}</p><p>${escapeHtml(numeroALetras(cc.valor))}</p></div>
   <p class="c" style="margin-top:28px">Por concepto de:</p>
   <p class="just">${escapeHtml(cc.concepto)}</p>
@@ -604,11 +617,13 @@ export function renderCuentaCobroHtml(cc: CuentaCobro, fonts: FontUrls = {}): st
   <div class="cierre" style="margin-top:${cc.nota || cc.detalle?.length ? 60 : 96}px">
     <p>Atentamente,</p>
     <div class="firma">${e.firmaDataUrl ? `<img data-trim src="${escapeHtml(e.firmaDataUrl)}" alt="">` : ''}</div>
-    <p>${escapeHtml(e.nombre)}</p>
+    ${e.empresa
+    ? `<p>${escapeHtml(e.empresa.representante)}</p><p>${escapeHtml(e.empresa.cargo)}${e.empresa.cedula ? ` · C.C. ${escapeHtml(e.empresa.cedula)}` : ''}</p><p>${escapeHtml(e.nombre)}</p>`
+    : `<p>${escapeHtml(e.nombre)}</p>`}
     <div style="margin-top:22px">
       ${e.direccion?.trim() ? `<p>Dirección: ${escapeHtml(e.direccion)}</p>` : ''}
       ${e.telefono?.trim() ? `<p>Teléfono: ${escapeHtml(e.telefono)}</p>` : ''}
-      ${e.cedula?.trim() ? `<p>Cédula de ciudadanía: ${escapeHtml(e.cedula)}</p>` : ''}
+      ${e.cedula?.trim() ? `<p>${e.empresa ? 'NIT' : 'Cédula de ciudadanía'}: ${escapeHtml(e.cedula)}</p>` : ''}
     </div>
   </div>
 </div>`;
@@ -640,11 +655,12 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
     fecha: cobro.fecha || hoy,
     cliente: { nombre: clienteCobro(c).nombre ?? '', nit: clienteCobro(c).nit ?? '' },
     emisor: {
-      nombre: em.nombre?.trim() || b.nombreLegal?.trim() || b.representante.nombre,
-      cedula: em.cedula?.trim() || b.representante.cedula,
+      nombre: em.nombre?.trim() || (esEmpresa(b) ? proveedorDe(b).nombre : b.nombreLegal?.trim() || b.representante.nombre),
+      cedula: em.cedula?.trim() || (esEmpresa(b) ? b.nit?.trim() ?? '' : b.representante.cedula),
       direccion: em.direccion?.trim() || (b.direccion ?? ''),
       telefono: em.telefono?.trim() || tel,
       firmaDataUrl: b.representante.firmaDataUrl,
+      ...(esEmpresa(b) ? { empresa: { representante: b.representante.nombre, cedula: b.representante.cedula, cargo: b.cargo?.trim() || 'Representante legal' } } : {}),
     },
     valor,
     // Sin período, el texto escrito va tal cual (con sus saltos de línea); si no, se arma la frase

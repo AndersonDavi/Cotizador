@@ -22,12 +22,15 @@ import {
   valorItem,
   cantidadDe,
   unidadDe,
+  grupoDe,
+  gruposItems,
   logoClase,
   filasDesglose,
   validaHasta,
   ivaGeneral,
   today,
   esCuenta,
+  esEmpresa,
   numeroVisible,
   numeroCuenta,
   nextNumeroCuenta,
@@ -41,7 +44,7 @@ import {
   type FilaDetalle,
 } from './state';
 import { getAllIconKeys, getIconLabel, getIconSearchText, buildIconDataUrl, ICON_CATEGORIES, type IconKey } from './icons';
-import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastReport, readableOn, type DisenoId } from './theme';
+import { DISENOS, PALETAS, coloresDe, disenoDe, buildTheme, contrast, contrastReport, readableOn, type DisenoId, type Colores } from './theme';
 import { cuentaDesdeCotizacion, parseFecha } from './doc';
 import {
   cotizacionHtml, cuentaHtml, loadIntoFrame, exportPdf, exportPng, exportJson, exportMarkdown,
@@ -432,7 +435,12 @@ function applySort(field: SortField) {
   if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   else { sortField = field; sortDir = 'asc'; }
   const before = cardRects();
+  // Con grupos se ordena dentro de cada uno; los grupos quedan donde estaban
+  const orden = new Map<string, number>();
+  state.items.forEach((it) => { if (!orden.has(grupoDe(it))) orden.set(grupoDe(it), orden.size); });
   state.items.sort((a, b) => {
+    const og = orden.get(grupoDe(a))! - orden.get(grupoDe(b))!;
+    if (og) return og;
     let cmp = 0;
     if (field === 'precio') cmp = valorItem(a) - valorItem(b);
     else if (field === 'titulo') cmp = (a.titulo || '').localeCompare(b.titulo || '', 'es', { sensitivity: 'base' });
@@ -484,9 +492,14 @@ export function autosize(el: HTMLTextAreaElement) {
   el.toggleAttribute('data-long', el.scrollHeight > 126); // descripciones largas se ven recortadas hasta editarlas
 }
 
+/** El campo Grupo solo se ve con "Separar por fases o secciones" (se prende solo si la cotización ya tiene grupos). */
+let verGrupos = false;
+
 function renderItems() {
   const wrap = $('items');
   wrap.innerHTML = '';
+  wrap.classList.toggle('con-grupos', verGrupos);
+  $in('agruparItems').checked = verGrupos;
   const allCollapsed = state.items.length > 0 && state.items.every((it) => collapsedItems.has(it.id));
   $('toggleAllItems').textContent = allCollapsed ? 'Expandir todo' : 'Colapsar todo';
 
@@ -513,6 +526,7 @@ function renderItems() {
           ${btn('toggle', 'Ocultar detalles', 'collapse')}
         </div>
         <textarea class="ic-desc auto" data-action="descripcion" rows="2" placeholder="Qué incluye: entregables, alcance, número de revisiones…" aria-label="Descripción del ítem ${idx + 1}">${escapeHtml(it.descripcion)}</textarea>
+        <label class="ic-group"><span>Grupo</span><input type="text" list="gruposItems" data-action="grupo" value="${escapeHtml(it.grupo ?? '')}" placeholder="Ej.: Fase 1, Etapa 2, Materiales…" aria-label="Grupo del ítem ${idx + 1}" /></label>
         <div class="ic-price">
           <label class="ic-qty"><span>Cantidad</span><input type="text" inputmode="decimal" data-action="cantidad" value="${String(cantidadDe(it)).replace('.', ',')}" aria-label="Cantidad del ítem ${idx + 1}" /></label>
           <label class="ic-unit"><span>Unidad</span><input type="text" list="unidades" data-action="unidad" value="${escapeHtml(it.unidad ?? '')}" placeholder="und" aria-label="Unidad del ítem ${idx + 1}" /></label>
@@ -535,6 +549,7 @@ function renderItems() {
     const updSub = () => {
       const el = card.querySelector<HTMLElement>('[data-sub]');
       if (el && el.textContent !== formatCOP(valorItem(it))) { el.textContent = formatCOP(valorItem(it)); pulse(el); }
+      if (grupoDe(it)) pintarGrupos();
     };
     card.addEventListener('input', (ev) => {
       const t = ev.target as HTMLInputElement | HTMLTextAreaElement;
@@ -553,8 +568,12 @@ function renderItems() {
         it.unidad = u && !numero ? u : undefined;
       }
       else if (t.dataset.action === 'iva') it.ivaTasa = t.value === '' ? undefined : Number(t.value);
+      else if (t.dataset.action === 'grupo') { it.grupo = t.value.trim() ? t.value : undefined; pintarGrupos(); }
       else return;
       refresh();
+    });
+    card.addEventListener('change', (ev) => {
+      if ((ev.target as HTMLElement).dataset.action === 'grupo') acomodarEnGrupo(it);
     });
     card.addEventListener('click', (ev) => {
       const el = (ev.target as HTMLElement).closest<HTMLElement>('[data-action]');
@@ -574,10 +593,14 @@ function renderItems() {
         state.items.splice(idx + 1, 0, copy);
         enter = copy.id;
         toast('Ítem duplicado');
-      } else if (action === 'up' && idx > 0) {
-        [state.items[idx - 1], state.items[idx]] = [state.items[idx], state.items[idx - 1]];
-      } else if (action === 'down' && idx < state.items.length - 1) {
-        [state.items[idx + 1], state.items[idx]] = [state.items[idx], state.items[idx + 1]];
+      } else if ((action === 'up' && idx > 0) || (action === 'down' && idx < state.items.length - 1)) {
+        const j = action === 'up' ? idx - 1 : idx + 1;
+        const vecino = state.items[j];
+        // En el borde de un grupo, subir o bajar lo pasa al grupo vecino (el encabezado se corre)
+        if (verGrupos && grupoDe(vecino) !== grupoDe(it)) {
+          it.grupo = grupoDe(vecino) ? vecino.grupo : undefined;
+          toast(`"${it.titulo || 'Ítem'}" pasó a ${grupoDe(it) || 'los ítems sin grupo'}`);
+        } else [state.items[j], state.items[idx]] = [state.items[idx], state.items[j]];
       } else if (action === 'toggle') {
         if (collapsedItems.has(it.id)) collapsedItems.delete(it.id); else collapsedItems.add(it.id);
         renderItems();
@@ -593,7 +616,56 @@ function renderItems() {
     });
     wrap.appendChild(card);
   });
+  pintarGrupos();
   requestAnimationFrame(() => wrap.querySelectorAll<HTMLTextAreaElement>('textarea.auto').forEach(autosize));
+}
+
+/**
+ * Al escribir el grupo de un ítem: si ese grupo ya existe, el ítem se va junto a los demás;
+ * si es nuevo y quedó partiendo otro grupo en dos, pasa al final de ese grupo.
+ */
+function acomodarEnGrupo(it: Item) {
+  const idx = state.items.indexOf(it);
+  const g = grupoDe(it);
+  const resto = state.items.filter((x) => x !== it).map(grupoDe);
+  let dest = idx;
+  let msg = '';
+  const ult = g ? resto.lastIndexOf(g) : -1;
+  if (ult >= 0) {
+    if (idx >= resto.indexOf(g) && idx <= ult + 1) return; // ya está con su grupo
+    dest = ult + 1;
+    msg = `Moví "${it.titulo || 'el ítem'}" junto a los demás de ${g}`;
+  } else {
+    const otro = resto[idx - 1];
+    if (idx === 0 || idx >= resto.length || otro !== resto[idx] || otro === g) return;
+    while (dest < resto.length && resto[dest] === otro) dest++;
+    msg = `Moví "${it.titulo || 'el ítem'}" después de ${otro || 'los ítems sin grupo'}`;
+  }
+  const before = cardRects();
+  state.items.splice(idx, 1);
+  state.items.splice(dest, 0, it);
+  renderItems();
+  flip(before);
+  refresh();
+  flash(it.id);
+  $('items').querySelector<HTMLElement>(`[data-id="${it.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  toast(msg);
+}
+
+/** Encabezados de grupo entre las tarjetas; se rehacen solos (sin tocar las tarjetas, así no se pierde el foco). */
+function pintarGrupos() {
+  const wrap = $('items');
+  wrap.querySelectorAll('.items-grp').forEach((x) => x.remove());
+  const grupos = gruposItems(state.items);
+  state.items.forEach((it, i) => {
+    const g = grupos[i];
+    if (!g) return;
+    const h = document.createElement('div');
+    h.className = 'items-grp';
+    h.innerHTML = `<span>${escapeHtml(g.nombre)}</span><small>${g.cantidad} ${g.cantidad === 1 ? 'ítem' : 'ítems'} · <b>${formatCOP(g.subtotal)}</b></small>`;
+    wrap.querySelector(`.item-card[data-id="${it.id}"]`)?.before(h);
+  });
+  $('gruposItems').innerHTML = [...new Set(state.items.map(grupoDe).filter(Boolean))].map((g) => `<option value="${escapeHtml(g)}"></option>`).join('');
 }
 
 function flash(id: string) {
@@ -737,6 +809,28 @@ function setColores(primary: string, secondary: string) {
   state.coloresOverride = {};
   renderDesign();
   refresh();
+  guardarEstiloEnPerfil();
+}
+
+/** Persona natural o empresa: qué campos y etiquetas muestra Mi marca y el aviso de Cobro. */
+function aplicarTipoPersona() {
+  const emp = esEmpresa(state.branding);
+  document.querySelectorAll<HTMLElement>('#tipoPersona [data-tipo]').forEach((b) => {
+    const on = (b.dataset.tipo === 'empresa') === emp;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  ($('empresaCampos') as HTMLElement).hidden = !emp;
+  ($('cargoWrap') as HTMLElement).hidden = !emp;
+  ($('nombreLegalWrap') as HTMLElement).hidden = emp; // en una empresa es la razón social
+  ($('cobroAvisoEmpresa') as HTMLElement).hidden = !emp;
+  $('repNombreLbl').textContent = emp ? 'Nombre de quien firma' : 'Nombre';
+  $('repCedulaLbl').textContent = emp ? 'Su cédula' : 'Cédula / NIT';
+  $('cobroEmNombreLbl').textContent = emp ? 'Razón social' : 'Nombre completo';
+  $('cobroEmCedulaLbl').textContent = emp ? 'NIT' : 'Cédula';
+  $('tipoHint').textContent = emp
+    ? 'Los documentos muestran la razón social y el NIT; bajo la firma va el nombre, el cargo y la empresa.'
+    : 'Los documentos muestran tu nombre y tu cédula. Si cotizas a nombre de una empresa, elige Empresa.';
 }
 
 // ── Marca: logo y firma ──────────────────────────────────────────────────────
@@ -1114,7 +1208,7 @@ const saveJson = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON
 const catalogo = () => loadJson<CatItem[]>(CAT_KEY, []);
 
 function guardarEnCatalogo(it: Item) {
-  const { id: _id, ...rest } = it;
+  const { id: _id, grupo: _g, ...rest } = it;
   const list = catalogo().filter((x) => x.titulo.trim().toLowerCase() !== it.titulo.trim().toLowerCase());
   saveJson(CAT_KEY, [rest, ...list].slice(0, 200));
   toast(`"${it.titulo || 'Ítem'}" quedó en tu catálogo`);
@@ -1167,7 +1261,7 @@ function openCatalog(anchor: HTMLElement) {
     const x = catalogo()[Number(add)];
     if (!x) return;
     const before = cardRects();
-    const nuevo: Item = { ...x, id: makeId() };
+    const nuevo: Item = { ...x, id: makeId(), ...(grupoDe(state.items.at(-1) ?? {}) ? { grupo: state.items.at(-1)!.grupo } : {}) };
     // Si solo hay un ítem vacío, lo reemplaza
     if (state.items.length === 1 && !state.items[0].titulo && !state.items[0].descripcion && !state.items[0].valor) state.items = [];
     state.items.push(nuevo);
@@ -1834,6 +1928,9 @@ const FIELDS: [string, () => string, (v: string) => void][] = [
   ['cPais', () => state.branding.contacto.pais, (v) => { state.branding.contacto.pais = v; }],
   ['banco', () => state.branding.banco ?? '', (v) => { state.branding.banco = v; }],
   ['nombreLegal', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
+  ['razonSocial', () => state.branding.nombreLegal ?? '', (v) => { state.branding.nombreLegal = v; }],
+  ['nitEmpresa', () => state.branding.nit ?? '', (v) => { state.branding.nit = v.trim() ? v : undefined; }],
+  ['cargo', () => state.branding.cargo ?? '', (v) => { state.branding.cargo = v.trim() ? v : undefined; }],
   ['direccion', () => state.branding.direccion ?? '', (v) => { state.branding.direccion = v; }],
   ['cobroDesde', () => state.cobro?.desde ?? '', (v) => { state.cobro = { ...state.cobro, desde: v }; }],
   ['cobroHasta', () => state.cobro?.hasta ?? '', (v) => { state.cobro = { ...state.cobro, hasta: v }; }],
@@ -1887,6 +1984,8 @@ function hydrateForm() {
   $in('costoAuto').checked = state.costoTotalAuto;
   $in('aceptacionCliente').checked = !!state.aceptacionCliente;
   $in('iconosItems').checked = state.iconosItems !== false;
+  $in('mostrarBanco').checked = state.mostrarBanco !== false;
+  aplicarTipoPersona();
   renderPerfiles();
   costoMoney?.paint();
   cobroMoney?.paint();
@@ -1896,6 +1995,7 @@ function hydrateForm() {
   renderEstado();
   renderTerminos();
   paintImages();
+  verGrupos = state.items.some((it) => grupoDe(it));
   renderItems();
   renderDesign();
 }
@@ -1916,8 +2016,11 @@ function load(c: Cotizacion, msg?: string) {
 // qué perfil usa y una copia de la marca: así un documento ya enviado no cambia si después
 // cambias de cuenta. Si una cotización abierta tiene una copia distinta a su perfil, queda
 // "con marca propia": lo que se edite en Mi marca solo la afecta a ella.
+// El perfil también recuerda el último diseño y colores que se usaron con él: al cambiar de
+// perfil (o empezar una cotización) la plantilla y los colores son los de esa marca.
 
-type Perfil = { id: string; nombre: string; branding: Cotizacion['branding'] };
+type Estilo = { diseno?: DisenoId; colores?: Colores; actualizado?: string };
+type Perfil = { id: string; nombre: string; branding: Cotizacion['branding']; estilo?: Estilo };
 const PERFILES_KEY = 'cotizador:perfiles';
 const PERFIL_ACTIVO_KEY = 'cotizador:perfilActivo';
 let marcaPropia = false;
@@ -1960,12 +2063,39 @@ function guardarEnPerfil() {
   if (p.id === perfilActivoId()) saveBranding(state.branding);
 }
 
-/** La cotización abierta toma la marca de su perfil. */
-function usarPerfilActual() {
+/** Diseño y colores de la cotización abierta como estilo de su perfil (con una pausa: el selector de color llama muchas veces). */
+let estiloTimer: ReturnType<typeof setTimeout> | undefined;
+function guardarEstiloEnPerfil() {
+  if (marcaPropia || esCuenta(state)) return;
+  clearTimeout(estiloTimer);
+  estiloTimer = setTimeout(() => {
+    const l = perfiles();
+    const p = l.find((x) => x.id === state.perfilId) ?? l.find((x) => x.id === perfilActivoId());
+    if (!p) return;
+    const est = { diseno: disenoDe(state), colores: coloresDe(state) };
+    if (JSON.stringify({ diseno: p.estilo?.diseno, colores: p.estilo?.colores }) === JSON.stringify(est)) return;
+    p.estilo = { ...est, actualizado: new Date().toISOString() };
+    guardarPerfiles(l);
+    programarRespaldo();
+  }, 600);
+}
+
+/** Pone en la cotización el diseño y los colores de un perfil (si los tiene). */
+function aplicarEstilo(c: Cotizacion, p?: Perfil) {
+  if (p?.estilo?.diseno) c.diseno = p.estilo.diseno;
+  if (p?.estilo?.colores) { c.colores = { ...p.estilo.colores }; c.coloresOverride = {}; }
+}
+
+/** Fecha del último cambio de un perfil (marca o estilo), para combinar respaldos. */
+const fechaPerfil = (p: Perfil) => [p.branding.actualizado ?? '', p.estilo?.actualizado ?? ''].sort().at(-1)!;
+
+/** La cotización abierta toma la marca de su perfil (y su diseño y colores si se cambió de perfil). */
+function usarPerfilActual(conEstilo = false) {
   const p = perfilDe(state.perfilId);
   if (!p) return;
   state.perfilId = p.id;
   state.branding = copiaMarca(p.branding);
+  if (conEstilo && !esCuenta(state)) aplicarEstilo(state, p);
   marcaPropia = false;
   marcaVista = sinFecha(state.branding);
   hydrateForm();
@@ -1993,7 +2123,7 @@ function combinarPerfiles(data: Respaldo) {
     for (const r of data.perfiles) {
       const i = l.findIndex((p) => p.id === r.id);
       if (i < 0) l.push(r);
-      else if ((r.branding.actualizado ?? '') > (l[i].branding.actualizado ?? '')) l[i] = { ...r };
+      else if (fechaPerfil(r) > fechaPerfil(l[i])) l[i] = { ...r };
     }
   } else if (data.marca) {
     // Respaldo de antes de los perfiles: su marca va al perfil activo si es más reciente
@@ -2017,9 +2147,9 @@ function initPerfiles() {
     if (!p || (p.id === state.perfilId && !marcaPropia)) return;
     state.perfilId = p.id;
     setPerfilActivo(p.id);
-    usarPerfilActual();
+    usarPerfilActual(true);
   });
-  $('marcaUsarPerfil').addEventListener('click', usarPerfilActual);
+  $('marcaUsarPerfil').addEventListener('click', () => usarPerfilActual());
   $('perfilNuevo').addEventListener('click', async () => {
     const nombre = await pedirTexto({
       titulo: 'Nuevo perfil de marca',
@@ -2027,7 +2157,7 @@ function initPerfiles() {
       placeholder: 'Nombre del perfil', aceptar: 'Crear perfil',
     });
     if (!nombre) return;
-    const p: Perfil = { id: makeId(), nombre, branding: { ...copiaMarca(state.branding), actualizado: new Date().toISOString() } };
+    const p: Perfil = { id: makeId(), nombre, branding: { ...copiaMarca(state.branding), actualizado: new Date().toISOString() }, estilo: { diseno: disenoDe(state), colores: coloresDe(state) } };
     guardarPerfiles([...perfiles(), p]);
     state.perfilId = p.id;
     setPerfilActivo(p.id);
@@ -2214,7 +2344,8 @@ export function initEditor() {
   // Ítems
   $('addItem').addEventListener('click', () => {
     const before = cardRects();
-    const nuevo = { id: makeId(), iconKey: state.items.at(-1)?.iconKey ?? 'code', titulo: '', descripcion: '', valor: 0 };
+    const ult = state.items.at(-1);
+    const nuevo: Item = { id: makeId(), iconKey: ult?.iconKey ?? 'code', titulo: '', descripcion: '', valor: 0, ...(ult && grupoDe(ult) ? { grupo: ult.grupo } : {}) };
     state.items.push(nuevo);
     renderItems();
     flip(before, nuevo.id);
@@ -2223,6 +2354,32 @@ export function initEditor() {
     card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     card?.querySelector<HTMLInputElement>('input[data-action=titulo]')?.focus({ preventScroll: true });
   });
+  $in('agruparItems').addEventListener('change', () => {
+    verGrupos = $in('agruparItems').checked;
+    const antes = new Map(state.items.map((it) => [it.id, it.grupo]));
+    const habia = state.items.some((it) => grupoDe(it));
+    if (!verGrupos) state.items.forEach((it) => { delete it.grupo; });
+    renderItems();
+    if (verGrupos) {
+      collapsedItems.clear();
+      renderItems();
+      $('items').querySelector<HTMLInputElement>('input[data-action=grupo]')?.focus();
+      toast('Escribe en cada ítem su fase o sección; los del mismo grupo se juntan solos');
+      return;
+    }
+    if (!habia) return;
+    refresh();
+    toast('Quitaste los grupos', 'ok', {
+      label: 'Deshacer',
+      run: () => {
+        state.items.forEach((it) => { if (antes.get(it.id)) it.grupo = antes.get(it.id); });
+        verGrupos = true;
+        renderItems();
+        refresh();
+      },
+    });
+  });
+
   $('toggleAllItems').addEventListener('click', () => {
     const all = state.items.every((it) => collapsedItems.has(it.id));
     state.items.forEach((it) => (all ? collapsedItems.delete(it.id) : collapsedItems.add(it.id)));
@@ -2237,6 +2394,7 @@ export function initEditor() {
     state.diseno = id;
     renderDesign();
     refresh();
+    guardarEstiloEnPerfil();
   });
   const onColor = (which: 'primary' | 'secondary', v: string) => {
     if (!/^#[0-9a-f]{6}$/i.test(v)) return;
@@ -2319,6 +2477,14 @@ export function initEditor() {
     refresh();
     burbuja($('logoArea').querySelector('.drop-empty'), true);
   });
+  $('tipoPersona').addEventListener('click', (ev) => {
+    const v = (ev.target as HTMLElement).closest<HTMLElement>('[data-tipo]')?.dataset.tipo;
+    if (!v || (v === 'empresa') === esEmpresa(state.branding)) return;
+    state.branding.tipo = v === 'empresa' ? 'empresa' : undefined;
+    aplicarTipoPersona();
+    refresh();
+    if (v === 'empresa') $in(state.branding.nombreLegal?.trim() ? 'nitEmpresa' : 'razonSocial').focus();
+  });
   $('logoEstilo').addEventListener('click', (ev) => {
     const v = (ev.target as HTMLElement).closest<HTMLElement>('[data-logo]')?.dataset.logo as Cotizacion['branding']['logoEstilo'];
     if (!v) return;
@@ -2328,6 +2494,7 @@ export function initEditor() {
   });
   $in('iconosItems').addEventListener('change', () => { state.iconosItems = $in('iconosItems').checked ? undefined : false; refresh(); });
   $in('aceptacionCliente').addEventListener('change', () => { state.aceptacionCliente = $in('aceptacionCliente').checked || undefined; refresh(); });
+  $in('mostrarBanco').addEventListener('change', () => { state.mostrarBanco = $in('mostrarBanco').checked ? undefined : false; refresh(); });
   $('firmaClear').addEventListener('click', async () => {
     await burbuja($('firmaPreview'), false);
     state.branding.representante.firmaDataUrl = undefined;
@@ -2551,6 +2718,7 @@ function nuevoDocumento(tipo: 'cotizacion' | 'cuenta') {
   c.branding = marca;
   c.perfilId = perfil?.id;
   Object.assign(c, keep);
+  aplicarEstilo(c, perfil);
   load(c, `Cotización ${c.numero} lista`);
   showTab('cotizacion');
 }

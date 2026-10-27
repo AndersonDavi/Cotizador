@@ -28,7 +28,7 @@ import {
 import {
   ESTADOS, ESTADO_LABELS, estadoDe, formatCOP, totalReal, today,
   type Cotizacion, type Estado, type Cliente,
-  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro,
+  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro, gruposItems,
 } from '../src/lib/state';
 import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, SpecError, type Spec } from './nueva';
 
@@ -180,7 +180,12 @@ function imprimirResumen(c: Cotizacion) {
   const t = totales(c);
   console.log(`  ${c.titulo || 'Propuesta económica'} N.º ${c.numero} · ${c.fecha}${validaHasta(c) ? ` · válida hasta ${validaHasta(c)}` : ''} · ${ESTADO_LABELS[estadoDe(c)]}`);
   if (c.cliente?.nombre) console.log(`  Cliente: ${c.cliente.nombre}${c.cliente.nit ? ` (NIT ${c.cliente.nit})` : ''}`);
-  for (const it of c.items) console.log(`  - ${it.titulo}${qtyLabel(it) ? ` [${qtyLabel(it)}]` : ''}: ${formatCOP(valorItem(it))}`);
+  const grupos = gruposItems(c.items);
+  c.items.forEach((it, i) => {
+    const g = grupos[i];
+    if (g) console.log(`  ${g.nombre} (${formatCOP(g.subtotal)})`);
+    console.log(`  ${grupos.some(Boolean) ? '  ' : ''}- ${it.titulo}${qtyLabel(it) ? ` [${qtyLabel(it)}]` : ''}: ${formatCOP(valorItem(it))}`);
+  });
   for (const r of filasDesglose(t)) console.log(r.tipo === 'nota' ? `  ${r.label}` : `  ${r.label}: ${r.value}`);
 }
 
@@ -421,7 +426,8 @@ async function main() {
       if (o.json) {
         console.log(JSON.stringify({
           numero: c.numero, fecha: c.fecha, validaHasta: validaHasta(c) || null, estado: estadoDe(c), cliente: c.cliente ?? null, alcance: c.alcance,
-          items: c.items.map((it) => ({ titulo: it.titulo, icono: it.iconKey, cantidad: it.cantidad ?? 1, unidad: it.unidad ?? null, precioUnitario: it.valor, valor: valorItem(it), ivaTasa: it.ivaTasa ?? null })),
+          items: c.items.map((it) => ({ titulo: it.titulo, icono: it.iconKey, cantidad: it.cantidad ?? 1, unidad: it.unidad ?? null, precioUnitario: it.valor, valor: valorItem(it), ivaTasa: it.ivaTasa ?? null, grupo: it.grupo?.trim() || null })),
+          grupos: gruposItems(c.items).filter(Boolean),
           totales: totales(c),
         }, null, 2));
       } else imprimirResumen(c);

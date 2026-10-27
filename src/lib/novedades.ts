@@ -6,6 +6,19 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.12.0',
+    fecha: '26-10-2026',
+    tipo: 'nueva',
+    cambios: [
+      'Grupos de ítems: en Ítems prende "Separar por fases o secciones" y escribe en cada ítem su fase (por ejemplo "Fase 1: MVP"). En el documento cada grupo sale con un encabezado y su subtotal, en todas las plantillas.',
+      'Los ítems del mismo grupo se juntan solos; subir o bajar un ítem en el borde de un grupo lo pasa al grupo vecino, y Ordenar ordena dentro de cada grupo.',
+      'Cada perfil de marca recuerda su plantilla y sus colores: al cambiar de perfil la cotización toma los de esa marca.',
+      'En el CLI: "grupo" en cada ítem o una lista "grupos" con sus ítems en la especificación.',
+      'Nuevo interruptor en Diseño: "Mostrar la cuenta bancaria". Apágalo para que la cotización no parezca un cobro (también se ocultan los términos que dan la cuenta); la cuenta de cobro la sigue mostrando.',
+      'En Mi marca eliges si cotizas como persona natural o como empresa. Como empresa, los documentos muestran la razón social y el NIT, y bajo la firma va el nombre, el cargo (por defecto "Representante legal") y la empresa. La cuenta de cobro también sale a nombre de la empresa.',
+    ],
+  },
+  {
     version: '1.11.0',
     fecha: '16-10-2026',
     tipo: 'nueva',

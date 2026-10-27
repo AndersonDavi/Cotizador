@@ -52,7 +52,7 @@ cotizador nueva --cliente "Ferretería El Tornillo" --nit "900.111.222-3" \
   --iva agregar --anticipo 50 --vigencia 15 --pdf
 ```
 
-`--item` se repite una vez por ítem. Su formato es `clave=valor` separado por `;`. Claves: `titulo` (obligatoria), `precio` (obligatoria, precio unitario), `cantidad`, `unidad`, `icono`, `iva`, `descripcion`.
+`--item` se repite una vez por ítem. Su formato es `clave=valor` separado por `;`. Claves: `titulo` (obligatoria), `precio` (obligatoria, precio unitario), `cantidad`, `unidad`, `icono`, `iva`, `descripcion`, `grupo` (ver 3.5).
 
 ### 3.2 Con una especificación JSON (recomendado para agentes)
 
@@ -82,9 +82,11 @@ Esquema (solo `items` es obligatorio; cada ítem necesita `titulo` y `precio`):
       "unidad": "und",
       "precio": 350000,                   // precio UNITARIO en pesos; acepta "350.000" o "$350.000"
       "icono": "cctv",                    // ver sección 4; si falta se adivina por el título
-      "iva": 19                           // opcional: 19, 5, 0 o "exento"; sin valor usa la tarifa general
+      "iva": 19,                          // opcional: 19, 5, 0 o "exento"; sin valor usa la tarifa general
+      "grupo": "Equipos"                  // opcional: ver 3.5
     }
   ],
+  "grupos": [ ... ],                      // opcional: otra forma de escribir los grupos (3.5)
   "diseno": "bloque",                     // ver sección 5
   "paleta": "Marino",                     // o "colores": "#0E2240,#F6C443"
   "iva": "agregar",                       // "ninguno" | "agregar" | "incluido"
@@ -93,7 +95,8 @@ Esquema (solo `items` es obligatorio; cada ítem necesita `titulo` y `precio`):
   "anticipo": 50,                         // porcentaje
   "vigencia": 15,                         // días; el documento muestra "Válida hasta"
   "tiempoEntrega": "5 días hábiles después del anticipo.",
-  "terminos": ["50% de anticipo y 50% contra entrega.", "Garantía de 12 meses en equipos."]
+  "terminos": ["50% de anticipo y 50% contra entrega.", "Garantía de 12 meses en equipos."],
+  "mostrarBanco": false                   // opcional: sin la cuenta bancaria (para que no parezca un cobro)
 }
 ```
 
@@ -101,7 +104,7 @@ Las opciones de la línea de comandos se suman a la especificación y tienen pri
 
 ### 3.3 De dónde salen la marca, los términos y el diseño
 
-Lo que la especificación no dice se copia de una **cotización base**: logo, firma, datos de contacto, cuenta bancaria, términos, tiempo de entrega, diseño, colores y modo de IVA. La base se elige con `--base COTIZACION_00007.json` o con `"base"` en `~/.cotizador.json`. Sin base la cotización sale sin marca (el comando lo avisa).
+Lo que la especificación no dice se copia de una **cotización base**: logo, firma, datos de contacto, cuenta bancaria, si cotizas como persona natural o como empresa (razón social, NIT y cargo de quien firma), términos, tiempo de entrega, diseño, colores y modo de IVA. La base se elige con `--base COTIZACION_00007.json` o con `"base"` en `~/.cotizador.json`. Sin base la cotización sale sin marca (el comando lo avisa).
 
 ### 3.4 Dónde se guarda y cómo se numera
 
@@ -112,6 +115,38 @@ Lo que la especificación no dice se copia de una **cotización base**: logo, fi
 - `--pdf` y `--png` generan el documento al lado del JSON con el mismo nombre.
 
 Al terminar imprime el resumen (ítems, desglose y total) para que lo puedas verificar o mostrar.
+
+### 3.5 Grupos de ítems (fases, etapas, áreas)
+
+Los ítems seguidos que tienen el mismo `grupo` salen en el documento bajo un encabezado con el nombre del grupo y su subtotal (antes de IVA y descuento), en todas las plantillas. Sirve para separar un desarrollo por fases o una obra por áreas. El total del documento no cambia y la numeración de los ítems sigue corrida (1, 2, 3… a través de los grupos).
+
+- Un grupo empieza donde cambia el `grupo` entre un ítem y el siguiente: pon juntos los ítems de cada grupo.
+- Si un ítem sin grupo queda después de uno agrupado, sale bajo "Otros". Los ítems sin grupo al principio salen sin encabezado.
+- Sin ningún grupo el documento se ve como siempre.
+
+Dos formas equivalentes de escribirlo:
+
+```jsonc
+// 1) "grupo" en cada ítem
+"items": [
+  { "titulo": "Descubrimiento y prueba técnica", "precio": 4500000, "icono": "search", "grupo": "Fase 0: descubrimiento" },
+  { "titulo": "Catálogo de productos", "precio": 3500000, "icono": "cart", "grupo": "Fase 1: MVP" },
+  { "titulo": "Pagos en línea con Wompi", "precio": 3000000, "icono": "dollar", "grupo": "Fase 1: MVP" }
+]
+
+// 2) "grupos", cada uno con sus ítems (se agregan después de "items", en orden)
+"grupos": [
+  { "nombre": "Fase 0: descubrimiento", "items": [ { "titulo": "Descubrimiento y prueba técnica", "precio": 4500000, "icono": "search" } ] },
+  { "nombre": "Fase 1: MVP", "items": [
+    { "titulo": "Catálogo de productos", "precio": 3500000, "icono": "cart" },
+    { "titulo": "Pagos en línea con Wompi", "precio": 3000000, "icono": "dollar" }
+  ] }
+]
+```
+
+Con opciones: `--item "titulo=Catálogo de productos; precio=3500000; icono=cart; grupo=Fase 1: MVP"`.
+
+En la app, el interruptor **Separar por fases o secciones** (pestaña Ítems) muestra el campo **Grupo** en cada ítem; los ítems del mismo grupo se juntan solos y los nuevos entran al grupo del último. `resumen --json` devuelve `grupo` en cada ítem y la lista `grupos` con nombre, subtotal y cantidad de ítems.
 
 ## 4. Íconos
 

@@ -11,6 +11,7 @@ export type Item = {
   cantidad?: number;      // por defecto 1
   unidad?: string;        // "und", "m²", "horas", "punto"…
   ivaTasa?: number;       // tarifa propia (0 = exento); sin valor usa la general
+  grupo?: string;         // "Fase 1", "Etapa 2"…: los ítems seguidos con el mismo grupo salen bajo un encabezado
 };
 
 export type Representante = {
@@ -36,8 +37,11 @@ export type Branding = {
   representante: Representante;
   banco: string;          // "Cuenta de Ahorros BANCOLOMBIA No. ..." (cuenta de cobro)
   empresa?: string;       // nombre de la marca que muestran las plantillas
-  nombreLegal?: string;   // nombre completo para la cuenta de cobro
+  nombreLegal?: string;   // nombre completo para la cuenta de cobro (en una empresa, la razón social)
   direccion?: string;
+  tipo?: 'natural' | 'empresa'; // persona natural (por defecto) o empresa (persona jurídica)
+  nit?: string;           // NIT de la empresa
+  cargo?: string;         // cargo de quien firma por la empresa (por defecto "Representante legal")
   contacto: Contacto;
 };
 
@@ -45,6 +49,34 @@ export type Branding = {
 export function logoClase(b: Pick<Branding, 'logoEstilo'>): string {
   return b.logoEstilo && b.logoEstilo !== 'original' ? ` logo-${b.logoEstilo}` : '';
 }
+export const esEmpresa = (b: Pick<Branding, 'tipo'>) => b.tipo === 'empresa';
+
+/**
+ * Términos que salen en el documento. Con "Mostrar la cuenta bancaria" apagado se omiten
+ * los que dan la cuenta (tienen su número o dicen "cuenta de ahorros/corriente").
+ */
+export function terminosVisibles(c: Pick<Cotizacion, 'terminos' | 'mostrarBanco' | 'branding'>): string[] {
+  const l = c.terminos.filter((x) => x.trim());
+  if (c.mostrarBanco !== false) return l;
+  const digitos = (s: string) => s.replace(/\D/g, '');
+  const num = (c.branding.banco?.match(/\d[\d\s.-]{5,}\d/g) ?? []).map(digitos).filter((n) => n.length >= 6);
+  return l.filter((x) => !/\bcuenta\s+(de\s+)?(ahorros|corriente)\b/i.test(x) && !num.some((n) => digitos(x).includes(n)));
+}
+
+/** Quien cotiza: la empresa (razón social y NIT) o la persona (nombre y cédula). */
+export function proveedorDe(b: Branding): { nombre: string; idLbl: string; id: string } {
+  return esEmpresa(b)
+    ? { nombre: b.nombreLegal?.trim() || b.empresa?.trim() || b.representante.nombre, idLbl: 'NIT', id: b.nit?.trim() ?? '' }
+    : { nombre: b.representante.nombre, idLbl: 'CC / NIT', id: b.representante.cedula };
+}
+
+/** Lo que va bajo el nombre de quien firma por una empresa: "Representante legal · Chigüirotec S.A.S.". Vacío para persona natural. */
+export function cargoFirma(b: Branding): string {
+  if (!esEmpresa(b)) return '';
+  const emp = proveedorDe(b).nombre;
+  return [b.cargo?.trim() || 'Representante legal', emp !== b.representante.nombre ? emp : ''].filter(Boolean).join(' · ');
+}
+
 /** Un solo estilo a la vez: el filtro que pinta el logo también pintaría su fondo. */
 export const LOGO_CSS = '.logo-fondo{background:#fff;padding:8px;border-radius:12px;box-sizing:content-box}.logo-blanco{filter:brightness(0) invert(1)}.logo-negro{filter:brightness(0)}.logo-primario,.logo-secundario{filter:url(#logo-tinte)}';
 
@@ -126,6 +158,7 @@ export type Cotizacion = {
   actualizado?: string;   // último guardado (ISO): al combinar respaldos gana la más reciente
   perfilId?: string;      // perfil de marca con el que se hizo (la marca va copiada en branding)
   aceptacionCliente?: boolean;
+  mostrarBanco?: boolean;  // cuenta bancaria en la cotización (por defecto sí; la cuenta de cobro siempre la lleva)
   iconosItems?: boolean;   // ícono de cada ítem en la primera columna y el número en el título (por defecto sí) // espacio para que el cliente firme (diseños que lo tienen); por defecto no
 };
 
@@ -202,6 +235,28 @@ export function valorItem(it: Item): number {
 
 export function sumaItems(items: Item[]): number {
   return items.reduce((acc, it) => acc + valorItem(it), 0);
+}
+
+export const grupoDe = (it: Pick<Item, 'grupo'>) => (it.grupo ?? '').trim();
+
+export type GrupoItems = { nombre: string; subtotal: number; cantidad: number };
+
+/**
+ * Encabezado que va antes de cada ítem (o null). Un grupo empieza donde cambia el grupo
+ * entre ítems seguidos; un ítem sin grupo después de uno agrupado sale bajo "Otros".
+ * Sin ningún grupo todo es null y las plantillas se ven como siempre.
+ */
+export function gruposItems(items: Item[]): (GrupoItems | null)[] {
+  if (!items.some((it) => grupoDe(it))) return items.map(() => null);
+  return items.map((it, i) => {
+    const g = grupoDe(it);
+    if (i > 0 && grupoDe(items[i - 1]) === g) return null;
+    if (!g && i === 0) return null;
+    let j = i;
+    while (j < items.length && grupoDe(items[j]) === g) j++;
+    const del = items.slice(i, j);
+    return { nombre: g || 'Otros', subtotal: sumaItems(del), cantidad: del.length };
+  });
 }
 
 export type Totales = {
