@@ -4,7 +4,7 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, totales, valorItem, gruposItems, notaOpcion, conOpciones, opcionRecomendada, totalesOpcion, valoresHitos, valorTercero, PERIODOS, NOTA_TERCEROS, esEmpresa, terminosVisibles, proveedorDe, cargoFirma, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
+import { formatCOP, totalReal, totales, valorItem, gruposItems, notaOpcion, hitoCobro, conOpciones, opcionRecomendada, totalesOpcion, valoresHitos, valorTercero, PERIODOS, NOTA_TERCEROS, esEmpresa, terminosVisibles, proveedorDe, cargoFirma, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade, logoTinteSvg } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
@@ -683,8 +683,9 @@ export function cuentaDesdeCotizacion(c: Cotizacion, hoy: string): CuentaCobro {
   const t = totales(c);
   const parte = !sola && t.anticipoPct > 0 ? cobro.parte ?? 'total' : 'total';
   const valor = valorCobro(c);
+  const hito = sola ? undefined : hitoCobro(c);
   // Con valor escrito a mano ya no es "el anticipo" ni "el saldo" exactos
-  const extra = sola || cobro.valor != null ? '' : parte === 'anticipo' ? ` (anticipo del ${t.anticipoPct}% de la cotización ${c.numero})` : parte === 'saldo' ? ` (saldo del ${100 - t.anticipoPct}% restante de la cotización ${c.numero})` : '';
+  const extra = sola || cobro.valor != null ? '' : hito ? ` (pago «${hito.hito.nombre}», ${String(Math.round(hito.pct * 100) / 100).replace('.', ',')} % de la cotización ${c.numero})` : parte === 'anticipo' ? ` (anticipo del ${t.anticipoPct}% de la cotización ${c.numero})` : parte === 'saldo' ? ` (saldo del ${100 - t.anticipoPct}% restante de la cotización ${c.numero})` : '';
   const tel = (b.contacto.cel || '').replace(/^\+57\s*/, '');
   const em = cobro.emisor ?? {};
   return {

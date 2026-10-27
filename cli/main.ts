@@ -28,7 +28,7 @@ import {
 import {
   ESTADOS, ESTADO_LABELS, estadoDe, formatCOP, totalReal, today,
   type Cotizacion, type Estado, type Cliente,
-  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro, gruposItems,
+  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro, gruposItems, errorHitos,
 } from '../src/lib/state';
 import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, SpecError, type Spec } from './nueva';
 
@@ -69,7 +69,7 @@ Opciones:
   --cliente <clave|nombre>  Cliente (clave de config o nombre)
   --nit <nit>            NIT del cliente
   --concepto <texto>     Inicio del párrafo "Por concepto de" (el período se agrega solo)
-  --parte <total|anticipo|saldo>  Con "cuenta": qué parte se cobra (si la cotización tiene anticipo)
+  --parte <total|anticipo|saldo|hito>  Con "cuenta": qué parte se cobra (anticipo o saldo, o el id o nombre de un hito del plan de pagos)
   --valor <pesos>        Con "cuenta": valor a cobrar escrito a mano (obligatorio en una cuenta suelta)
   --marcar               Con "cuenta": guarda los datos de cobro en el JSON y lo marca como cobrada
   --html                 Con "cuenta": guarda también el HTML
@@ -297,8 +297,14 @@ async function main() {
       const fecha = normFecha(o.fecha, '--fecha'); if (fecha) c.cobro.fecha = fecha;
       if (o.concepto) c.cobro.concepto = o.concepto;
       if (o.parte) {
-        if (!['total', 'anticipo', 'saldo'].includes(o.parte)) fail('--parte debe ser total, anticipo o saldo');
-        c.cobro.parte = o.parte as 'total' | 'anticipo' | 'saldo';
+        // Un hito del plan de pagos se elige por su id o por su nombre
+        const k = o.parte.trim().toLowerCase();
+        const hito = c.hitos?.find((h) => h.id.toLowerCase() === k || h.nombre.trim().toLowerCase() === k);
+        if (hito) c.cobro.parte = `hito:${hito.id}`;
+        else if (['total', 'anticipo', 'saldo'].includes(k)) c.cobro.parte = k as 'total' | 'anticipo' | 'saldo';
+        else fail(`--parte debe ser total, anticipo, saldo${c.hitos?.length ? ` o un hito (${c.hitos.map((h) => h.id).join(', ')})` : ''}`);
+        const err = errorHitos(c);
+        if (hito && err) fail(`el plan de pagos tiene un problema: ${err}`);
       }
       if (o.cliente) {
         const k = o.cliente.toLowerCase();
