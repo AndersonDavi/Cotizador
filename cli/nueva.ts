@@ -6,7 +6,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ICON_CATEGORIES, getAllIconKeys, getIconLabel, getIconSearchText } from '../src/lib/icons';
 import { DISENOS, PALETAS, type DisenoId } from '../src/lib/theme';
-import { ESTADOS, makeId, nuevaCotizacion, today, type Cotizacion, type Estado, type Item } from '../src/lib/state';
+import { ESTADOS, PERIODOS, makeId, nuevaCotizacion, today, grupoDe, errorHitos, type Cotizacion, type Estado, type Item, type Periodo } from '../src/lib/state';
 import { parseFecha } from '../src/lib/doc';
 
 export type SpecItem = {
@@ -18,7 +18,27 @@ export type SpecItem = {
   unidad?: string;
   icono?: string;             // clave de ícono (ver "cotizador iconos")
   iva?: number | string;      // tarifa propia: 19, 5, 0 o "exento"; sin valor usa la general
+  grupo?: string;             // "Fase 1": los ítems seguidos con el mismo grupo salen bajo un encabezado con subtotal
+  clave?: string;             // para nombrar el ítem en "opciones[].incluye" (si no, se usa la fase)
 };
+
+/** Un escenario para comparar: qué fases (por nombre) o ítems (por clave) incluye. */
+export type SpecOpcion = { nombre: string; descripcion?: string; recomendada?: boolean; incluye: string[] | 'todo' };
+
+export type SpecTercero = {
+  concepto: string;
+  proveedor?: string;
+  valor?: number | string;    // 24, "150.000" o un rango "24-48"
+  valorHasta?: number | string;
+  moneda?: 'COP' | 'USD';
+  periodo?: string;           // mensual, anual, transaccion, unico
+  nota?: string;
+};
+
+export type SpecHito = { clave?: string; nombre: string; pct?: number | string; valor?: number | string; condicion?: string; fase?: string };
+
+/** Otra forma de escribir los grupos: cada uno con sus ítems. */
+export type SpecGrupo = { nombre: string; items: SpecItem[] };
 
 export type Spec = {
   numero?: string;
@@ -30,6 +50,7 @@ export type Spec = {
   nit?: string;
   cel?: string;
   items: SpecItem[];
+  grupos?: SpecGrupo[];       // se suman a "items", en orden, con el grupo puesto
   diseno?: DisenoId;
   colores?: { primary: string; secondary: string } | [string, string] | string; // "#111111,#F2D22B"
   paleta?: string;            // nombre de una paleta rápida
@@ -40,6 +61,12 @@ export type Spec = {
   vigencia?: number | string;  // días
   tiempoEntrega?: string;
   terminos?: string[];
+  mostrarBanco?: boolean;     // false: la cotización sale sin la cuenta bancaria
+  opciones?: SpecOpcion[];    // 2 o 3; el total del documento es el de la recomendada
+  costosTerceros?: SpecTercero[];
+  trm?: number | string;      // pesos por dólar
+  notaTerceros?: string;
+  hitos?: SpecHito[];         // plan de pagos; los porcentajes suman 100 (o los valores, el total)
 };
 
 export class SpecError extends Error {}
@@ -86,7 +113,7 @@ export function parseItemFlag(s: string): SpecItem {
     it[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 1).trim();
   }
   if (!it.titulo) throw new SpecError('--item: falta "titulo="');
-  return { titulo: it.titulo, descripcion: it.descripcion ?? it.desc, precio: it.precio ?? it.valor, cantidad: it.cantidad ?? it.cant, unidad: it.unidad, icono: it.icono, iva: it.iva };
+  return { titulo: it.titulo, descripcion: it.descripcion ?? it.desc, precio: it.precio ?? it.valor, cantidad: it.cantidad ?? it.cant, unidad: it.unidad, icono: it.icono, iva: it.iva, grupo: it.grupo };
 }
 
 /** Siguiente número (5 dígitos) según las COTIZACION_*.json de la carpeta y sus subcarpetas. */
@@ -110,6 +137,15 @@ export function siguienteNumero(dir: string, leer: (f: string) => Cotizacion | n
 
 /** Construye la cotización: base (marca, términos, diseño) + lo que diga la especificación. */
 export function construir(spec: Spec, base: Cotizacion | null, numero: string): Cotizacion {
+  if (spec?.grupos != null) {
+    if (!Array.isArray(spec.grupos)) throw new SpecError('grupos: usa una lista [{ "nombre": "Fase 1", "items": [...] }]');
+    const deGrupos = spec.grupos.flatMap((g, i) => {
+      if (!g?.nombre?.trim()) throw new SpecError(`grupo ${i + 1}: falta "nombre"`);
+      if (!Array.isArray(g.items) || !g.items.length) throw new SpecError(`grupo "${g.nombre}": necesita al menos un ítem en "items"`);
+      return g.items.map((it) => ({ ...it, grupo: g.nombre }));
+    });
+    spec = { ...spec, items: [...(spec.items ?? []), ...deGrupos] };
+  }
   if (!spec || !Array.isArray(spec.items) || !spec.items.length) throw new SpecError('la cotización necesita al menos un ítem');
   const c: Cotizacion = base
     ? { ...nuevaCotizacion(numero), branding: base.branding, terminos: base.terminos, tiempoEntrega: base.tiempoEntrega, diseno: base.diseno, colores: base.colores, plantilla: base.plantilla, coloresOverride: base.coloresOverride ?? {}, titulo: base.titulo, impuestos: base.impuestos ? { ivaModo: base.impuestos.ivaModo, ivaTasa: base.impuestos.ivaTasa } : undefined, vigenciaDias: base.vigenciaDias }
@@ -147,6 +183,7 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
       ...(cant && cant !== 1 ? { cantidad: cant } : {}),
       ...(s.unidad ? { unidad: s.unidad } : {}),
       ...(iva != null ? { ivaTasa: iva } : {}),
+      ...(s.grupo?.trim() ? { grupo: s.grupo.trim() } : {}),
     };
   });
   c.costoTotalAuto = true;
@@ -193,7 +230,110 @@ export function construir(spec: Spec, base: Cotizacion | null, numero: string): 
   }
   if (spec.tiempoEntrega != null) c.tiempoEntrega = spec.tiempoEntrega;
   if (spec.terminos) c.terminos = spec.terminos;
+  if (spec.mostrarBanco === false) c.mostrarBanco = false;
+  agregarProyecto(c, spec);
   return c;
+}
+
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+/** Para comparar nombres de fase y claves sin importar mayúsculas, tildes, espacios ni signos ("fase1" = "Fase 1"). */
+const igual = (a: string, b: string) => norm(a).replace(/[^a-z0-9]/g, '') === norm(b).replace(/[^a-z0-9]/g, '');
+const slug = (s: string, i: number) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || `h${i + 1}`;
+
+const PERIODO_ALIAS: Record<string, Periodo> = {
+  mensual: 'mensual', mes: 'mensual', 'por mes': 'mensual', anual: 'anual', ano: 'anual', 'por ano': 'anual',
+  transaccion: 'transaccion', 'por transaccion': 'transaccion', unico: 'unico', 'pago unico': 'unico', 'una vez': 'unico',
+};
+
+/** Opciones, costos de terceros y plan de pagos de la especificación (con mensajes claros si algo no cuadra). */
+function agregarProyecto(c: Cotizacion, spec: Spec) {
+  // Claves de ítem: las que vienen en la especificación; el id interno pasa a ser esa clave
+  spec.items.forEach((s, i) => {
+    if (!s.clave?.trim()) return;
+    const k = s.clave.trim();
+    if (spec.items.some((o, j) => j !== i && o.clave?.trim() === k)) throw new SpecError(`la clave de ítem "${k}" está repetida`);
+    c.items[i].id = k;
+  });
+  const fases = [...new Set(c.items.map(grupoDe).filter(Boolean))];
+
+  if (spec.opciones != null) {
+    if (!Array.isArray(spec.opciones) || spec.opciones.length < 2 || spec.opciones.length > 3) throw new SpecError('opciones: usa una lista de 2 o 3 opciones');
+    if (spec.opciones.filter((o) => o.recomendada).length > 1) throw new SpecError('opciones: solo una puede ser la recomendada');
+    c.opciones = spec.opciones.map((o, i) => {
+      if (!o?.nombre?.trim()) throw new SpecError(`opción ${i + 1}: falta "nombre"`);
+      const ids = new Set<string>();
+      const lista = o.incluye === 'todo' ? ['todo'] : o.incluye;
+      if (!Array.isArray(lista) || !lista.length) throw new SpecError(`opción "${o.nombre}": "incluye" necesita fases o claves de ítem (o "todo")`);
+      for (const ref of lista) {
+        const r = norm(String(ref));
+        if (r === 'todo') { c.items.forEach((it) => ids.add(it.id)); continue; }
+        const porFase = c.items.filter((it) => grupoDe(it) && igual(grupoDe(it), r));
+        const porClave = c.items.find((it) => igual(it.id, r));
+        if (porFase.length) porFase.forEach((it) => ids.add(it.id));
+        else if (porClave) ids.add(porClave.id);
+        else {
+          const sug = fases.filter((f) => norm(f).includes(r) || r.includes(norm(f)));
+          throw new SpecError(`opción "${o.nombre}": "${ref}" no es una fase ni la clave de un ítem.${sug.length ? ` ¿Quisiste decir: ${sug.join(', ')}?` : fases.length ? ` Fases: ${fases.join(', ')}.` : ''}`);
+        }
+      }
+      return {
+        id: slug(o.nombre, i), nombre: o.nombre.trim(), items: c.items.map((it) => it.id).filter((x) => ids.has(x)),
+        ...(o.descripcion?.trim() ? { descripcion: o.descripcion.trim() } : {}),
+        ...(o.recomendada ? { recomendada: true } : {}),
+      };
+    });
+  }
+
+  if (spec.costosTerceros != null) {
+    if (!Array.isArray(spec.costosTerceros)) throw new SpecError('costosTerceros: usa una lista [{ "concepto": "...", "valor": 24, "moneda": "USD", "periodo": "mensual" }]');
+    c.costosTerceros = spec.costosTerceros.map((x, i) => {
+      if (!x?.concepto?.trim()) throw new SpecError(`costo de terceros ${i + 1}: falta "concepto"`);
+      const moneda = (x.moneda ?? 'COP').toUpperCase();
+      if (moneda !== 'COP' && moneda !== 'USD') throw new SpecError(`costo "${x.concepto}": la moneda debe ser COP o USD`);
+      let valor: number | undefined, hasta: number | undefined;
+      const rango = typeof x.valor === 'string' ? x.valor.match(/^\s*([^–-]+?)\s*[–-]\s*(.+)$/) : null;
+      const leer = (v: number | string | undefined) => (moneda === 'USD' ? num(v) : parseMoney(v));
+      if (rango) { valor = leer(rango[1]); hasta = leer(rango[2]); } else { valor = leer(x.valor); hasta = leer(x.valorHasta); }
+      if (x.valor != null && x.valor !== '' && valor == null) throw new SpecError(`costo "${x.concepto}": el valor "${x.valor}" no es un número`);
+      let periodo: Periodo | undefined;
+      if (x.periodo) {
+        periodo = PERIODO_ALIAS[norm(x.periodo)];
+        if (!periodo) throw new SpecError(`costo "${x.concepto}": periodo "${x.periodo}" no existe. Opciones: ${Object.keys(PERIODOS).join(', ')}`);
+      }
+      return {
+        concepto: x.concepto.trim(), moneda: moneda as 'COP' | 'USD',
+        ...(x.proveedor?.trim() ? { proveedor: x.proveedor.trim() } : {}),
+        ...(valor != null ? { valor } : {}), ...(hasta != null ? { valorHasta: hasta } : {}),
+        ...(periodo ? { periodo } : {}), ...(x.nota?.trim() ? { nota: x.nota.trim() } : {}),
+      };
+    });
+  }
+  if (spec.trm != null && spec.trm !== '') {
+    const t = parseMoney(spec.trm);
+    if (t == null || t <= 0) throw new SpecError('trm: usa los pesos por dólar, por ejemplo 4000');
+    c.trm = t;
+  }
+  if (spec.notaTerceros?.trim()) c.notaTerceros = spec.notaTerceros.trim();
+
+  if (spec.hitos != null) {
+    if (!Array.isArray(spec.hitos) || !spec.hitos.length) throw new SpecError('hitos: usa una lista [{ "nombre": "Inicio", "pct": 30, "condicion": "Al iniciar" }]');
+    c.hitos = spec.hitos.map((h, i) => {
+      if (h?.fase && !fases.some((f) => igual(f, h.fase!))) throw new SpecError(`hito "${h.nombre ?? i + 1}": la fase "${h.fase}" no existe.${fases.length ? ` Fases: ${fases.join(', ')}.` : ''}`);
+      const pct = num(h.pct);
+      const valor = parseMoney(h.valor);
+      return {
+        id: h.clave?.trim() || slug(h.nombre ?? '', i), nombre: (h.nombre ?? '').trim(),
+        ...(pct != null ? { pct } : {}), ...(valor != null ? { valor } : {}),
+        ...(h.condicion?.trim() ? { condicion: h.condicion.trim() } : {}),
+        ...(h.fase ? { grupo: fases.find((f) => igual(f, h.fase!)) } : {}),
+      };
+    });
+    const ids = c.hitos.map((h) => h.id);
+    const rep = ids.find((x, i) => ids.indexOf(x) !== i);
+    if (rep) throw new SpecError(`hitos: la clave "${rep}" está repetida (usa "clave" para distinguirlos)`);
+    const err = errorHitos(c);
+    if (err) throw new SpecError(`plan de pagos: ${err}`);
+  }
 }
 
 /** Lista de íconos por categoría (para humanos y para agentes con --json). */
@@ -210,6 +350,50 @@ export function listaDisenos() {
     paletas: PALETAS.map((p) => ({ nombre: p.nombre, primary: p.primary, secondary: p.secondary })),
   };
 }
+
+/** Ejemplo completo para proyectos por fases: opciones, costos de terceros y plan de pagos (datos ficticios). */
+export const ESQUEMA_COMPLETO: Spec = {
+  cliente: { nombre: 'Distribuidora Ejemplo S.A.S.', nit: '900.000.000-1' },
+  alcance: 'Portal web de pedidos B2B integrado con el software contable',
+  items: [
+    { titulo: 'Descubrimiento y prueba técnica', precio: 4500000, icono: 'search', grupo: 'Fase 0' },
+    { clave: 'acceso', titulo: 'Acceso de clientes y empresas', precio: 3500000, icono: 'lock', grupo: 'Fase 1' },
+    { clave: 'catalogo', titulo: 'Catálogo de productos', precio: 3500000, icono: 'cart', grupo: 'Fase 1' },
+    { clave: 'precios', titulo: 'Precios por cliente', precio: 5000000, icono: 'dollar', grupo: 'Fase 1' },
+    { clave: 'carrito', titulo: 'Carrito y pedido', precio: 4000000, icono: 'package', grupo: 'Fase 1' },
+    { titulo: 'Pagos en línea', precio: 3000000, icono: 'bolt', grupo: 'Fase 1' },
+    { titulo: 'Integración contable', precio: 8000000, icono: 'database', grupo: 'Fase 1' },
+    { titulo: 'Panel administrativo', precio: 5000000, icono: 'monitor', grupo: 'Fase 1' },
+    { clave: 'correos', titulo: 'Estados del pedido por correo', precio: 2000000, icono: 'mail', grupo: 'Fase 1' },
+    { titulo: 'Crédito y cupos', precio: 3500000, icono: 'shield', grupo: 'Fase 2' },
+    { titulo: 'Aprobación en dos pasos', precio: 3000000, icono: 'users', grupo: 'Fase 2' },
+    { titulo: 'Avisos por WhatsApp', precio: 2500000, icono: 'chat', grupo: 'Fase 2' },
+    { titulo: 'Seguimiento de despachos', precio: 2000000, icono: 'truck', grupo: 'Fase 2' },
+    { titulo: 'Reportes de ventas', precio: 2500000, icono: 'chart', grupo: 'Fase 2' },
+    { titulo: 'Migración y salida en vivo', precio: 3000000, icono: 'graduation', grupo: 'Fase 2' },
+    { titulo: 'Soporte y mantenimiento', precio: 2000000, cantidad: 12, unidad: 'meses', icono: 'wrench', grupo: 'Soporte' },
+  ],
+  opciones: [
+    { nombre: 'A. Básica', descripcion: 'Lo mínimo para recibir pedidos', incluye: ['acceso', 'catalogo', 'precios', 'carrito', 'correos'] },
+    { nombre: 'B. Recomendada', descripcion: 'Las tres fases completas', recomendada: true, incluye: ['Fase 0', 'Fase 1', 'Fase 2'] },
+    { nombre: 'C. B + soporte', descripcion: 'Con 12 meses de soporte', incluye: 'todo' },
+  ],
+  costosTerceros: [
+    { concepto: 'Servidor VPS', proveedor: 'Hetzner / DigitalOcean', valor: '24-48', moneda: 'USD', periodo: 'mensual' },
+    { concepto: 'Base de datos Postgres administrada', proveedor: 'Neon', valor: 19, moneda: 'USD', periodo: 'mensual' },
+    { concepto: 'Número de WhatsApp Business', proveedor: 'Meta', valor: 3, moneda: 'USD', periodo: 'mensual' },
+    { concepto: 'Pasarela de pagos', proveedor: 'Wompi', periodo: 'transaccion', nota: '2,65 % + $700 + IVA por transacción' },
+  ],
+  trm: 4000,
+  hitos: [
+    { clave: 'inicio', nombre: 'Inicio', pct: 30, condicion: 'Al firmar e iniciar la Fase 0', fase: 'Fase 0' },
+    { clave: 'mvp', nombre: 'Entrega del MVP', pct: 40, condicion: 'Al entregar la Fase 1 en pruebas', fase: 'Fase 1' },
+    { clave: 'vivo', nombre: 'Salida en vivo', pct: 30, condicion: 'Al salir en vivo con la Fase 2', fase: 'Fase 2' },
+  ],
+  diseno: 'corporativa',
+  vigencia: 15,
+  tiempoEntrega: 'Aproximadamente 4,5 meses desde el primer pago.',
+};
 
 export const ESQUEMA_EJEMPLO: Spec = {
   cliente: { nombre: 'Panadería La Esquina S.A.S.', nit: '901.234.567-8', cel: '300 000 0000' },

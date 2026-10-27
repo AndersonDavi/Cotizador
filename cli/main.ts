@@ -28,9 +28,10 @@ import {
 import {
   ESTADOS, ESTADO_LABELS, estadoDe, formatCOP, totalReal, today,
   type Cotizacion, type Estado, type Cliente,
-  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro,
+  totales, filasDesglose, valorItem, qtyLabel, validaHasta, valorCobro, gruposItems, errorHitos,
+  conOpciones, opcionRecomendada, totalesOpcion, valoresHitos,
 } from '../src/lib/state';
-import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, SpecError, type Spec } from './nueva';
+import { construir, parseItemFlag, siguienteNumero, buscarIconos, listaIconos, listaDisenos, ESQUEMA_EJEMPLO, ESQUEMA_COMPLETO, SpecError, type Spec } from './nueva';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_PATH = join(homedir(), '.cotizador.json');
@@ -50,7 +51,7 @@ Comandos:
   resumen Muestra ítems, desglose y total de una cotización (--json para agentes)
   iconos  Lista los íconos por categoría (--buscar <texto>, --json)
   disenos Lista las plantillas y paletas (--json)
-  esquema Imprime un ejemplo de especificación JSON para "nueva --spec"
+  esquema Imprime un ejemplo de especificación JSON para "nueva --spec" (--completo: proyecto por fases con opciones, costos de terceros e hitos)
   pdf     Exporta la cotización a PDF vectorial (texto seleccionable)
   png     Exporta la cotización a PNG
   html    Guarda el HTML del documento
@@ -69,7 +70,7 @@ Opciones:
   --cliente <clave|nombre>  Cliente (clave de config o nombre)
   --nit <nit>            NIT del cliente
   --concepto <texto>     Inicio del párrafo "Por concepto de" (el período se agrega solo)
-  --parte <total|anticipo|saldo>  Con "cuenta": qué parte se cobra (si la cotización tiene anticipo)
+  --parte <total|anticipo|saldo|hito>  Con "cuenta": qué parte se cobra (anticipo o saldo, o el id o nombre de un hito del plan de pagos)
   --valor <pesos>        Con "cuenta": valor a cobrar escrito a mano (obligatorio en una cuenta suelta)
   --marcar               Con "cuenta": guarda los datos de cobro en el JSON y lo marca como cobrada
   --html                 Con "cuenta": guarda también el HTML
@@ -180,8 +181,23 @@ function imprimirResumen(c: Cotizacion) {
   const t = totales(c);
   console.log(`  ${c.titulo || 'Propuesta económica'} N.º ${c.numero} · ${c.fecha}${validaHasta(c) ? ` · válida hasta ${validaHasta(c)}` : ''} · ${ESTADO_LABELS[estadoDe(c)]}`);
   if (c.cliente?.nombre) console.log(`  Cliente: ${c.cliente.nombre}${c.cliente.nit ? ` (NIT ${c.cliente.nit})` : ''}`);
-  for (const it of c.items) console.log(`  - ${it.titulo}${qtyLabel(it) ? ` [${qtyLabel(it)}]` : ''}: ${formatCOP(valorItem(it))}`);
+  const grupos = gruposItems(c.items);
+  c.items.forEach((it, i) => {
+    const g = grupos[i];
+    if (g) console.log(`  ${g.nombre} (${formatCOP(g.subtotal)})`);
+    console.log(`  ${grupos.some(Boolean) ? '  ' : ''}- ${it.titulo}${qtyLabel(it) ? ` [${qtyLabel(it)}]` : ''}: ${formatCOP(valorItem(it))}`);
+  });
   for (const r of filasDesglose(t)) console.log(r.tipo === 'nota' ? `  ${r.label}` : `  ${r.label}: ${r.value}`);
+  if (conOpciones(c)) {
+    console.log('  Opciones:');
+    for (const op of c.opciones!) console.log(`    ${op === opcionRecomendada(c) ? '★' : '-'} ${op.nombre}: ${formatCOP(totalesOpcion(c, op).total)} (${op.items.length} ítems)`);
+  }
+  const hitos = valoresHitos(c);
+  if (hitos.length) {
+    console.log(`  Plan de pagos${errorHitos(c) ? ` (revisar: ${errorHitos(c)})` : ''}:`);
+    for (const v of hitos) console.log(`    - [${v.hito.id}] ${v.hito.nombre}: ${String(Math.round(v.pct * 100) / 100).replace('.', ',')} % = ${formatCOP(v.valor)}${v.hito.condicion ? ` · ${v.hito.condicion}` : ''}`);
+  }
+  if (c.costosTerceros?.length) console.log(`  Costos de terceros (no suman): ${c.costosTerceros.map((x) => x.concepto).join(', ')}`);
 }
 
 function outPath(opt: string | undefined, jsonPath: string, name: string): string {
@@ -217,6 +233,7 @@ async function main() {
       parte: { type: 'string' },
       valor: { type: 'string' },
       marcar: { type: 'boolean' },
+      completo: { type: 'boolean' },
       html: { type: 'boolean' },
       item: { type: 'string', multiple: true },
       termino: { type: 'string', multiple: true },
@@ -292,8 +309,14 @@ async function main() {
       const fecha = normFecha(o.fecha, '--fecha'); if (fecha) c.cobro.fecha = fecha;
       if (o.concepto) c.cobro.concepto = o.concepto;
       if (o.parte) {
-        if (!['total', 'anticipo', 'saldo'].includes(o.parte)) fail('--parte debe ser total, anticipo o saldo');
-        c.cobro.parte = o.parte as 'total' | 'anticipo' | 'saldo';
+        // Un hito del plan de pagos se elige por su id o por su nombre
+        const k = o.parte.trim().toLowerCase();
+        const hito = c.hitos?.find((h) => h.id.toLowerCase() === k || h.nombre.trim().toLowerCase() === k);
+        if (hito) c.cobro.parte = `hito:${hito.id}`;
+        else if (['total', 'anticipo', 'saldo'].includes(k)) c.cobro.parte = k as 'total' | 'anticipo' | 'saldo';
+        else fail(`--parte debe ser total, anticipo, saldo${c.hitos?.length ? ` o un hito (${c.hitos.map((h) => h.id).join(', ')})` : ''}`);
+        const err = errorHitos(c);
+        if (hito && err) fail(`el plan de pagos tiene un problema: ${err}`);
       }
       if (o.cliente) {
         const k = o.cliente.toLowerCase();
@@ -375,6 +398,10 @@ async function main() {
     }
     case 'nueva': {
       let spec: Spec;
+      // "nueva archivo.json" sin --spec: casi siempre es PowerShell, que con "npm run cli -- …" se come el "--" y npm se queda con --spec, -o y --pdf
+      if (!o.spec && !o.item?.length && arg && /\.json$/i.test(arg)) {
+        fail(`"${arg}" llegó sin --spec. Si usas PowerShell con npm, PowerShell se come el "--" y npm se queda con las opciones. Usa .\\cotizador.cmd nueva --spec "${arg}" … o npm run cli '--' nueva --spec …`);
+      }
       if (o.spec) {
         const raw = o.spec === '-' ? readFileSync(0, 'utf8') : readFileSync(resolve(o.spec), 'utf8');
         try { spec = JSON.parse(raw.replace(/^﻿/, '')); } catch { fail('--spec no es un JSON válido'); }
@@ -421,8 +448,14 @@ async function main() {
       if (o.json) {
         console.log(JSON.stringify({
           numero: c.numero, fecha: c.fecha, validaHasta: validaHasta(c) || null, estado: estadoDe(c), cliente: c.cliente ?? null, alcance: c.alcance,
-          items: c.items.map((it) => ({ titulo: it.titulo, icono: it.iconKey, cantidad: it.cantidad ?? 1, unidad: it.unidad ?? null, precioUnitario: it.valor, valor: valorItem(it), ivaTasa: it.ivaTasa ?? null })),
+          items: c.items.map((it) => ({ titulo: it.titulo, icono: it.iconKey, cantidad: it.cantidad ?? 1, unidad: it.unidad ?? null, precioUnitario: it.valor, valor: valorItem(it), ivaTasa: it.ivaTasa ?? null, grupo: it.grupo?.trim() || null })),
+          grupos: gruposItems(c.items).filter(Boolean),
           totales: totales(c),
+          opciones: conOpciones(c) ? c.opciones!.map((op) => ({ id: op.id, nombre: op.nombre, descripcion: op.descripcion ?? null, recomendada: op === opcionRecomendada(c), items: op.items, totales: totalesOpcion(c, op) })) : [],
+          hitos: valoresHitos(c).map((v) => ({ id: v.hito.id, nombre: v.hito.nombre, condicion: v.hito.condicion ?? null, fase: v.hito.grupo ?? null, pct: Math.round(v.pct * 100) / 100, valor: v.valor })),
+          errorHitos: errorHitos(c),
+          costosTerceros: (c.costosTerceros ?? []).map((x) => ({ ...x, ...(x.moneda === 'USD' && c.trm && x.valor != null ? { cop: Math.round(x.valor * c.trm), copHasta: x.valorHasta != null ? Math.round(x.valorHasta * c.trm) : null } : {}) })),
+          trm: c.trm ?? null,
         }, null, 2));
       } else imprimirResumen(c);
       break;
@@ -452,7 +485,7 @@ async function main() {
       break;
     }
     case 'esquema': {
-      console.log(JSON.stringify(ESQUEMA_EJEMPLO, null, 2));
+      console.log(JSON.stringify(o.completo ? ESQUEMA_COMPLETO : ESQUEMA_EJEMPLO, null, 2));
       break;
     }
     default:

@@ -58,13 +58,16 @@ function stepsFor(id: TourId, ctx: TourCtx): DriveStep[] {
       s('cotizacion', '#clienteNombre', 'Cliente', 'Nombre y NIT de quien recibe la propuesta. También se usan en la cuenta de cobro.'),
       s('cotizacion', '#alcance', 'Alcance', 'Una frase que resume el trabajo, por ejemplo “Sitio web y tienda en línea”.'),
       s('cotizacion', '#totalBig', 'Total', 'Por defecto suma los ítems. Apaga “Sumar ítems” si quieres poner un valor global distinto.'),
+      s('cotizacion', '#hitosCard', 'Plan de pagos', `En proyectos largos divide el pago por hitos (30 % al iniciar, 40 % al entregar…). Reemplaza el anticipo y en Cobro puedes cobrar cada pago.${tip('Los porcentajes deben sumar 100 %: abajo ves la suma.')}`),
       s('cotizacion', '#terminosList', 'Condiciones', 'Tiempo de entrega y términos: cada término en su propia línea (forma de pago, vigencia de la oferta…). Agrega o quita los que necesites.', 'top'),
+      s('cotizacion', '#tercerosCard', 'Costos de terceros', 'Hosting, pasarela de pagos, licencias: lo que el cliente le paga a otros. Sale en una tabla aparte y nunca suma al total. Con valores en dólares pon la TRM para mostrar el equivalente.', 'top'),
     ],
     items: [
       s('items', '#items .item-card', 'Cada servicio es un ítem', 'Elige un ícono, escribe título, descripción y valor. El total se recalcula solo.'),
       s('items', '.items-toolbar', 'Ordenar y colapsar', 'Ordena por precio, título o tipo. “Colapsar todo” deja la lista compacta para moverte rápido.', 'bottom'),
       s('items', '#items .item-head', 'Mover y borrar', 'Usa ▲ ▼ para cambiar el orden en el documento y ✕ para eliminar.', 'bottom'),
       s('items', '#addItem', 'Agregar ítem', 'Agrega todos los que necesites: el documento crece hacia abajo en una sola página.', 'top'),
+      s('items', '#opcionesCard', 'Opciones para el cliente', 'Arma 2 o 3 alcances (Básica, Recomendada, con soporte) marcando qué fases o ítems incluye cada uno. El documento los compara en una tabla y el total es el de la recomendada.', 'top'),
     ],
     exportar: [
       preview,

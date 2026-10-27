@@ -205,6 +205,17 @@ const I = {
               <dl id="desglose" class="desglose-ui" hidden></dl>
             </div>
 
+            <div class="card" id="hitosCard">
+              <h3 class="card-title">Plan de pagos <small>por hitos, en vez de anticipo y saldo</small></h3>
+              <div id="hitosList" class="hitos-list"></div>
+              <p id="hitosSuma" class="hitos-suma" hidden></p>
+              <div class="perfil-acciones">
+                <button id="hitoAdd" class="pill-btn" type="button">＋ Agregar pago</button>
+                <button id="hitosTipo" class="link-btn" type="button" hidden>Usar valores en pesos</button>
+              </div>
+              <p class="hint" id="hitosHint">Divide el pago en partes ligadas a entregas (por ejemplo 30 % al iniciar, 40 % al entregar en pruebas y 30 % al salir en vivo). En Cobro puedes cobrar cada una.</p>
+            </div>
+
             <div class="card">
               <h3 class="card-title">Condiciones</h3>
               <label class="field">Tiempo de entrega<textarea id="tiempoEntrega" class="auto" rows="2" placeholder="15 días hábiles a partir de la aprobación."></textarea></label>
@@ -212,6 +223,15 @@ const I = {
                 <div id="terminosList" class="terms-list"></div>
                 <button id="addTermino" type="button" class="link-btn add-term"><Fragment set:html={I.plus} /> Agregar término</button>
               </div>
+            </div>
+
+            <div class="card" id="tercerosCard">
+              <h3 class="card-title">Costos de terceros <small>informativos, no suman al total</small></h3>
+              <div id="tercerosList" class="terc-list"></div>
+              <button id="terceroAdd" class="pill-btn" type="button">＋ Agregar costo</button>
+              <p class="hint" id="tercerosHint">Lo que el cliente le paga a otros: hosting, dominio, pasarela de pagos, licencias…</p>
+              <label class="field" id="trmWrap" hidden>TRM <small>pesos por dólar, para mostrar el equivalente</small><input id="trm" type="text" inputmode="decimal" placeholder="4.000" /></label>
+              <label class="field" id="notaTercerosWrap" hidden>Nota al pie <small>vacía, va el texto de ejemplo</small><textarea id="notaTerceros" class="auto" rows="2"></textarea></label>
             </div>
           </section>
 
@@ -225,6 +245,7 @@ const I = {
               <button id="sort-tipo" class="chip">Tipo</button>
               <button id="toggleAllItems" class="chip chip-outline">Colapsar todo</button>
             </div>
+            <label class="switch items-grupos-sw"><input id="agruparItems" type="checkbox" /><span></span> Separar por fases o secciones</label>
             <div id="items" class="items"></div>
             <div class="items-foot">
               <div class="items-sum"><span id="itemsSummary">0 ítems</span><b id="itemsTotal">$0</b></div>
@@ -233,6 +254,14 @@ const I = {
                 <button id="addItem" class="primary add-item"><Fragment set:html={I.plus} /> Agregar ítem</button>
               </div>
             </div>
+            <div class="card" id="opcionesCard">
+              <h3 class="card-title">Opciones para el cliente <small>compara 2 o 3 alcances</small></h3>
+              <p class="hint" id="opcionesHint">Arma escenarios (por ejemplo Básica, Recomendada y Recomendada con soporte): el documento muestra una tabla para compararlos y el total es el de la recomendada.</p>
+              <p class="hint warn" id="opcionesAviso" hidden>Las opciones necesitan "Sumar ítems" (pestaña Cotización): con un total escrito a mano no se pueden comparar.</p>
+              <div id="opcionesList" class="opciones"></div>
+              <button id="opcionAdd" class="pill-btn" type="button">＋ Comparar opciones</button>
+            </div>
+            <datalist id="gruposItems"></datalist>
             <datalist id="unidades">
               <option value="und"></option><option value="m"></option><option value="m²"></option><option value="m³"></option>
               <option value="horas"></option><option value="días"></option><option value="meses"></option><option value="punto"></option>
@@ -250,6 +279,8 @@ const I = {
               <small class="hint">En Bloque, Noche, Diagonal, Estudio, Panel, Corporativa y Mosaico el ícono reemplaza el número, que pasa al título ("1. Diseño de logo").</small>
               <label class="switch opt-row"><input id="aceptacionCliente" type="checkbox" /><span></span> Espacio para la firma de aceptación del cliente</label>
               <small class="hint">Agrega debajo de tu firma una línea para que el cliente firme al aprobar la cotización. Sale en todas las plantillas.</small>
+              <label class="switch opt-row"><input id="mostrarBanco" type="checkbox" /><span></span> Mostrar la cuenta bancaria</label>
+              <small class="hint">Apágalo si no quieres que la cotización parezca un cobro: también se ocultan los términos que dan la cuenta. La cuenta de cobro siempre la lleva.</small>
             </div>
             <div class="card">
               <h3 class="card-title">Colores <small>toda la plantilla sale de estos dos</small></h3>
@@ -291,6 +322,18 @@ const I = {
               </div>
             </div>
             <div class="card">
+              <h3 class="card-title">Cotizas como</h3>
+              <div id="tipoPersona" class="seg" role="radiogroup" aria-label="Cotizas como">
+                <button type="button" data-tipo="natural" role="radio">Persona natural</button>
+                <button type="button" data-tipo="empresa" role="radio">Empresa</button>
+              </div>
+              <div class="grid2" id="empresaCampos" hidden>
+                <label class="field">Razón social<input id="razonSocial" type="text" placeholder="Mi Empresa S.A.S." /></label>
+                <label class="field">NIT<input id="nitEmpresa" type="text" placeholder="901.234.567-8" /></label>
+              </div>
+              <small class="hint" id="tipoHint"></small>
+            </div>
+            <div class="card">
               <h3 class="card-title">Logo y nombre</h3>
               <div class="brand-row">
                 <div id="logoArea" class="drop" tabindex="0" role="button" title="Sube o arrastra tu logo">
@@ -320,9 +363,10 @@ const I = {
             <div class="card">
               <h3 class="card-title">Quién firma</h3>
               <div class="grid2">
-                <label class="field">Nombre<input id="repNombre" type="text" /></label>
-                <label class="field">Cédula / NIT<input id="repCedula" type="text" /></label>
+                <label class="field"><span id="repNombreLbl">Nombre</span><input id="repNombre" type="text" /></label>
+                <label class="field"><span id="repCedulaLbl">Cédula / NIT</span><input id="repCedula" type="text" /></label>
               </div>
+              <label class="field" id="cargoWrap" hidden>Cargo <small>sale bajo tu firma</small><input id="cargo" type="text" placeholder="Representante legal" /></label>
               <div class="field">Firma
                 <div id="firmaArea" class="drop drop-wide" tabindex="0" role="button" title="Sube o arrastra una imagen de tu firma">
                   <img id="firmaPreview" alt="Firma" />
@@ -349,7 +393,7 @@ const I = {
             <div class="card">
               <h3 class="card-title">Datos para cobrar</h3>
               <label class="field">Cuenta bancaria<input id="banco" type="text" placeholder="Cuenta de Ahorros BANCO No. 000-000000-00" /></label>
-              <label class="field">Nombre completo (cuenta de cobro)<input id="nombreLegal" type="text" /></label>
+              <label class="field" id="nombreLegalWrap">Nombre completo (cuenta de cobro)<input id="nombreLegal" type="text" /></label>
               <label class="field">Dirección<input id="direccion" type="text" /></label>
             </div>
           </section>
@@ -357,6 +401,9 @@ const I = {
           <!-- Cobro -->
           <section class="pane" data-pane="cobro">
             <button class="pane-help" type="button" data-tour="cobro"><Fragment set:html={I.help} /> Guía de esta sección</button>
+            <div class="marca-aviso" id="cobroAvisoEmpresa" hidden>
+              <p><b>Cobras como empresa.</b> En Colombia una empresa normalmente cobra con factura electrónica; la cuenta de cobro la suelen usar personas que no están obligadas a facturar. Si tienes dudas, consúltalo con tu contador.</p>
+            </div>
             <p class="hint" id="cobroIntro">Genera la cuenta de cobro de esta cotización con el total, tus datos y los del cliente. A la derecha ves cómo queda.</p>
             <div class="card" id="cuentaClienteCard">
               <h3 class="card-title" id="cuentaCardTitulo">A quién le cobras</h3>
@@ -420,8 +467,8 @@ const I = {
                 <p class="hint">Cambia aquí lo que sea distinto solo en esta cuenta; lo que dejes vacío sale de Mi marca.</p>
                 <label class="field">Consignar en<input id="cobroBanco" type="text" /></label>
                 <div class="grid2">
-                  <label class="field">Nombre completo<input id="cobroEmNombre" type="text" /></label>
-                  <label class="field">Cédula<input id="cobroEmCedula" type="text" /></label>
+                  <label class="field"><span id="cobroEmNombreLbl">Nombre completo</span><input id="cobroEmNombre" type="text" /></label>
+                  <label class="field"><span id="cobroEmCedulaLbl">Cédula</span><input id="cobroEmCedula" type="text" /></label>
                 </div>
                 <div class="grid2">
                   <label class="field">Dirección<input id="cobroEmDir" type="text" /></label>

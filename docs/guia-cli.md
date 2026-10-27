@@ -12,6 +12,8 @@ npm run cli -- <comando> [argumentos]
 
 Alternativas: `.\cotizador.cmd <comando>` en Windows, o `cotizador <comando>` después de `npm link`. En los ejemplos se escribe `cotizador`.
 
+**En PowerShell** usa `.\cotizador.cmd …` o escribe `npm run cli '--' …` (con comillas): PowerShell se come el `--` sin comillas y npm se queda con las opciones del CLI (`--spec`, `-o`, `--pdf`), así que el comando llega incompleto.
+
 Requisitos: Node.js 22+ y Edge o Chrome instalado (solo para PDF y PNG; el resto funciona sin navegador).
 
 Reglas para agentes:
@@ -29,7 +31,7 @@ Reglas para agentes:
 | `resumen <json> [--json]` | Muestra ítems, subtotal, IVA, descuento, total y anticipo |
 | `iconos [--buscar <texto>] [--json]` | Lista los íconos por categoría o busca por palabra |
 | `disenos [--json]` | Lista las plantillas y las paletas de color |
-| `esquema` | Imprime un ejemplo completo de especificación para `nueva --spec` |
+| `esquema [--completo]` | Imprime un ejemplo de especificación para `nueva --spec` (`--completo`: proyecto por fases con opciones, costos de terceros e hitos) |
 | `pdf <json> [-o salida.pdf]` | PDF vectorial (texto seleccionable) |
 | `png <json> [-o salida.png] [--escala 2]` | Imagen PNG |
 | `html <json>` / `md <json>` | HTML del documento / Markdown |
@@ -52,7 +54,7 @@ cotizador nueva --cliente "Ferretería El Tornillo" --nit "900.111.222-3" \
   --iva agregar --anticipo 50 --vigencia 15 --pdf
 ```
 
-`--item` se repite una vez por ítem. Su formato es `clave=valor` separado por `;`. Claves: `titulo` (obligatoria), `precio` (obligatoria, precio unitario), `cantidad`, `unidad`, `icono`, `iva`, `descripcion`.
+`--item` se repite una vez por ítem. Su formato es `clave=valor` separado por `;`. Claves: `titulo` (obligatoria), `precio` (obligatoria, precio unitario), `cantidad`, `unidad`, `icono`, `iva`, `descripcion`, `grupo` (ver 3.5), `clave` (ver 3.6).
 
 ### 3.2 Con una especificación JSON (recomendado para agentes)
 
@@ -82,9 +84,11 @@ Esquema (solo `items` es obligatorio; cada ítem necesita `titulo` y `precio`):
       "unidad": "und",
       "precio": 350000,                   // precio UNITARIO en pesos; acepta "350.000" o "$350.000"
       "icono": "cctv",                    // ver sección 4; si falta se adivina por el título
-      "iva": 19                           // opcional: 19, 5, 0 o "exento"; sin valor usa la tarifa general
+      "iva": 19,                          // opcional: 19, 5, 0 o "exento"; sin valor usa la tarifa general
+      "grupo": "Equipos"                  // opcional: ver 3.5
     }
   ],
+  "grupos": [ ... ],                      // opcional: otra forma de escribir los grupos (3.5)
   "diseno": "bloque",                     // ver sección 5
   "paleta": "Marino",                     // o "colores": "#0E2240,#F6C443"
   "iva": "agregar",                       // "ninguno" | "agregar" | "incluido"
@@ -93,7 +97,8 @@ Esquema (solo `items` es obligatorio; cada ítem necesita `titulo` y `precio`):
   "anticipo": 50,                         // porcentaje
   "vigencia": 15,                         // días; el documento muestra "Válida hasta"
   "tiempoEntrega": "5 días hábiles después del anticipo.",
-  "terminos": ["50% de anticipo y 50% contra entrega.", "Garantía de 12 meses en equipos."]
+  "terminos": ["50% de anticipo y 50% contra entrega.", "Garantía de 12 meses en equipos."],
+  "mostrarBanco": false                   // opcional: sin la cuenta bancaria (para que no parezca un cobro)
 }
 ```
 
@@ -101,7 +106,7 @@ Las opciones de la línea de comandos se suman a la especificación y tienen pri
 
 ### 3.3 De dónde salen la marca, los términos y el diseño
 
-Lo que la especificación no dice se copia de una **cotización base**: logo, firma, datos de contacto, cuenta bancaria, términos, tiempo de entrega, diseño, colores y modo de IVA. La base se elige con `--base COTIZACION_00007.json` o con `"base"` en `~/.cotizador.json`. Sin base la cotización sale sin marca (el comando lo avisa).
+Lo que la especificación no dice se copia de una **cotización base**: logo, firma, datos de contacto, cuenta bancaria, si cotizas como persona natural o como empresa (razón social, NIT y cargo de quien firma), términos, tiempo de entrega, diseño, colores y modo de IVA. La base se elige con `--base COTIZACION_00007.json` o con `"base"` en `~/.cotizador.json`. Sin base la cotización sale sin marca (el comando lo avisa).
 
 ### 3.4 Dónde se guarda y cómo se numera
 
@@ -112,6 +117,95 @@ Lo que la especificación no dice se copia de una **cotización base**: logo, fi
 - `--pdf` y `--png` generan el documento al lado del JSON con el mismo nombre.
 
 Al terminar imprime el resumen (ítems, desglose y total) para que lo puedas verificar o mostrar.
+
+### 3.5 Grupos de ítems (fases, etapas, áreas)
+
+Los ítems seguidos que tienen el mismo `grupo` salen en el documento bajo un encabezado con el nombre del grupo y su subtotal (antes de IVA y descuento), en todas las plantillas. Sirve para separar un desarrollo por fases o una obra por áreas. El total del documento no cambia y la numeración de los ítems sigue corrida (1, 2, 3… a través de los grupos).
+
+- Un grupo empieza donde cambia el `grupo` entre un ítem y el siguiente: pon juntos los ítems de cada grupo.
+- Si un ítem sin grupo queda después de uno agrupado, sale bajo "Otros". Los ítems sin grupo al principio salen sin encabezado.
+- Sin ningún grupo el documento se ve como siempre.
+
+Dos formas equivalentes de escribirlo:
+
+```jsonc
+// 1) "grupo" en cada ítem
+"items": [
+  { "titulo": "Descubrimiento y prueba técnica", "precio": 4500000, "icono": "search", "grupo": "Fase 0: descubrimiento" },
+  { "titulo": "Catálogo de productos", "precio": 3500000, "icono": "cart", "grupo": "Fase 1: MVP" },
+  { "titulo": "Pagos en línea con Wompi", "precio": 3000000, "icono": "dollar", "grupo": "Fase 1: MVP" }
+]
+
+// 2) "grupos", cada uno con sus ítems (se agregan después de "items", en orden)
+"grupos": [
+  { "nombre": "Fase 0: descubrimiento", "items": [ { "titulo": "Descubrimiento y prueba técnica", "precio": 4500000, "icono": "search" } ] },
+  { "nombre": "Fase 1: MVP", "items": [
+    { "titulo": "Catálogo de productos", "precio": 3500000, "icono": "cart" },
+    { "titulo": "Pagos en línea con Wompi", "precio": 3000000, "icono": "dollar" }
+  ] }
+]
+```
+
+Con opciones: `--item "titulo=Catálogo de productos; precio=3500000; icono=cart; grupo=Fase 1: MVP"`.
+
+En la app, el interruptor **Separar por fases o secciones** (pestaña Ítems) muestra el campo **Grupo** en cada ítem; los ítems del mismo grupo se juntan solos y los nuevos entran al grupo del último. `resumen --json` devuelve `grupo` en cada ítem y la lista `grupos` con nombre, subtotal y cantidad de ítems.
+
+### 3.6 Opciones para comparar (escenarios)
+
+Una cotización puede proponer 2 o 3 alcances, por ejemplo "A. Básica", "B. Recomendada" y "C. B + soporte". El documento muestra una tabla comparativa (filas = fases o ítems, columnas = opciones, ✓ incluido / — no incluido, "Parcial · 5 de 8" si una opción lleva solo parte de una fase) con el total de cada opción. **El total del documento es el de la opción recomendada** (si ninguna lo es, la primera); también es el que cobra la cuenta de cobro y sobre el que se calculan los hitos. El total de cada opción sale de la misma cuenta de siempre (IVA, descuento) con solo sus ítems.
+
+```jsonc
+"items": [
+  { "titulo": "Descubrimiento", "precio": 4500000, "grupo": "Fase 0" },
+  { "clave": "catalogo", "titulo": "Catálogo de productos", "precio": 3500000, "grupo": "Fase 1" },
+  { "titulo": "Soporte y mantenimiento", "precio": 2000000, "cantidad": 12, "unidad": "meses", "grupo": "Soporte" }
+],
+"opciones": [
+  { "nombre": "A. Básica", "descripcion": "Lo mínimo", "incluye": ["catalogo"] },
+  { "nombre": "B. Recomendada", "recomendada": true, "incluye": ["Fase 0", "Fase 1"] },
+  { "nombre": "C. B + soporte", "incluye": "todo" }
+]
+```
+
+- `incluye` lleva nombres de fase (todos sus ítems) y/o la `clave` de ítems sueltos; `"todo"` incluye todo. Los nombres se comparan sin importar mayúsculas, tildes ni espacios (`"fase1"` = `"Fase 1"`).
+- Un ítem que no está en la recomendada (el soporte del ejemplo) sigue en la lista de ítems con la nota "Solo en C. B + soporte".
+- Las opciones necesitan el total sumado de los ítems (el CLI siempre lo usa).
+- Errores: `opciones: usa una lista de 2 o 3 opciones`, `opción "B": "Fase 7" no es una fase ni la clave de un ítem. Fases: …`, `solo una puede ser la recomendada`.
+
+### 3.7 Costos de terceros (informativos)
+
+Lo que el cliente paga directamente a otros proveedores (hosting, base de datos, pasarela de pagos…). Salen en la tabla "Costos de terceros (no incluidos en el valor)" y **nunca suman al total**.
+
+```jsonc
+"costosTerceros": [
+  { "concepto": "Servidor VPS", "proveedor": "Hetzner", "valor": "24-48", "moneda": "USD", "periodo": "mensual" },
+  { "concepto": "Pasarela de pagos", "proveedor": "Wompi", "periodo": "transaccion", "nota": "2,65 % + $700 + IVA por transacción" }
+],
+"trm": 4000,                 // opcional: pesos por dólar, muestra "≈ $96.000–$192.000"
+"notaTerceros": "…"          // opcional: nota al pie (por defecto: valores referenciales de las páginas de cada proveedor)
+```
+
+- `valor`: número, `"150.000"` o un rango `"24-48"` (también `valorHasta`). Sin valor, la columna muestra la `nota`.
+- `moneda`: `COP` (por defecto) o `USD`. `periodo`: `mensual`, `anual`, `transaccion` o `unico`.
+
+### 3.8 Plan de pagos por hitos
+
+Divide el pago en partes ligadas a entregas. Si hay hitos, **reemplazan** las líneas de anticipo y saldo (el `anticipo` se ignora) y el documento muestra la tabla "Plan de pagos" con el valor de cada uno. Sin hitos todo queda como antes.
+
+```jsonc
+"hitos": [
+  { "clave": "inicio", "nombre": "Inicio", "pct": 30, "condicion": "Al iniciar la Fase 0", "fase": "Fase 0" },
+  { "clave": "mvp", "nombre": "Entrega del MVP", "pct": 40, "condicion": "Al entregar en pruebas", "fase": "Fase 1" },
+  { "clave": "vivo", "nombre": "Salida en vivo", "pct": 30, "condicion": "Al salir en vivo" }
+]
+```
+
+- Todos con `pct` (deben sumar 100) o todos con `valor` en pesos (deben sumar el total). El último hito se queda con el redondeo.
+- `fase` (opcional) liga el hito a una fase existente. `clave` (opcional) es el id para cobrarlo; sin ella sale del nombre (`"Entrega del MVP"` → `entrega-del-mvp`).
+- Errores: `plan de pagos: los hitos suman 105 %, deben sumar 100 %`, `usa porcentaje en todos los hitos o valor en todos, no las dos cosas`, `la fase "Fase 9" no existe`.
+- Para cobrar un hito: `cotizador cuenta <json> --parte mvp` (ver sección 8).
+
+`cotizador esquema --completo` imprime un ejemplo con las tres cosas (un portal de pedidos B2B ficticio por fases).
 
 ## 4. Íconos
 
@@ -191,7 +285,7 @@ Para verificar las cuentas sin abrir el PDF:
 cotizador resumen COTIZACION_00008.json --json
 ```
 
-Devuelve `numero`, `fecha`, `validaHasta`, `estado`, `cliente`, `items` (con `precioUnitario`, `cantidad`, `valor` y `ivaTasa`) y `totales` (`subtotal`, `descuento`, `base`, `ivaModo`, `ivaTasa`, `iva`, `ivaDetalle`, `total`, `anticipoPct`, `anticipo`, `saldo`). Todos los valores son números en pesos.
+Devuelve `numero`, `fecha`, `validaHasta`, `estado`, `cliente`, `items` (con `precioUnitario`, `cantidad`, `valor`, `ivaTasa` y `grupo`), `grupos`, `totales` (`subtotal`, `descuento`, `base`, `ivaModo`, `ivaTasa`, `iva`, `ivaDetalle`, `total`, `anticipoPct`, `anticipo`, `saldo` y, con opciones, `opcion`), `opciones` (cada una con `id`, `nombre`, `recomendada`, `items` y sus `totales`), `hitos` (`id`, `nombre`, `condicion`, `fase`, `pct`, `valor`), `errorHitos` (texto o `null`), `costosTerceros` (con `cop`/`copHasta` si están en USD y hay TRM) y `trm`. Todos los valores son números en pesos.
 
 ## 8. Cuenta de cobro
 
@@ -202,7 +296,7 @@ cotizador cuenta COTIZACION_00008.json --cliente grupo-logis --desde 07-09-2026 
 ```
 
 - `--desde` / `--hasta`: período del trabajo (obligatorio en cuentas de una cotización).
-- `--parte total|anticipo|saldo`: qué se cobra si la cotización tiene anticipo.
+- `--parte total|anticipo|saldo`: qué se cobra si la cotización tiene anticipo. Con plan de pagos, `--parte <hito>` cobra un hito por su clave o su nombre (`--parte mvp` o `--parte "Entrega del MVP"`); el concepto dice qué pago es y su porcentaje.
 - `--concepto "…"`: inicio del párrafo "Por concepto de".
 - `--valor 1500000`: valor escrito a mano (si no, sale del total, el anticipo o el saldo).
 - `--marcar`: guarda los datos en el JSON y marca la cotización como `cobrada`.
@@ -242,6 +336,8 @@ Con clientes guardados, `--cliente mi-cliente` (o `"cliente": "mi-cliente"` en l
 | "¿Cuánto da la 0008 con 10 % de descuento?" | Crea una copia con `nueva` y `--descuento 10%` en una carpeta temporal o usa `resumen --json` sobre una copia; no modifica la original sin permiso |
 | "Ya me aprobaron la 0008" | `estado COTIZACION_00008.json aprobada` |
 | "Hazme la cuenta de cobro del anticipo" | `cuenta COTIZACION_00008.json --parte anticipo --desde … --hasta … --marcar` |
+| "Cotiza el portal en tres opciones y por hitos" | `esquema --completo` como punto de partida, ajusta ítems, `opciones`, `hitos` y `costosTerceros`, `nueva --spec - --pdf` y muestra el resumen (totales por opción y valor de cada hito) |
+| "Cóbrale el hito del MVP" | `resumen <json>` para ver las claves de los hitos y `cuenta <json> --parte mvp --desde … --hasta …` |
 | "¿Qué cotizaciones tengo pendientes?" | `lista <carpeta>` y filtra `enviada` / `aprobada` |
 | "Ponle un ícono de aire acondicionado" | `iconos --buscar aire` → `snowflake` |
 

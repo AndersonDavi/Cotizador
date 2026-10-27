@@ -3,9 +3,10 @@
 // así cualquier marca se ve bien en cualquier diseño.
 
 import { buildIconSvg } from './icons';
-import { formatCOP, totales, valorItem, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
+import { formatCOP, totales, valorItem, gruposItems, notaOpcion, proveedorDe, cargoFirma, terminosVisibles, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
 import { buildTheme, coloresDe, disenoDe, isDark, themeVars, logoTinteSvg, type DisenoId, type Theme } from './theme';
 import { escapeHtml as e, normalizeWebUrl } from './esc';
+import { bloques, envolver, BLOQUES_CSS } from './bloques';
 
 const ICON = {
   mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
@@ -30,17 +31,20 @@ type Data = {
   total: string;
   tot: Totales;
   valida: string;
-  items: { n: string; titulo: string; desc: string; valor: string; qty: string; iconKey: string }[];
+  items: { n: string; titulo: string; desc: string; valor: string; qty: string; iconKey: string; g: { nombre: string; subtotal: string } | null; par: boolean }[];
   tiempo: string;
   terminos: string[];
   banco: string;
   empresa: string;
   rep: { nombre: string; cedula: string };
+  prov: { nombre: string; idLbl: string; id: string };
+  cargo: string;
   firmaUrl: string;
   logoUrl: string;
   logoCls: string;
   aceptacion: boolean;
   iconos: boolean;
+  bq: { antes: string; despues: string }; // opciones / plan de pagos y costos de terceros (vacío si no hay)
   k: { web: string; webUrl: string; email: string; cel: string; ciudad: string; pais: string };
 };
 
@@ -48,6 +52,9 @@ function data(c: Cotizacion): Data {
   const b = c.branding;
   const k = b.contacto;
   const cliente = c.cliente?.nombre?.trim() ? { nombre: e(c.cliente.nombre), nit: e(c.cliente.nit ?? '') } : null;
+  const grupos = gruposItems(c.items);
+  // Las rayas de las tablas vuelven a empezar en cada grupo
+  const inicio = (i: number) => { while (i > 0 && !grupos[i]) i--; return i; };
   return {
     t: buildTheme(coloresDe(c)),
     titulo: e(c.titulo?.trim() || 'Propuesta económica'),
@@ -60,22 +67,27 @@ function data(c: Cotizacion): Data {
     valida: e(validaHasta(c)),
     items: c.items.map((it, i) => ({
       n: String(i + 1).padStart(2, '0'),
+      g: grupos[i] ? { nombre: e(grupos[i]!.nombre), subtotal: formatCOP(grupos[i]!.subtotal) } : null,
+      par: (i - inicio(i)) % 2 === 1,
       titulo: e(it.titulo || '—'),
       desc: e((it.descripcion ?? '').split('\n').filter((l) => l.trim()).join('\n')),
       valor: formatCOP(valorItem(it)),
-      qty: e([qtyLabel(it), ivaTag(c, it)].filter(Boolean).join(' · ')),
+      qty: e([qtyLabel(it), ivaTag(c, it), notaOpcion(c, it)].filter(Boolean).join(' · ')),
       iconKey: it.iconKey,
     })),
     tiempo: e(c.tiempoEntrega || ''),
-    terminos: c.terminos.filter((x) => x.trim()).map(e),
-    banco: e(b.banco || ''),
+    terminos: terminosVisibles(c).map(e),
+    banco: c.mostrarBanco === false ? '' : e(b.banco || ''),
     empresa: e(b.empresa?.trim() || b.representante.nombre || ''),
     rep: { nombre: e(b.representante.nombre), cedula: e(b.representante.cedula) },
+    prov: (({ nombre, idLbl, id }) => ({ nombre: e(nombre), idLbl, id: e(id) }))(proveedorDe(b)),
+    cargo: e(cargoFirma(b)),
     firmaUrl: b.representante.firmaDataUrl ? e(b.representante.firmaDataUrl) : '',
     logoUrl: b.logoDataUrl ? e(b.logoDataUrl) : '',
     logoCls: logoClase(b),
     aceptacion: !!c.aceptacionCliente,
     iconos: c.iconosItems !== false,
+    bq: bloques(c),
     k: {
       web: e((k.web || '').trim()), webUrl: e(normalizeWebUrl(k.web || '')),
       email: e(k.email || ''), cel: e(k.cel || ''), ciudad: e(k.ciudad || ''), pais: e(k.pais || ''),
@@ -89,6 +101,14 @@ const marca = (d: Data, it: ItemD) => (d.iconos ? `<span class="ic-it">${buildIc
 /** Con íconos, el número pasa al título: "1. Diseño de logo". */
 const tit = (d: Data, it: ItemD) => (d.iconos ? `${Number(it.n)}. ${it.titulo}` : it.titulo);
 const colN = (d: Data, txt: string) => (d.iconos ? '' : txt);
+/** Encabezado de grupo en una tabla: el nombre a lo ancho y el subtotal en la columna del valor (conN deja la primera celda aparte). */
+const gTr = (it: ItemD, cols: number, conN = false) =>
+  it.g ? `<tr class="grp">${conN ? '<td class="n"></td>' : ''}<td${cols - 1 - +conN > 1 ? ` colspan="${cols - 1 - +conN}"` : ''}>${it.g.nombre}</td><td class="v">${it.g.subtotal}</td></tr>` : '';
+/** Encabezado de grupo en las plantillas de filas o tarjetas. */
+const gDiv = (it: ItemD) => (it.g ? `<div class="grp"><span>${it.g.nombre}</span><b>${it.g.subtotal}</b></div>` : '');
+
+/** Cargo y empresa bajo el nombre de quien firma (solo empresas). */
+const cargo = (d: Data) => (d.cargo ? `<small class="cargo">${d.cargo}</small>` : '');
 
 const logo = (d: Data, cls = 'logo') => (d.logoUrl ? `<img class="${cls}${d.logoCls}" src="${d.logoUrl}" alt="">` : '');
 
@@ -156,7 +176,13 @@ table{border-collapse:collapse;width:100%}
 .dg-note{font-size:13px;opacity:.72}
 .acept{align-self:stretch;display:flex;flex-direction:column;align-items:inherit;text-align:inherit;margin-top:26px}
 .acept-slot{height:62px}
+.doc{--bq-ink:var(--ink);--bq-muted:var(--muted);--bq-line:var(--line);--bq-head-bg:var(--p);--bq-head-fg:var(--onP);--bq-soft:var(--pSofter);--bq-acc:var(--s);--bq-acc-fg:var(--onS)}
+${BLOQUES_CSS}
 .acept small{display:block;font-weight:400;font-size:13px;opacity:.72;text-transform:none;letter-spacing:0}
+small.cargo{display:block;font-weight:400;font-size:13px;opacity:.75;text-transform:none;letter-spacing:0}
+tr.grp td{font-weight:700;vertical-align:middle}
+div.grp{display:flex;justify-content:space-between;align-items:baseline;gap:24px;font-weight:700}
+.grp b{white-space:nowrap}
 `;
 
 type Layout = { css: string; body: (d: Data) => string };
@@ -187,6 +213,8 @@ td.n{width:64px;font-weight:700;color:var(--muted)}
 td.v{width:200px;text-align:right;font-weight:700;white-space:nowrap;vertical-align:middle}
 td b{display:block;font-weight:600;font-size:16px}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
+tr.grp td{background:var(--pSoft);color:var(--ink);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:10px 16px}
+tr.grp td.v{font-size:16px;letter-spacing:0;text-transform:none}
 .totals{display:flex;justify-content:flex-end;margin-top:18px}
 .totals div{display:flex;align-items:center;gap:40px;background:var(--s);color:var(--onS);padding:14px 20px;min-width:420px;justify-content:space-between}
 .totals span{font-weight:700;font-size:16px;letter-spacing:.06em;text-transform:uppercase}
@@ -214,16 +242,16 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
       ${d.cliente ? `<dt>Cliente</dt><dd>${d.cliente.nombre}</dd>${d.cliente.nit ? `<dt>NIT</dt><dd>${d.cliente.nit}</dd>` : ''}` : ''}
       <dt>Alcance</dt><dd class="pre">${d.alcance || '—'}</dd></dl></div>
     <div><h2>De</h2><dl class="kv">
-      <dt>Nombre</dt><dd>${d.rep.nombre}</dd>
-      ${d.rep.cedula ? `<dt>CC / NIT</dt><dd>${d.rep.cedula}</dd>` : ''}
+      <dt>Nombre</dt><dd>${d.prov.nombre}</dd>
+      ${d.prov.id ? `<dt>${d.prov.idLbl}</dt><dd>${d.prov.id}</dd>` : ''}
       ${d.k.cel ? `<dt>Celular</dt><dd>${d.k.cel}</dd>` : ''}
       ${d.k.email ? `<dt>Email</dt><dd>${mailA(d)}</dd>` : ''}</dl></div>
   </div>
   <div class="sec">
     <h2>Detalle de la propuesta</h2>
     <table><thead><tr><th class="s">${colN(d, '#')}</th><th class="s">Descripción</th><th class="p">Valor</th></tr></thead>
-    <tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
-    ${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}
+    <tbody>${d.items.map((it) => `${gTr(it, 3)}<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+    ${envolver(d.bq.antes)}${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}${envolver(d.bq.despues)}
   </div>
   <div class="foot-cols">
     <div>
@@ -231,7 +259,7 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
       ${d.terminos.length ? `<h3 style="margin-top:18px">Términos y condiciones</h3><ol>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ol>` : ''}
       ${d.banco ? `<h3 style="margin-top:18px">Información de pago</h3><p>${d.banco}</p>` : ''}
     </div>
-    <div class="sig">${firma(d)}<div class="line">${d.rep.nombre}${d.rep.cedula ? `<div class="muted" style="font-weight:400;font-size:13px">CC ${d.rep.cedula}</div>` : ''}</div>${acept(d, 'line')}</div>
+    <div class="sig">${firma(d)}<div class="line">${d.rep.nombre}${d.rep.cedula ? `<div class="muted" style="font-weight:400;font-size:13px">CC ${d.rep.cedula}</div>` : ''}${cargo(d)}</div>${acept(d, 'line')}</div>
   </div>
 </div>
 <div class="bar">
@@ -268,6 +296,8 @@ const noche: Layout = {
 .row:not(.h) .v{display:flex;flex-direction:column;justify-content:center;align-items:flex-end}
 .row b{display:block;font-weight:600;font-size:16px}
 .row p{font-size:14px;opacity:.78;margin-top:4px}
+.grp{margin-top:14px;padding:0 18px 8px;border-bottom:2px solid var(--s);color:var(--sOnP);font-size:17px;text-transform:uppercase;letter-spacing:.08em}
+.grp b{color:var(--onP);letter-spacing:0}
 .tot{display:flex;justify-content:flex-end;gap:12px;margin-top:22px}
 .tot div{background:#fff;color:#16171A;padding:14px 22px;font-weight:800;font-size:20px;text-transform:uppercase}
 .tot div.v{min-width:210px;text-align:right;font-size:22px}
@@ -279,6 +309,8 @@ const noche: Layout = {
 .sig{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center}
 .sig .nm{border-top:2px solid currentColor;margin-top:8px;padding-top:8px;width:100%;font-weight:700;font-size:16px;text-transform:uppercase}
 .contact{display:flex;gap:34px;flex-wrap:wrap;margin-top:56px;font-size:14px;opacity:.9;position:relative}
+.bq-wrap{position:relative}
+.bq{--bq-ink:var(--onP);--bq-muted:color-mix(in srgb,var(--onP) 72%,transparent);--bq-line:color-mix(in srgb,var(--onP) 30%,transparent);--bq-head-bg:var(--s);--bq-head-fg:var(--onS);--bq-soft:color-mix(in srgb,var(--onP) 10%,transparent);--bq-acc:var(--onP);--bq-acc-fg:var(--p)}
 .contact span{display:flex;gap:10px;align-items:center}
 `,
   body: (d) => {
@@ -300,16 +332,16 @@ ${sw('tl')}${sw('br')}
 </div>
 <div class="rows">
   <div class="row h"><div>${colN(d, '#')}</div><div>Descripción</div><div>Valor</div></div>
-  ${d.items.map((it) => `<div class="row"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
+  ${d.items.map((it) => `${gDiv(it)}<div class="row"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
 </div>
-${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}
+${envolver(d.bq.antes)}${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}${envolver(d.bq.despues)}
 <div class="bt">
   <div>
     ${d.banco ? `<h3 style="color:var(--sOnP)">Información de pago</h3><p>${d.banco}</p>` : ''}
     ${d.tiempo ? `<h3 style="color:var(--sOnP)">Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
     ${d.terminos.length ? `<h3 style="color:var(--sOnP)">Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}
   </div>
-  <div class="sig">${firma(d, d.t.p)}<div class="nm">${d.rep.nombre}</div>${d.rep.cedula ? `<div style="font-size:13px;opacity:.8">CC ${d.rep.cedula}</div>` : ''}${acept(d, 'nm')}</div>
+  <div class="sig">${firma(d, d.t.p)}<div class="nm">${d.rep.nombre}${cargo(d)}</div>${d.rep.cedula ? `<div style="font-size:13px;opacity:.8">CC ${d.rep.cedula}</div>` : ''}${acept(d, 'nm')}</div>
 </div>
 <div class="contact">
   ${d.k.cel ? `<span>${ico('phone')}${d.k.cel}</span>` : ''}
@@ -345,6 +377,8 @@ td.v{width:200px;text-align:center;font-weight:600;white-space:nowrap;vertical-a
 td b{display:block;font-weight:600}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
 tr.t td{font-weight:700;font-size:18px}
+tr.grp td{background:var(--pSoft);color:var(--pDeep);font-size:17px}
+tr.grp td.n{background:var(--p)}
 tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 .terms{padding:40px 64px 50px}
 .terms h3{font-weight:700;font-size:22px;margin:0 0 10px}
@@ -372,11 +406,11 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
 <div class="tbl"><table>
   <thead><tr><th>${colN(d, 'N.º')}</th><th style="text-align:left">Servicio</th><th>Valor</th></tr></thead>
   <tbody>
-    ${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}
+    ${d.items.map((it) => `${gTr(it, 3, true)}<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}
     ${d.tot.conDesglose ? filasDesglose(d.tot).filter((r, i, a) => i < a.findIndex((x) => x.tipo === 'total')).map((r) => `<tr class="dz"><td></td><td>${e(r.label)}</td><td class="v">${r.value}</td></tr>`).join('') : ''}
     <tr class="t"><td></td><td>Total</td><td class="v">${d.total}</td></tr>
   </tbody>
-</table>${side(post(d), 460)}</div>
+</table>${side(post(d), 460)}${envolver(d.bq.antes + d.bq.despues)}</div>
 <div class="terms">
   ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
   ${d.terminos.length || d.banco ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}${d.banco ? `<li>Pago: ${d.banco}</li>` : ''}</ul>` : ''}
@@ -385,7 +419,7 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
   <div class="a"><div class="emp">${d.empresa}</div>${contactList(d)}</div>
   <div class="b${d.aceptacion ? '' : ' uno'}">
     ${d.aceptacion ? `<div><h4>Aceptación del cliente</h4><div class="slot"></div><div class="ln">${d.cliente?.nombre ?? 'Nombre y fecha'}</div></div>` : ''}
-    <div><h4>Firma</h4><div class="slot">${firma(d, d.t.s)}</div><div class="ln">${d.rep.nombre}</div></div>
+    <div><h4>Firma</h4><div class="slot">${firma(d, d.t.s)}</div><div class="ln">${d.rep.nombre}${cargo(d)}</div></div>
   </div>
 </div>`,
 };
@@ -414,7 +448,8 @@ h2{font-weight:600;font-size:28px;margin-bottom:12px}
 th{background:var(--s);color:var(--onS);font-weight:600;font-size:16px;text-align:left;padding:12px 18px}
 th.v,td.v{text-align:right}
 td{padding:14px 18px;font-size:16px;vertical-align:top}
-tbody tr:nth-child(odd) td{background:#EEF0F3}
+tbody tr.z td{background:#EEF0F3}
+tr.grp td{padding:22px 18px 8px;border-bottom:2px solid var(--p);color:var(--pOnW);font-size:18px}
 td.n{width:60px;font-weight:600;text-align:center}
 td.v{width:200px;white-space:nowrap;font-weight:600;vertical-align:middle}
 td b{font-weight:600;display:block}
@@ -449,12 +484,14 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
   </div>
   <div class="sec"><h2>Detalle del servicio:</h2>
     <table><thead><tr><th style="text-align:center">${colN(d, 'N.º')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
-    <tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+    <tbody>${d.items.map((it) => `${gTr(it, 3)}<tr${it.par ? '' : ' class="z"'}><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
   </div>
+  ${envolver(d.bq.antes)}
   <div class="mid">
     <div>${d.tiempo ? `<h2>Tiempo de entrega:</h2><p class="pre tiempo">${d.tiempo}</p>` : ''}${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
     <div>${pre(d)}<div class="sum"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div>
   </div>
+  ${envolver(d.bq.despues)}
 </div>
 <div class="pay">${d.banco ? 'Información de pago:' : 'Contacto:'}</div>
 <div class="bt">
@@ -464,7 +501,7 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
     ${d.k.cel ? `<p><b>Celular:</b> ${d.k.cel}</p>` : ''}
     ${d.k.web ? `<p><b>Web:</b> ${webA(d)}</p>` : ''}
   </div>
-  <div class="sig"><p style="margin-bottom:14px">Fecha: ${d.fecha}</p>${firma(d)}<div class="ln">${d.rep.nombre}</div>${acept(d)}</div>
+  <div class="sig"><p style="margin-bottom:14px">Fecha: ${d.fecha}</p>${firma(d)}<div class="ln">${d.rep.nombre}${cargo(d)}</div>${acept(d)}</div>
 </div>
 <div class="foot"><div class="tri br"></div></div>`,
 };
@@ -492,6 +529,8 @@ td{padding:26px 18px;font-size:18px;vertical-align:top}
 td p{font-size:15px;color:var(--muted);margin-top:6px;line-height:1.5}
 td.v{width:220px;white-space:nowrap}
 tbody tr:last-child td{border-bottom:1.5px solid var(--p)}
+tr.grp td{padding:34px 18px 10px;border-bottom:1px solid var(--line);font-size:15px;letter-spacing:.12em;text-transform:uppercase}
+tr.grp td.v{font-size:17px;letter-spacing:0}
 .tot{display:flex;justify-content:flex-end;margin-top:22px}
 .tot div{display:grid;grid-template-columns:auto 230px;align-items:center;gap:30px;font-size:19px}
 .tot b{font-weight:700}
@@ -513,13 +552,13 @@ ${d.cliente ? `<div class="client"><b>${d.cliente.nombre}</b>${d.cliente.nit ? `
 <div class="scope"><b>Alcance del proyecto</b><div class="pre">${d.alcance || '—'}</div></div>
 ${d.tiempo ? `<div class="scope" style="margin-top:20px"><b>Tiempo de entrega</b><div class="pre">${d.tiempo}</div></div>` : ''}
 <table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
-<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
-${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}
+<tbody>${d.items.map((it) => `${gTr(it, 2)}<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+${envolver(d.bq.antes)}${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}${envolver(d.bq.despues)}
 ${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>Términos</b><div>${d.terminos.map((x) => `<div>${x}</div>`).join('')}${d.banco ? `<div><b>Pago:</b> ${d.banco}</div>` : ''}</div></div>` : ''}
 <div class="thin"></div>
 <div class="ft">
   <div>
-    <i>Si tienes preguntas sobre esta cotización, contacta a <b>${d.rep.nombre}</b>${d.k.email ? ` en ${mailA(d)}` : ''}${d.k.cel ? ` o al ${d.k.cel}` : ''}.</i>
+    <i>Si tienes preguntas sobre esta cotización, contacta a <b>${d.rep.nombre}</b>${d.cargo ? ` (${d.cargo})` : ''}${d.k.email ? ` en ${mailA(d)}` : ''}${d.k.cel ? ` o al ${d.k.cel}` : ''}.</i>
     <div class="firm">${firma(d)}<b>¡Gracias por tu confianza!</b></div>
   </div>
   ${d.aceptacion ? '<div class="r"><div>Por favor confirma tu aceptación de esta cotización:</div><div class="slot"></div><div class="ln">Firma, nombre y fecha</div></div>' : ''}
@@ -546,6 +585,8 @@ th{font-weight:600;font-size:19px;text-align:left;padding:4px 12px 20px;border-b
 th.v,td.v{text-align:right}
 td{padding:22px 12px;border-bottom:1.5px solid #B9BCC2;font-size:17px;vertical-align:top}
 td.v{width:200px;white-space:nowrap;font-weight:500}
+tr.grp td{padding:26px 12px 10px;border-bottom:2px solid var(--p);color:var(--pOnW);font-size:18px}
+tr.grp td.v{font-weight:700}
 td p{font-size:14px;color:var(--muted);margin-top:4px}
 .mid{display:grid;grid-template-columns:1fr 380px;gap:40px;padding:26px 90px 0}
 .mid h3{font-weight:600;font-size:18px;margin-bottom:8px}
@@ -571,7 +612,8 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
   <p class="pre" style="max-width:560px;line-height:1.4">${d.alcance}</p>
 </div>
 <div class="card"><table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
-<tbody>${d.items.map((it) => `<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table></div>
+<tbody>${d.items.map((it) => `${gTr(it, 2)}<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table></div>
+${envolver(d.bq.antes, 'padding:0 90px')}
 <div class="mid">
   <div>
     ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
@@ -580,9 +622,10 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
   </div>
   <div>${pre(d)}<div class="sum"><b>Total</b><strong>${d.total}</strong></div>${post(d)}</div>
 </div>
+${envolver(d.bq.despues, 'padding:0 90px')}
 <div class="bt">
   <div class="contact">${contactList(d)}</div>
-  <div class="sig"><p style="margin-bottom:12px">Fecha: ${d.fecha}</p>${firma(d)}<div class="ln">${d.rep.nombre}</div>${acept(d)}</div>
+  <div class="sig"><p style="margin-bottom:12px">Fecha: ${d.fecha}</p>${firma(d)}<div class="ln">${d.rep.nombre}${cargo(d)}</div>${acept(d)}</div>
 </div>
 <div class="end"></div>`,
 };
@@ -610,6 +653,9 @@ const lateral: Layout = {
 .it b{display:block;font-weight:600;font-size:17px;line-height:1.3}
 .it p{font-size:14px;color:var(--muted);margin-top:6px}
 .it .v{font-weight:700;font-size:19px;white-space:nowrap;color:var(--pDeep)}
+.grp{margin-top:12px;padding:0 4px 8px;border-bottom:2px solid var(--s);color:var(--pDeep);font-size:16px;letter-spacing:.06em;text-transform:uppercase}
+.grp:first-child{margin-top:0}
+.grp b{font-size:18px;letter-spacing:0}
 .blocks{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:40px}
 .blocks h3{font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--pDeep);margin-bottom:8px}
 .blocks p,.blocks li{font-size:14px}
@@ -630,12 +676,13 @@ const lateral: Layout = {
 <main class="main">
   <h1>${d.titulo}</h1>
   ${d.alcance ? `<p class="alc pre">${d.alcance}</p>` : ''}
-  <div class="items">${d.items.map((it) => `<div class="it"><div class="bd">${buildIconSvg(it.iconKey, d.t.pDeep, 2)}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
+  <div class="items">${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="bd">${buildIconSvg(it.iconKey, d.t.pDeep, 2)}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
+  ${envolver(d.bq.antes + d.bq.despues)}
   <div class="blocks">
     <div>${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}${d.banco ? `<h3 style="margin-top:18px">Pago</h3><p>${d.banco}</p>` : ''}</div>
     <div>${d.terminos.length ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
   </div>
-  <div class="sig">${firma(d)}<div class="ln">${d.rep.nombre}${d.rep.cedula ? `<div class="muted" style="font-weight:400;font-size:13px">CC ${d.rep.cedula}</div>` : ''}</div>${acept(d)}</div>
+  <div class="sig">${firma(d)}<div class="ln">${d.rep.nombre}${d.rep.cedula ? `<div class="muted" style="font-weight:400;font-size:13px">CC ${d.rep.cedula}</div>` : ''}${cargo(d)}</div>${acept(d)}</div>
 </main>`,
 };
 
@@ -664,6 +711,9 @@ h2{font-weight:800;font-size:26px;margin-bottom:16px}
 .it b{display:block;font-weight:700;font-size:17px}
 .it p{font-size:14px;color:var(--muted);margin-top:3px}
 .it .v{text-align:right;font-weight:800;font-size:18px;white-space:nowrap}
+.grp{margin-top:14px;padding:0 22px;color:var(--pOnW);font-size:19px;font-weight:800}
+.grp:first-child{margin-top:0}
+.grp b{font-size:18px}
 .tot{display:flex;justify-content:flex-end;margin-top:20px}
 .tot div{background:var(--p);color:var(--onP);border-radius:18px;padding:18px 26px;display:flex;align-items:center;justify-content:space-between;gap:40px;min-width:440px}
 .tot span{font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:15px}
@@ -686,19 +736,19 @@ h4{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
 </div>
 <div class="cards">
   <div class="card"><h3>Para</h3>${d.cliente ? `<div class="big">${d.cliente.nombre}</div>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<div class="big">—</div>'}${d.alcance ? `<p class="pre" style="margin-top:8px">${d.alcance}</p>` : ''}</div>
-  <div class="card"><h3>De</h3><div class="big">${d.rep.nombre}</div>${d.rep.cedula ? `<p>CC / NIT ${d.rep.cedula}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}</div>
+  <div class="card"><h3>De</h3><div class="big">${d.prov.nombre}</div>${d.prov.id ? `<p>${d.prov.idLbl} ${d.prov.id}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}</div>
 </div>
 <div class="body">
   <h2>Detalle de la propuesta</h2>
-  <div class="items">${d.items.map((it) => `<div class="it"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
-  ${side(pre(d), 440)}<div class="tot"><div><span>Total</span><strong>${d.total}</strong></div></div>${side(post(d), 440)}
+  <div class="items">${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
+  ${envolver(d.bq.antes)}${side(pre(d), 440)}<div class="tot"><div><span>Total</span><strong>${d.total}</strong></div></div>${side(post(d), 440)}${envolver(d.bq.despues)}
   <div class="info">
     <div>
       ${d.tiempo ? `<div class="blk"><h4>Tiempo de entrega</h4><p class="pre">${d.tiempo}</p></div>` : ''}
       ${d.terminos.length ? `<div class="blk"><h4>Términos y condiciones</h4><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
       ${d.banco ? `<div class="blk"><h4>Información de pago</h4><p>${d.banco}</p></div>` : ''}
     </div>
-    <div class="sig">${firma(d)}<div class="ln">${d.rep.nombre}</div>${acept(d)}</div>
+    <div class="sig">${firma(d)}<div class="ln">${d.rep.nombre}${cargo(d)}</div>${acept(d)}</div>
   </div>
 </div>
 <div class="ft">
@@ -737,7 +787,9 @@ const corporativa: Layout = {
 .items th{background:var(--p);color:var(--onP);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;text-align:left}
 .items th.v{text-align:right}
 .items td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top;font-size:15.5px}
-.items tbody tr:nth-child(even) td{background:var(--pSofter)}
+.items tbody tr.z td{background:var(--pSofter)}
+.items tr.grp td{padding:20px 16px 8px;border-bottom:2px solid var(--p);color:var(--pOnW);font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.items tr.grp td.v{font-size:15px;letter-spacing:0}
 .items td.n{width:56px;color:var(--pOnW);text-align:center;font-weight:700;vertical-align:middle}
 .items td.v{text-align:right;font-weight:600;white-space:nowrap;width:190px;vertical-align:middle}
 .items td b{font-weight:600}
@@ -768,12 +820,14 @@ const corporativa: Layout = {
 </div>
 <div class="parties">
   <div><span class="lbl">Cliente</span>${d.cliente ? `<b>${d.cliente.nombre}</b>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<b>—</b>'}</div>
-  <div><span class="lbl">Proveedor</span><b>${d.rep.nombre}</b>${d.rep.cedula ? `<p>CC / NIT ${d.rep.cedula}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}</div>
+  <div><span class="lbl">Proveedor</span><b>${d.prov.nombre}</b>${d.prov.id ? `<p>${d.prov.idLbl} ${d.prov.id}</p>` : ''}${d.k.email ? `<p>${mailA(d)}</p>` : ''}${d.k.cel ? `<p>${d.k.cel}</p>` : ''}</div>
 </div>
 ${d.alcance ? `<div class="scope"><span class="lbl">Alcance</span><div class="pre">${d.alcance}</div></div>` : ''}
 <table class="items"><thead><tr><th>${colN(d, '#')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
-<tbody>${d.items.map((it) => `<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+<tbody>${d.items.map((it) => `${gTr(it, 3)}<tr${it.par ? ' class="z"' : ''}><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+${envolver(d.bq.antes, 'margin:0 72px')}
 <div class="sumwrap"><div class="sum">${pre(d)}<div class="totl"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div></div>
+${envolver(d.bq.despues, 'margin:0 72px')}
 <div class="cond">
   <div>
     ${d.tiempo ? `<div class="blk"><span class="lbl">Tiempo de entrega</span><p class="pre">${d.tiempo}</p></div>` : ''}
@@ -782,7 +836,7 @@ ${d.alcance ? `<div class="scope"><span class="lbl">Alcance</span><div class="pr
   <div>${d.banco ? `<div class="blk"><span class="lbl">Información de pago</span><p>${d.banco}</p></div>` : ''}</div>
 </div>
 <div class="firmas${d.aceptacion ? ' dos' : ''}">
-  <div><div class="slot">${firma(d)}</div><div class="ln">${d.rep.nombre}${d.rep.cedula ? `<small>CC ${d.rep.cedula}</small>` : ''}</div></div>
+  <div><div class="slot">${firma(d)}</div><div class="ln">${d.rep.nombre}${d.rep.cedula ? `<small>CC ${d.rep.cedula}</small>` : ''}${cargo(d)}</div></div>
   ${d.aceptacion ? `<div><div class="slot"></div><div class="ln">Aceptación del cliente<small>${d.cliente?.nombre ?? 'Nombre, firma y fecha'}</small></div></div>` : ''}
 </div>
 <div class="ft">
@@ -791,6 +845,9 @@ ${d.alcance ? `<div class="scope"><span class="lbl">Alcance</span><div class="pr
   ${d.k.web ? `<span>${ico('web')}${webA(d)}</span>` : ''}
 </div>`,
 };
+
+/** Ítems después del último encabezado de grupo (todos si no hay grupos). */
+const ultimos = (d: Data) => d.items.length - Math.max(0, d.items.map((it) => !!it.g).lastIndexOf(true));
 
 // ── Mosaico ──────────────────────────────────────────────────────────────────
 // Los ítems como baldosas en dos columnas; el total es la última baldosa, en color.
@@ -818,6 +875,8 @@ const mosaico: Layout = {
 .it p{font-size:14px;color:var(--muted);flex:1}
 .it .v{font-weight:800;font-size:22px;color:var(--pOnW)}
 .it .v .qty{display:inline;margin-left:8px;color:var(--muted)}
+.grp{grid-column:1/-1;margin-top:10px;padding:0 6px 8px;border-bottom:2px solid var(--s);color:var(--pOnW);font-size:19px;font-weight:800}
+.grp:first-child{margin-top:0}
 .it.tot{background:var(--p);color:var(--onP);justify-content:center;border-top-color:var(--s)}
 .it.tot.ancho{grid-column:span 2}
 .it.tot .lbl{color:var(--sOnP)}
@@ -830,27 +889,29 @@ const mosaico: Layout = {
 .ft{background:var(--p);color:var(--onP);padding:22px 64px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-size:14px;margin-top:40px}
 .ft span{display:flex;align-items:center;gap:10px}
 .ft .ic{color:var(--sOnP)}
+.bq{margin-top:16px;background:#fff;border-radius:18px;padding:22px 24px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
 `,
   body: (d) => `
 <div class="hd">
   <div class="l"><h1 data-fit data-min="34">${d.titulo}</h1><div class="sub">N.º ${d.numero} · ${d.fecha}${d.valida ? ` · válida hasta ${d.valida}` : ''}</div></div>
-  <div class="r">${logo(d)}<div><div class="emp">${d.empresa}</div><div class="meta">${d.rep.nombre !== d.empresa ? `${d.rep.nombre}<br>` : ''}${d.rep.cedula ? `CC / NIT ${d.rep.cedula}` : ''}</div></div></div>
+  <div class="r">${logo(d)}<div><div class="emp">${d.empresa}</div><div class="meta">${d.prov.nombre !== d.empresa ? `${d.prov.nombre}<br>` : ''}${d.prov.id ? `${d.prov.idLbl} ${d.prov.id}` : ''}</div></div></div>
 </div>
 <div class="who">
   <div class="tile"><div class="lbl">Para</div>${d.cliente ? `<b>${d.cliente.nombre}</b>${d.cliente.nit ? `<p>NIT ${d.cliente.nit}</p>` : ''}` : '<b>—</b>'}</div>
   <div class="tile"><div class="lbl">Alcance</div><p class="pre" style="color:var(--ink)">${d.alcance || '—'}</p></div>
 </div>
 <div class="grid">
-  ${d.items.map((it) => `<div class="it"><div class="ico">${marca(d, it)}</div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : '<p></p>'}<div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
-  <div class="it tot${d.items.length % 2 === 0 ? ' ancho' : ''}">${pre(d)}<div class="lbl">Total</div><strong>${d.total}</strong>${post(d)}</div>
+  ${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="ico">${marca(d, it)}</div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : '<p></p>'}<div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
+  <div class="it tot${ultimos(d) % 2 === 0 ? ' ancho' : ''}">${pre(d)}<div class="lbl">Total</div><strong>${d.total}</strong>${post(d)}</div>
 </div>
+${envolver(d.bq.antes + d.bq.despues, 'padding:0 64px')}
 <div class="bottom">
   <div class="tile">
     ${d.tiempo ? `<div class="blk"><div class="lbl">Tiempo de entrega</div><p class="pre" style="color:var(--ink)">${d.tiempo}</p></div>` : ''}
     ${d.terminos.length ? `<div class="blk"><div class="lbl">Términos y condiciones</div><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
     ${d.banco ? `<div class="blk"><div class="lbl">Información de pago</div><p style="color:var(--ink)">${d.banco}</p></div>` : ''}
   </div>
-  <div class="tile sig">${firma(d)}<div class="ln">${d.rep.nombre}</div>${acept(d)}</div>
+  <div class="tile sig">${firma(d)}<div class="ln">${d.rep.nombre}${cargo(d)}</div>${acept(d)}</div>
 </div>
 <div class="ft">
   ${d.k.cel ? `<span>${ico('phone')}${d.k.cel}</span>` : ''}
