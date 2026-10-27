@@ -7,7 +7,7 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 export const NOVEDADES: Novedad[] = [
   {
     version: '1.12.0',
-    fecha: '26-10-2026',
+    fecha: '27-10-2026',
     tipo: 'nueva',
     cambios: [
       'Grupos de ítems: en Ítems prende "Separar por fases o secciones" y escribe en cada ítem su fase (por ejemplo "Fase 1: MVP"). En el documento cada grupo sale con un encabezado y su subtotal, en todas las plantillas.',
