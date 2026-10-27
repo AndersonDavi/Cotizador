@@ -4,10 +4,11 @@
 
 import { buildIconSvg } from './icons';
 import { TEMPLATES, type Template } from './templates';
-import { formatCOP, totalReal, totales, valorItem, gruposItems, esEmpresa, terminosVisibles, proveedorDe, cargoFirma, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
+import { formatCOP, totalReal, totales, valorItem, gruposItems, notaOpcion, conOpciones, opcionRecomendada, totalesOpcion, valoresHitos, valorTercero, PERIODOS, NOTA_TERCEROS, esEmpresa, terminosVisibles, proveedorDe, cargoFirma, validaHasta, qtyLabel, ivaTag, filasDesglose, logoClase, LOGO_CSS, esCuenta, numeroVisible, valorCobro, clienteCobro, type Cotizacion, type Totales } from './state';
 import { disenoDe, onColor, readableOn, shade, logoTinteSvg } from './theme';
 import { escapeHtml, normalizeWebUrl } from './esc';
 import { renderLayout } from './layouts';
+import { bloques, envolver, BLOQUES_CSS } from './bloques';
 
 export { escapeHtml } from './esc';
 
@@ -345,6 +346,10 @@ ${LOGO_CSS}
 .acept{margin:0 56px;padding:64px 8px 16px;background:var(--fbg);color:var(--ftxt);border-top:1px solid var(--bd)}
 .acept .ln{width:${(DOC_W - 112) * 0.3 - 16}px;border-top:1.2px solid #1A1A1A;padding-top:6px;font-weight:800;font-size:16px}
 .acept small{display:block;font-weight:500;font-size:13px;color:#555}
+.cot{--bq-ink:var(--ctxt);--bq-muted:var(--cmut);--bq-line:var(--bd);--bq-head-bg:var(--h1);--bq-head-fg:var(--txt);--bq-soft:rgba(127,127,127,.12);--bq-acc:var(--acc);--bq-acc-fg:var(--accfg)}
+${BLOQUES_CSS}
+.cot .bq-wrap{margin:0 56px}
+.cot .bq{background:var(--card);border:1px solid var(--bd);padding:24px 28px}
 .contact{position:relative;height:88px;font-size:14px}
 .contact .ab{font-size:14px}
 `;
@@ -360,7 +365,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     return page(`COTIZACION_${c.numero}`, css, body, fonts);
   }
   const t = effectiveTemplate(c);
-  const vars = `--page:${t.pageBg};--h1:${t.headerBg};--h2:${t.headerBg2};--acc:${t.accent};--txt:${t.text};--card:${t.cardBg};--ctxt:${t.cardText};--cmut:${t.cardMuted};--bd:${t.cardBorder};--fbg:${t.footerBg};--ftxt:${t.footerText}`;
+  const vars = `--page:${t.pageBg};--h1:${t.headerBg};--h2:${t.headerBg2};--acc:${t.accent};--txt:${t.text};--card:${t.cardBg};--ctxt:${t.cardText};--cmut:${t.cardMuted};--bd:${t.cardBorder};--fbg:${t.footerBg};--ftxt:${t.footerText};--accfg:${onColor(t.accent)}`;
   const b = c.branding;
   const k = b.contacto;
   const webUrl = normalizeWebUrl(k.web);
@@ -369,6 +374,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
   const muted = t.cardMuted || '#777';
   const strong = t.cardText || '#1A1A1A';
 
+  const bq = bloques(c);
   const grupos = gruposItems(c.items);
   const items = c.items.map((it, i) => {
     const desc = sinLineasVacias(it.descripcion);
@@ -379,7 +385,7 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <div class="ico">${buildIconSvg(it.iconKey, t.iconColor, 2)}</div>
     <div class="vl"></div><div class="vl r"></div>
     <div class="cnt"><h3 data-cv>${escapeHtml(it.titulo || '—')}</h3>${desc ? `<p data-cv>${escapeHtml(desc)}</p>` : ''}</div>
-    <span class="ab tl" data-cv>${escapeHtml([qtyLabel(it), ivaTag(c, it)].filter(Boolean).join(' · ') || 'Total')}</span>
+    <span class="ab tl" data-cv>${escapeHtml([qtyLabel(it), ivaTag(c, it), notaOpcion(c, it)].filter(Boolean).join(' · ') || 'Total')}</span>
     <b class="ab tv" data-cv>${formatCOP(valorItem(it))}</b>
   </div>`;
   }).join('');
@@ -401,8 +407,10 @@ export function renderCotizacionHtml(c: Cotizacion, fonts: FontUrls = {}): strin
     <span class="ab cop" data-cv>COP</span>
   </header>
   <section class="items">${items}</section>
+  ${envolver(bq.antes)}
   ${resumenClasica(totales(c))}
-  <section class="tiempo"${totales(c).conDesglose ? ' style="margin-top:50px"' : ''}>
+  ${envolver(bq.despues)}
+  <section class="tiempo"${totales(c).conDesglose || bq.despues ? ' style="margin-top:50px"' : ''}>
     <div class="ico">${buildIconSvg('clock', t.iconColor, 2)}</div>
     <div class="vl"></div>
     <h4 class="ab" data-cv>Tiempo de entrega</h4>
@@ -458,9 +466,10 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
     lines.push(`${h} ${it.titulo || '_(sin título)_'}`);
     if (it.descripcion) lines.push(it.descripcion);
     lines.push('');
-    lines.push(`**Total: ${formatCOP(valorItem(it))}**${qtyLabel(it) ? ` (${qtyLabel(it)})` : ''}`);
+    lines.push(`**Total: ${formatCOP(valorItem(it))}**${qtyLabel(it) ? ` (${qtyLabel(it)})` : ''}${notaOpcion(c, it) ? ` · _${notaOpcion(c, it)}_` : ''}`);
     lines.push('');
   });
+  lines.push(...markdownBloques(c));
   lines.push(`## Tiempo de entrega`);
   lines.push(c.tiempoEntrega);
   lines.push('');
@@ -478,6 +487,35 @@ export function renderCotizacionMarkdown(c: Cotizacion): string {
   lines.push(`CEL: ${k.cel} · Email: ${k.email} · Web: ${k.web}  `);
   lines.push(`${k.ciudad}, ${k.pais}`);
   return lines.join('\n');
+}
+
+/** Opciones, plan de pagos y costos de terceros en Markdown (nada si no hay). */
+function markdownBloques(c: Cotizacion): string[] {
+  const l: string[] = [];
+  const celda = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  if (conOpciones(c)) {
+    const ops = c.opciones!;
+    const rec = opcionRecomendada(c);
+    l.push('## Opciones', '', `| Ítem | ${ops.map((o) => celda(o.nombre) + (o === rec && !/recomendada/i.test(o.nombre) ? ' (recomendada)' : '')).join(' | ')} |`, `|---|${ops.map(() => ':-:').join('|')}|`);
+    for (const it of c.items) l.push(`| ${celda(it.titulo || '—')} | ${ops.map((o) => (o.items.includes(it.id) ? '✓' : '—')).join(' | ')} |`);
+    l.push(`| **Total** | ${ops.map((o) => `**${formatCOP(totalesOpcion(c, o).total)}**`).join(' | ')} |`, '');
+  }
+  const hitos = valoresHitos(c);
+  if (hitos.length) {
+    l.push('## Plan de pagos', '', '| Pago | Cuándo | % | Valor |', '|---|---|--:|--:|');
+    for (const h of hitos) l.push(`| ${celda(h.hito.nombre)} | ${celda(h.hito.condicion ?? '')} | ${String(Math.round(h.pct * 100) / 100).replace('.', ',')} % | ${formatCOP(h.valor)} |`);
+    l.push('');
+  }
+  const terc = (c.costosTerceros ?? []).filter((x) => x.concepto?.trim());
+  if (terc.length) {
+    l.push('## Costos de terceros (no incluidos en el valor)', '', '| Concepto | Proveedor | Valor | Periodicidad |', '|---|---|--:|---|');
+    for (const x of terc) {
+      const v = valorTercero(x, c.trm);
+      l.push(`| ${celda(x.concepto)}${v.valor && x.nota ? ` (${celda(x.nota)})` : ''} | ${celda(x.proveedor ?? '')} | ${v.valor ? `${v.valor}${v.cop ? ` (${v.cop})` : ''}` : celda(x.nota ?? '—')} | ${x.periodo ? PERIODOS[x.periodo] : ''} |`);
+    }
+    l.push('', `_${c.notaTerceros?.trim() || NOTA_TERCEROS}_`, '');
+  }
+  return l;
 }
 
 function resumenClasica(t: Totales): string {

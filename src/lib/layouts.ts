@@ -3,9 +3,10 @@
 // así cualquier marca se ve bien en cualquier diseño.
 
 import { buildIconSvg } from './icons';
-import { formatCOP, totales, valorItem, gruposItems, proveedorDe, cargoFirma, terminosVisibles, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
+import { formatCOP, totales, valorItem, gruposItems, notaOpcion, proveedorDe, cargoFirma, terminosVisibles, qtyLabel, ivaTag, filasDesglose, validaHasta, logoClase, LOGO_CSS, type Cotizacion, type Totales } from './state';
 import { buildTheme, coloresDe, disenoDe, isDark, themeVars, logoTinteSvg, type DisenoId, type Theme } from './theme';
 import { escapeHtml as e, normalizeWebUrl } from './esc';
+import { bloques, envolver, BLOQUES_CSS } from './bloques';
 
 const ICON = {
   mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
@@ -43,6 +44,7 @@ type Data = {
   logoCls: string;
   aceptacion: boolean;
   iconos: boolean;
+  bq: { antes: string; despues: string }; // opciones / plan de pagos y costos de terceros (vacío si no hay)
   k: { web: string; webUrl: string; email: string; cel: string; ciudad: string; pais: string };
 };
 
@@ -70,7 +72,7 @@ function data(c: Cotizacion): Data {
       titulo: e(it.titulo || '—'),
       desc: e((it.descripcion ?? '').split('\n').filter((l) => l.trim()).join('\n')),
       valor: formatCOP(valorItem(it)),
-      qty: e([qtyLabel(it), ivaTag(c, it)].filter(Boolean).join(' · ')),
+      qty: e([qtyLabel(it), ivaTag(c, it), notaOpcion(c, it)].filter(Boolean).join(' · ')),
       iconKey: it.iconKey,
     })),
     tiempo: e(c.tiempoEntrega || ''),
@@ -85,6 +87,7 @@ function data(c: Cotizacion): Data {
     logoCls: logoClase(b),
     aceptacion: !!c.aceptacionCliente,
     iconos: c.iconosItems !== false,
+    bq: bloques(c),
     k: {
       web: e((k.web || '').trim()), webUrl: e(normalizeWebUrl(k.web || '')),
       email: e(k.email || ''), cel: e(k.cel || ''), ciudad: e(k.ciudad || ''), pais: e(k.pais || ''),
@@ -173,6 +176,8 @@ table{border-collapse:collapse;width:100%}
 .dg-note{font-size:13px;opacity:.72}
 .acept{align-self:stretch;display:flex;flex-direction:column;align-items:inherit;text-align:inherit;margin-top:26px}
 .acept-slot{height:62px}
+.doc{--bq-ink:var(--ink);--bq-muted:var(--muted);--bq-line:var(--line);--bq-head-bg:var(--p);--bq-head-fg:var(--onP);--bq-soft:var(--pSofter);--bq-acc:var(--s);--bq-acc-fg:var(--onS)}
+${BLOQUES_CSS}
 .acept small{display:block;font-weight:400;font-size:13px;opacity:.72;text-transform:none;letter-spacing:0}
 small.cargo{display:block;font-weight:400;font-size:13px;opacity:.75;text-transform:none;letter-spacing:0}
 tr.grp td{font-weight:700;vertical-align:middle}
@@ -246,7 +251,7 @@ h3{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
     <h2>Detalle de la propuesta</h2>
     <table><thead><tr><th class="s">${colN(d, '#')}</th><th class="s">Descripción</th><th class="p">Valor</th></tr></thead>
     <tbody>${d.items.map((it) => `${gTr(it, 3)}<tr><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
-    ${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}
+    ${envolver(d.bq.antes)}${side(pre(d))}<div class="totals"><div><span>Total</span><strong>${d.total} COP</strong></div></div>${side(post(d))}${envolver(d.bq.despues)}
   </div>
   <div class="foot-cols">
     <div>
@@ -304,6 +309,8 @@ const noche: Layout = {
 .sig{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center}
 .sig .nm{border-top:2px solid currentColor;margin-top:8px;padding-top:8px;width:100%;font-weight:700;font-size:16px;text-transform:uppercase}
 .contact{display:flex;gap:34px;flex-wrap:wrap;margin-top:56px;font-size:14px;opacity:.9;position:relative}
+.bq-wrap{position:relative}
+.bq{--bq-ink:var(--onP);--bq-muted:color-mix(in srgb,var(--onP) 72%,transparent);--bq-line:color-mix(in srgb,var(--onP) 30%,transparent);--bq-head-bg:var(--s);--bq-head-fg:var(--onS);--bq-soft:color-mix(in srgb,var(--onP) 10%,transparent);--bq-acc:var(--onP);--bq-acc-fg:var(--p)}
 .contact span{display:flex;gap:10px;align-items:center}
 `,
   body: (d) => {
@@ -327,7 +334,7 @@ ${sw('tl')}${sw('br')}
   <div class="row h"><div>${colN(d, '#')}</div><div>Descripción</div><div>Valor</div></div>
   ${d.items.map((it) => `${gDiv(it)}<div class="row"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
 </div>
-${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}
+${envolver(d.bq.antes)}${side(pre(d), 432)}<div class="tot"><div>Total</div><div class="v">${d.total}</div></div>${side(post(d), 432)}${envolver(d.bq.despues)}
 <div class="bt">
   <div>
     ${d.banco ? `<h3 style="color:var(--sOnP)">Información de pago</h3><p>${d.banco}</p>` : ''}
@@ -403,7 +410,7 @@ tr.t td.v{background:var(--s);color:var(--onS);font-weight:800;font-size:20px}
     ${d.tot.conDesglose ? filasDesglose(d.tot).filter((r, i, a) => i < a.findIndex((x) => x.tipo === 'total')).map((r) => `<tr class="dz"><td></td><td>${e(r.label)}</td><td class="v">${r.value}</td></tr>`).join('') : ''}
     <tr class="t"><td></td><td>Total</td><td class="v">${d.total}</td></tr>
   </tbody>
-</table>${side(post(d), 460)}</div>
+</table>${side(post(d), 460)}${envolver(d.bq.antes + d.bq.despues)}</div>
 <div class="terms">
   ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
   ${d.terminos.length || d.banco ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}${d.banco ? `<li>Pago: ${d.banco}</li>` : ''}</ul>` : ''}
@@ -479,10 +486,12 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
     <table><thead><tr><th style="text-align:center">${colN(d, 'N.º')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
     <tbody>${d.items.map((it) => `${gTr(it, 3)}<tr${it.par ? '' : ' class="z"'}><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
   </div>
+  ${envolver(d.bq.antes)}
   <div class="mid">
     <div>${d.tiempo ? `<h2>Tiempo de entrega:</h2><p class="pre tiempo">${d.tiempo}</p>` : ''}${d.terminos.length ? `<h2>Términos y condiciones:</h2><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
     <div>${pre(d)}<div class="sum"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div>
   </div>
+  ${envolver(d.bq.despues)}
 </div>
 <div class="pay">${d.banco ? 'Información de pago:' : 'Contacto:'}</div>
 <div class="bt">
@@ -544,7 +553,7 @@ ${d.cliente ? `<div class="client"><b>${d.cliente.nombre}</b>${d.cliente.nit ? `
 ${d.tiempo ? `<div class="scope" style="margin-top:20px"><b>Tiempo de entrega</b><div class="pre">${d.tiempo}</div></div>` : ''}
 <table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
 <tbody>${d.items.map((it) => `${gTr(it, 2)}<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
-${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}
+${envolver(d.bq.antes)}${side(pre(d), 460)}<div class="tot"><div><b>Total</b><strong>${d.total}</strong></div></div>${side(post(d), 460)}${envolver(d.bq.despues)}
 ${d.terminos.length || d.banco ? `<div class="scope" style="margin-top:50px"><b>Términos</b><div>${d.terminos.map((x) => `<div>${x}</div>`).join('')}${d.banco ? `<div><b>Pago:</b> ${d.banco}</div>` : ''}</div></div>` : ''}
 <div class="thin"></div>
 <div class="ft">
@@ -604,6 +613,7 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
 </div>
 <div class="card"><table><thead><tr><th>Descripción</th><th class="v">Valor</th></tr></thead>
 <tbody>${d.items.map((it) => `${gTr(it, 2)}<tr><td>${it.titulo}${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table></div>
+${envolver(d.bq.antes, 'padding:0 90px')}
 <div class="mid">
   <div>
     ${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}
@@ -612,6 +622,7 @@ td p{font-size:14px;color:var(--muted);margin-top:4px}
   </div>
   <div>${pre(d)}<div class="sum"><b>Total</b><strong>${d.total}</strong></div>${post(d)}</div>
 </div>
+${envolver(d.bq.despues, 'padding:0 90px')}
 <div class="bt">
   <div class="contact">${contactList(d)}</div>
   <div class="sig"><p style="margin-bottom:12px">Fecha: ${d.fecha}</p>${firma(d)}<div class="ln">${d.rep.nombre}${cargo(d)}</div>${acept(d)}</div>
@@ -666,6 +677,7 @@ const lateral: Layout = {
   <h1>${d.titulo}</h1>
   ${d.alcance ? `<p class="alc pre">${d.alcance}</p>` : ''}
   <div class="items">${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="bd">${buildIconSvg(it.iconKey, d.t.pDeep, 2)}</div><div><b>${it.titulo}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
+  ${envolver(d.bq.antes + d.bq.despues)}
   <div class="blocks">
     <div>${d.tiempo ? `<h3>Tiempo de entrega</h3><p class="pre">${d.tiempo}</p>` : ''}${d.banco ? `<h3 style="margin-top:18px">Pago</h3><p>${d.banco}</p>` : ''}</div>
     <div>${d.terminos.length ? `<h3>Términos y condiciones</h3><ul>${d.terminos.map((x) => `<li>${x}</li>`).join('')}</ul>` : ''}</div>
@@ -729,7 +741,7 @@ h4{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
 <div class="body">
   <h2>Detalle de la propuesta</h2>
   <div class="items">${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="n">${marca(d, it)}</div><div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</div><div class="v">${it.valor}${qty(it)}</div></div>`).join('')}</div>
-  ${side(pre(d), 440)}<div class="tot"><div><span>Total</span><strong>${d.total}</strong></div></div>${side(post(d), 440)}
+  ${envolver(d.bq.antes)}${side(pre(d), 440)}<div class="tot"><div><span>Total</span><strong>${d.total}</strong></div></div>${side(post(d), 440)}${envolver(d.bq.despues)}
   <div class="info">
     <div>
       ${d.tiempo ? `<div class="blk"><h4>Tiempo de entrega</h4><p class="pre">${d.tiempo}</p></div>` : ''}
@@ -813,7 +825,9 @@ const corporativa: Layout = {
 ${d.alcance ? `<div class="scope"><span class="lbl">Alcance</span><div class="pre">${d.alcance}</div></div>` : ''}
 <table class="items"><thead><tr><th>${colN(d, '#')}</th><th>Descripción</th><th class="v">Valor</th></tr></thead>
 <tbody>${d.items.map((it) => `${gTr(it, 3)}<tr${it.par ? ' class="z"' : ''}><td class="n">${marca(d, it)}</td><td><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : ''}</td><td class="v">${it.valor}${qty(it)}</td></tr>`).join('')}</tbody></table>
+${envolver(d.bq.antes, 'margin:0 72px')}
 <div class="sumwrap"><div class="sum">${pre(d)}<div class="totl"><span>Total</span><strong>${d.total}</strong></div>${post(d)}</div></div>
+${envolver(d.bq.despues, 'margin:0 72px')}
 <div class="cond">
   <div>
     ${d.tiempo ? `<div class="blk"><span class="lbl">Tiempo de entrega</span><p class="pre">${d.tiempo}</p></div>` : ''}
@@ -875,6 +889,7 @@ const mosaico: Layout = {
 .ft{background:var(--p);color:var(--onP);padding:22px 64px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-size:14px;margin-top:40px}
 .ft span{display:flex;align-items:center;gap:10px}
 .ft .ic{color:var(--sOnP)}
+.bq{margin-top:16px;background:#fff;border-radius:18px;padding:22px 24px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
 `,
   body: (d) => `
 <div class="hd">
@@ -889,6 +904,7 @@ const mosaico: Layout = {
   ${d.items.map((it) => `${gDiv(it)}<div class="it"><div class="ico">${marca(d, it)}</div><b>${tit(d, it)}</b>${it.desc ? `<p class="pre">${it.desc}</p>` : '<p></p>'}<div class="v">${it.valor}${qty(it)}</div></div>`).join('')}
   <div class="it tot${ultimos(d) % 2 === 0 ? ' ancho' : ''}">${pre(d)}<div class="lbl">Total</div><strong>${d.total}</strong>${post(d)}</div>
 </div>
+${envolver(d.bq.antes + d.bq.despues, 'padding:0 64px')}
 <div class="bottom">
   <div class="tile">
     ${d.tiempo ? `<div class="blk"><div class="lbl">Tiempo de entrega</div><p class="pre" style="color:var(--ink)">${d.tiempo}</p></div>` : ''}

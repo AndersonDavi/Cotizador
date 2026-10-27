@@ -339,6 +339,13 @@ export function itemsDeOpcion(c: Pick<Cotizacion, 'items'>, op: Opcion): Item[] 
   return c.items.filter((it) => ids.has(it.id));
 }
 
+/** "Solo en C. B + soporte" para un ítem que la opción recomendada no incluye; vacío si sí lo incluye o no hay opciones. */
+export function notaOpcion(c: Cotizacion, it: Item): string {
+  if (!conOpciones(c) || opcionRecomendada(c)!.items.includes(it.id)) return '';
+  const en = c.opciones!.filter((o) => o.items.includes(it.id)).map((o) => o.nombre);
+  return en.length ? `Solo en ${en.join(' y ')}` : 'No incluido en ninguna opción';
+}
+
 /** Totales de una opción: la misma cuenta de siempre (IVA, descuento) solo con sus ítems. */
 export function totalesOpcion(c: Cotizacion, op: Opcion): Totales {
   return totalesDe(c, itemsDeOpcion(c, op));
