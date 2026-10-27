@@ -12,6 +12,8 @@ npm run cli -- <comando> [argumentos]
 
 Alternativas: `.\cotizador.cmd <comando>` en Windows, o `cotizador <comando>` después de `npm link`. En los ejemplos se escribe `cotizador`.
 
+**En PowerShell** usa `.\cotizador.cmd …` o escribe `npm run cli '--' …` (con comillas): PowerShell se come el `--` sin comillas y npm se queda con las opciones del CLI (`--spec`, `-o`, `--pdf`), así que el comando llega incompleto.
+
 Requisitos: Node.js 22+ y Edge o Chrome instalado (solo para PDF y PNG; el resto funciona sin navegador).
 
 Reglas para agentes:

@@ -398,6 +398,10 @@ async function main() {
     }
     case 'nueva': {
       let spec: Spec;
+      // "nueva archivo.json" sin --spec: casi siempre es PowerShell, que con "npm run cli -- …" se come el "--" y npm se queda con --spec, -o y --pdf
+      if (!o.spec && !o.item?.length && arg && /\.json$/i.test(arg)) {
+        fail(`"${arg}" llegó sin --spec. Si usas PowerShell con npm, PowerShell se come el "--" y npm se queda con las opciones. Usa .\\cotizador.cmd nueva --spec "${arg}" … o npm run cli '--' nueva --spec …`);
+      }
       if (o.spec) {
         const raw = o.spec === '-' ? readFileSync(0, 'utf8') : readFileSync(resolve(o.spec), 'utf8');
         try { spec = JSON.parse(raw.replace(/^﻿/, '')); } catch { fail('--spec no es un JSON válido'); }
