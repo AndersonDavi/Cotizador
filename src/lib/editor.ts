@@ -38,6 +38,7 @@ import {
   PERIODOS,
   NOTA_TERCEROS,
   type ParteCobro,
+  type Hito,
   type Periodo,
   numeroVisible,
   numeroCuenta,
@@ -1356,21 +1357,96 @@ function renderHitos() {
   </div>`).join('');
   ($('hitosTipo') as HTMLElement).hidden = !l.length;
   $('hitosTipo').textContent = porValor ? 'Usar porcentajes' : 'Usar valores en pesos';
-  ($('hitosHint') as HTMLElement).hidden = l.length > 0;
   pintarHitos();
 }
 
-/** Suma del plan (o qué está mal) y el anticipo deshabilitado mientras haya hitos. */
+/** Suma del plan de pagos (o qué está mal). */
 function pintarHitos() {
   const l = state.hitos ?? [];
   const err = errorHitos(state);
   const el = $('hitosSuma');
-  el.hidden = !l.length;
+  el.hidden = !l.length || modoPago !== 'hitos';
   el.classList.toggle('err', !!err);
   el.textContent = err ? `Revisa: ${err}.` : `${valoresHitos(state).map((v) => formatCOP(v.valor)).join(' + ')} = ${formatCOP(totales(state).total)}`;
-  const ant = $in('anticipo');
-  ant.disabled = l.length > 0;
-  ant.title = l.length ? 'Con plan de pagos no se usa el anticipo' : '';
+}
+
+// ── Forma de pago: anticipo y saldo, todo contra entrega, por hitos o sin indicar ──
+// "Contra entrega" se guarda como un solo hito del 100 %, así el documento y Cobro
+// lo muestran sin cambiar el modelo de datos.
+
+type ModoPago = 'anticipo' | 'entrega' | 'hitos' | 'ninguno';
+let modoPago: ModoPago = 'ninguno';
+/** Lo último que tenía cada forma, para volver a ella sin perder lo escrito. */
+const memoPago: { anticipo?: number; hitos?: Hito[]; entrega?: string } = {};
+const PAGO_HINTS: Record<ModoPago, string> = {
+  anticipo: 'Bajo el total salen el anticipo y el saldo. En Cobro eliges cuál cobrar.',
+  entrega: 'El documento dice que el 100 % se paga en ese momento, sin anticipo.',
+  hitos: 'Divide el pago en partes ligadas a entregas (por ejemplo 30 % al iniciar, 40 % al entregar en pruebas y 30 % al salir en vivo). Deben sumar 100 %; en Cobro puedes cobrar cada una.',
+  ninguno: 'El documento no dice cómo se paga. Si quieres, explícalo en los términos.',
+};
+
+function modoPagoDe(c: Cotizacion): ModoPago {
+  const n = c.hitos?.length ?? 0;
+  if (n === 1 && (c.hitos![0].pct === 100 || c.hitos![0].valor != null)) return 'entrega';
+  if (n) return 'hitos';
+  return (Number(c.impuestos?.anticipo) || 0) > 0 ? 'anticipo' : 'ninguno';
+}
+
+function renderPago() {
+  document.querySelectorAll<HTMLElement>('#pagoSeg [data-pago]').forEach((b) => {
+    const on = b.dataset.pago === modoPago;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  ($('anticipoWrap') as HTMLElement).hidden = modoPago !== 'anticipo';
+  ($('entregaWrap') as HTMLElement).hidden = modoPago !== 'entrega';
+  ($('hitosWrap') as HTMLElement).hidden = modoPago !== 'hitos';
+  if (modoPago === 'entrega') $in('entregaCuando').value = state.hitos?.[0]?.condicion ?? '';
+  $('pagoHint').textContent = PAGO_HINTS[modoPago];
+  renderHitos();
+}
+
+function cambiarModoPago(m: ModoPago) {
+  if (m === modoPago) return;
+  // Guardar lo de la forma que se deja
+  if (modoPago === 'anticipo' && state.impuestos?.anticipo) memoPago.anticipo = state.impuestos.anticipo;
+  if (modoPago === 'hitos' && state.hitos?.length) memoPago.hitos = structuredClone(state.hitos);
+  if (modoPago === 'entrega' && state.hitos?.[0]?.condicion) memoPago.entrega = state.hitos[0].condicion;
+  const antes = Number(state.impuestos?.anticipo) || memoPago.anticipo || 50;
+  setImp({ anticipo: undefined });
+  state.hitos = undefined;
+  if (m === 'anticipo') setImp({ anticipo: memoPago.anticipo ?? 50 });
+  else if (m === 'entrega') state.hitos = [{ id: makeId(), nombre: 'Pago total', pct: 100, condicion: memoPago.entrega ?? 'Al entregar el proyecto funcionando' }];
+  else if (m === 'hitos') {
+    const a = Math.min(99, Math.max(1, antes));
+    state.hitos = memoPago.hitos ? structuredClone(memoPago.hitos) : [
+      { id: makeId(), nombre: 'Anticipo', pct: a, condicion: 'Al iniciar' },
+      { id: makeId(), nombre: 'Entrega', pct: 100 - a, condicion: 'Al entregar' },
+    ];
+  }
+  // Lo que se iba a cobrar puede no existir ya
+  const p = state.cobro?.parte;
+  if (p && p !== 'total' && !(p.startsWith('hito:') && state.hitos?.some((h) => `hito:${h.id}` === p))) state.cobro!.parte = undefined;
+  modoPago = m;
+  $in('anticipo').value = fmtNum(state.impuestos?.anticipo);
+  renderPago();
+  refresh();
+  if (m === 'anticipo') $in('anticipo').focus();
+  else if (m === 'entrega') $in('entregaCuando').focus();
+}
+
+function initPago() {
+  $('pagoSeg').addEventListener('click', (ev) => {
+    const m = (ev.target as HTMLElement).closest<HTMLElement>('[data-pago]')?.dataset.pago as ModoPago | undefined;
+    if (m) cambiarModoPago(m);
+  });
+  $in('entregaCuando').addEventListener('input', () => {
+    const h = state.hitos?.[0];
+    if (!h) return;
+    const v = $in('entregaCuando').value;
+    h.condicion = v.trim() ? v : undefined;
+    refresh();
+  });
 }
 
 function initHitos() {
@@ -2110,6 +2186,7 @@ function initExtras() {
   initPerfiles();
   initOpciones();
   initHitos();
+  initPago();
   initTerceros();
   initAtras();
 }
@@ -2279,7 +2356,9 @@ function hydrateForm() {
   $in('mostrarBanco').checked = state.mostrarBanco !== false;
   aplicarTipoPersona();
   ($('notaTerceros') as HTMLTextAreaElement).placeholder = NOTA_TERCEROS;
-  renderHitos();
+  modoPago = modoPagoDe(state);
+  delete memoPago.anticipo; delete memoPago.hitos; delete memoPago.entrega;
+  renderPago();
   renderTerceros();
   renderPerfiles();
   costoMoney?.paint();

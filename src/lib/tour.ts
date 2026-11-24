@@ -58,8 +58,9 @@ function stepsFor(id: TourId, ctx: TourCtx): DriveStep[] {
       s('cotizacion', '#clienteNombre', 'Cliente', 'Nombre y NIT de quien recibe la propuesta. También se usan en la cuenta de cobro.'),
       s('cotizacion', '#alcance', 'Alcance', 'Una frase que resume el trabajo, por ejemplo “Sitio web y tienda en línea”.'),
       s('cotizacion', '#totalBig', 'Total', 'Por defecto suma los ítems. Apaga “Sumar ítems” si quieres poner un valor global distinto.'),
-      s('cotizacion', '#hitosCard', 'Plan de pagos', `En proyectos largos divide el pago por hitos (30 % al iniciar, 40 % al entregar…). Reemplaza el anticipo y en Cobro puedes cobrar cada pago.${tip('Los porcentajes deben sumar 100 %: abajo ves la suma.')}`),
-      s('cotizacion', '#terminosList', 'Condiciones', 'Tiempo de entrega y términos: cada término en su propia línea (forma de pago, vigencia de la oferta…). Agrega o quita los que necesites.', 'top'),
+      s('cotizacion', '#tiempoEntrega', 'Tiempo de entrega', 'Cuánto tardas y desde cuándo cuenta, por ejemplo “20 días hábiles a partir del anticipo”. Sale en el documento.'),
+      s('cotizacion', '#pagoSeg', 'Forma de pago', `<b>Anticipo y saldo</b> (por ejemplo 50 % y 50 %), <b>todo contra entrega</b> o <b>por hitos</b> (30 % al iniciar, 40 % en pruebas…). En Cobro puedes cobrar cada parte.${tip('Por hitos, los porcentajes deben sumar 100 %: abajo ves la suma.')}`),
+      s('cotizacion', '#terminosList', 'Términos', 'Cada término en su propia línea (garantía, soporte, lo que no incluye…). Agrega o quita los que necesites.', 'top'),
       s('cotizacion', '#tercerosCard', 'Costos de terceros', 'Hosting, pasarela de pagos, licencias: lo que el cliente le paga a otros. Sale en una tabla aparte y nunca suma al total. Con valores en dólares pon la TRM para mostrar el equivalente.', 'top'),
     ],
     items: [

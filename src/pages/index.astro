@@ -200,29 +200,38 @@ const I = {
               <div class="tax-grid">
                 <label class="field" id="ivaTasaWrap">Tasa de IVA<span class="with-suffix"><input id="ivaTasa" type="text" inputmode="decimal" placeholder="19" /><i>%</i></span></label>
                 <label class="field">Descuento<span class="with-btn"><input id="descuento" type="text" inputmode="decimal" placeholder="0" /><button id="descTipo" type="button" class="icon-only" title="Cambiar entre porcentaje y valor">%</button></span></label>
-                <label class="field">Anticipo<span class="with-suffix"><input id="anticipo" type="text" inputmode="numeric" placeholder="0" /><i>%</i></span></label>
               </div>
               <dl id="desglose" class="desglose-ui" hidden></dl>
             </div>
 
-            <div class="card" id="hitosCard">
-              <h3 class="card-title">Plan de pagos <small>por hitos, en vez de anticipo y saldo</small></h3>
-              <div id="hitosList" class="hitos-list"></div>
-              <p id="hitosSuma" class="hitos-suma" hidden></p>
-              <div class="perfil-acciones">
-                <button id="hitoAdd" class="pill-btn" type="button">＋ Agregar pago</button>
-                <button id="hitosTipo" class="link-btn" type="button" hidden>Usar valores en pesos</button>
+            <div class="card" id="pagoCard">
+              <h3 class="card-title">Plazo y forma de pago</h3>
+              <label class="field">Tiempo de entrega <small>cuánto tardas y desde cuándo cuenta</small><textarea id="tiempoEntrega" class="auto" rows="2" placeholder="15 días hábiles a partir de la aprobación."></textarea></label>
+              <div class="field">¿Cómo te pagan?
+                <div id="pagoSeg" class="seg" role="radiogroup" aria-label="Forma de pago">
+                  <button type="button" data-pago="anticipo" style="--dot:#5aa9ff">Anticipo y saldo</button>
+                  <button type="button" data-pago="entrega" style="--dot:#4ec47e">Todo contra entrega</button>
+                  <button type="button" data-pago="hitos" style="--dot:#c084fc">Por hitos</button>
+                  <button type="button" data-pago="ninguno" style="--dot:#8b93a1">No indicar</button>
+                </div>
               </div>
-              <p class="hint" id="hitosHint">Divide el pago en partes ligadas a entregas (por ejemplo 30 % al iniciar, 40 % al entregar en pruebas y 30 % al salir en vivo). En Cobro puedes cobrar cada una.</p>
+              <label class="field" id="anticipoWrap" hidden>Anticipo <small>lo demás se paga al entregar</small><span class="with-suffix"><input id="anticipo" type="text" inputmode="numeric" placeholder="50" /><i>%</i></span></label>
+              <label class="field" id="entregaWrap" hidden>Cuándo se paga<input id="entregaCuando" type="text" placeholder="Al entregar el proyecto funcionando" /></label>
+              <div id="hitosWrap" hidden>
+                <div id="hitosList" class="hitos-list"></div>
+                <p id="hitosSuma" class="hitos-suma" hidden></p>
+                <div class="perfil-acciones">
+                  <button id="hitoAdd" class="pill-btn" type="button">＋ Agregar pago</button>
+                  <button id="hitosTipo" class="link-btn" type="button" hidden>Usar valores en pesos</button>
+                </div>
+              </div>
+              <p class="hint" id="pagoHint"></p>
             </div>
 
             <div class="card">
-              <h3 class="card-title">Condiciones</h3>
-              <label class="field">Tiempo de entrega<textarea id="tiempoEntrega" class="auto" rows="2" placeholder="15 días hábiles a partir de la aprobación."></textarea></label>
-              <div class="field">Términos y condiciones
-                <div id="terminosList" class="terms-list"></div>
-                <button id="addTermino" type="button" class="link-btn add-term"><Fragment set:html={I.plus} /> Agregar término</button>
-              </div>
+              <h3 class="card-title">Términos y condiciones</h3>
+              <div id="terminosList" class="terms-list"></div>
+              <button id="addTermino" type="button" class="link-btn add-term"><Fragment set:html={I.plus} /> Agregar término</button>
             </div>
 
             <div class="card" id="tercerosCard">
