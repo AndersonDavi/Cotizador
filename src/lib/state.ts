@@ -432,14 +432,17 @@ export function errorHitos(c: Cotizacion): string | null {
   return null;
 }
 
-/** "USD 24–48" / "$150.000" con su equivalente en pesos si hay TRM; vacío si no tiene valor. */
+/**
+ * "USD 24–48" / "$150.000 COP" con su equivalente en pesos si hay TRM ("≈ $96.000–$192.000 COP");
+ * vacío si no tiene valor. Los pesos siempre llevan "COP": junto a dólares, un "$" solo se confunde.
+ */
 export function valorTercero(ct: CostoTercero, trm?: number): { valor: string; cop: string } {
   if (ct.valor == null || !Number.isFinite(ct.valor)) return { valor: '', cop: '' };
   const usd = ct.moneda === 'USD';
   const n = (v: number) => (usd ? v.toLocaleString('es-CO', { maximumFractionDigits: 2 }) : formatCOP(v));
   const rango = ct.valorHasta != null && Number.isFinite(ct.valorHasta) && ct.valorHasta !== ct.valor;
-  const valor = `${usd ? 'USD ' : ''}${n(ct.valor)}${rango ? `–${n(ct.valorHasta!)}` : ''}`;
-  const cop = usd && trm && trm > 0 ? `≈ ${formatCOP(ct.valor * trm)}${rango ? `–${formatCOP(ct.valorHasta! * trm)}` : ''}` : '';
+  const valor = `${usd ? 'USD ' : ''}${n(ct.valor)}${rango ? `–${n(ct.valorHasta!)}` : ''}${usd ? '' : ' COP'}`;
+  const cop = usd && trm && trm > 0 ? `≈ ${formatCOP(ct.valor * trm)}${rango ? `–${formatCOP(ct.valorHasta! * trm)}` : ''} COP` : '';
   return { valor, cop };
 }
 

@@ -104,7 +104,7 @@ export function bloqueTerceros(c: Cotizacion): string {
   const usd = l.some((x) => x.moneda === 'USD' && x.valor != null);
   return `<section class="bq bq-terceros"><div class="bq-t">Costos de terceros <small>(no incluidos en el valor)</small></div>
 <table class="bq-tab"><thead><tr><th>Concepto</th><th>Proveedor</th><th class="bq-r">Valor</th><th>Periodicidad</th></tr></thead><tbody>${filas}</tbody></table>
-${usd && c.trm ? `<p class="bq-nota">Equivalencias con una TRM de referencia de ${formatCOP(c.trm)} por dólar.</p>` : ''}
+${usd && c.trm ? `<p class="bq-nota">Los valores con ≈ son el equivalente en pesos colombianos (COP), con una TRM de referencia de ${formatCOP(c.trm)} COP por dólar.</p>` : ''}
 <p class="bq-nota">${e(c.notaTerceros?.trim() || NOTA_TERCEROS)}</p></section>`;
 }
 

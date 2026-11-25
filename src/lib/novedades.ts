@@ -6,6 +6,14 @@ export type Novedad = { version: string; fecha: string; tipo: 'nueva' | 'arreglo
 
 export const NOVEDADES: Novedad[] = [
   {
+    version: '1.12.1',
+    fecha: '25-11-2026',
+    tipo: 'arreglo',
+    cambios: [
+      'Costos de terceros: el equivalente en pesos de un valor en dólares ahora dice "COP" (por ejemplo "≈ $28.800–$57.600 COP") y la nota aclara que es en pesos colombianos, para que no se lea como dólares.',
+    ],
+  },
+  {
     version: '1.12.0',
     fecha: '24-11-2026',
     tipo: 'nueva',

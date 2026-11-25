@@ -181,7 +181,7 @@ Lo que el cliente paga directamente a otros proveedores (hosting, base de datos,
   { "concepto": "Servidor VPS", "proveedor": "Hetzner", "valor": "24-48", "moneda": "USD", "periodo": "mensual" },
   { "concepto": "Pasarela de pagos", "proveedor": "Wompi", "periodo": "transaccion", "nota": "2,65 % + $700 + IVA por transacción" }
 ],
-"trm": 4000,                 // opcional: pesos por dólar, muestra "≈ $96.000–$192.000"
+"trm": 4000,                 // opcional: pesos por dólar, muestra "≈ $96.000–$192.000 COP"
 "notaTerceros": "…"          // opcional: nota al pie (por defecto: valores referenciales de las páginas de cada proveedor)
 ```
 
